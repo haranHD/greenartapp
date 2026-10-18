@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres-postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: greenart_postgres_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: greenart_dev
+      POSTGRES_USER: greenart_user
+      POSTGRES_PASSWORD: greenart_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../database/seeds:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U greenart_user -d greenart_dev" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local

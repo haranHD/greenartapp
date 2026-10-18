@@ -1,0 +1,8 @@
+{
+  "name": "@greenart/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API contracts and endpoint specifications for Greenart Properties",
+  "main": "index.json"
+}
+

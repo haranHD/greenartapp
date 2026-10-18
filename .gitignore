@@ -1,0 +1,75 @@
+# ==============================================================================
+# Greenart Properties — Land Market Rate Analyst
+# Root .gitignore
+# ==============================================================================
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment Variables & Secrets (NEVER COMMIT SECRETS)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.pfx
+*.keystore
+
+# .NET / C#
+bin/
+obj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+_ReSharper*/
+appsettings.Production.json
+appsettings.Staging.json
+
+# Node / JavaScript / TypeScript
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Expo / React Native
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.p12
+
+# Testing & Coverage
+TestResults/
+coverage/
+*.lcov
+.nyc_output/
+
+# IDEs & Editors
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Database & Local Infrastructure
+*.sqlite
+*.sqlite-journal
+*.dump
+*.backup
+postgres-data/
+
