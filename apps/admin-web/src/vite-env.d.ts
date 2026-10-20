@@ -9,6 +9,9 @@ declare namespace JSX {
 
 declare module 'react' {
   export const React: any;
+  export function useState<T>(initialState: T | (() => T)): [T, (newState: T | ((prevState: T) => T)) => void];
+  export function useEffect(effect: () => void | (() => void), deps?: readonly any[]): void;
+  export function useRef<T>(initialValue?: T): { current: T };
   export type FC<P = {}> = (props: P) => any;
   export type ReactNode = any;
   export default React;
@@ -41,4 +44,3 @@ declare module 'react-leaflet' {
   export const useMap: any;
   export const useMapEvents: any;
 }
-
