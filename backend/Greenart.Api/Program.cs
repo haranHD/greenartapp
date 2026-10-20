@@ -57,6 +57,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// Root redirect to Swagger
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
 // ---------------------------------------------------------
 // 1. Healthcheck Endpoint
 // ---------------------------------------------------------
