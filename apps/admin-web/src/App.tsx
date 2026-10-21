@@ -1,105 +1,161 @@
-import { useState, useEffect, useRef } from 'react';
-
-// Data model interfaces
-interface PilotRecord {
-  id: string;
-  locality: string;
-  taluk: string;
-  surveyNumber: string;
-  latitude: number;
-  longitude: number;
-  landUsage: string;
-  areaCents: number;
-  ratePerCent: number;
-  ratePerSqFt: number;
-  sourceCategory: 'VerifiedTransaction' | 'GovernmentGuideline' | 'AdvertisedAskingPrice' | 'ClientResearch';
-  sourceReference: string;
-  date: string;
-  verified: boolean;
-  notes: string;
-}
-
-// 13 Rich Pilot Records across Coimbatore localities
-const PILOT_RECORDS: PilotRecord[] = [
-  // Kannampalayam
-  { id: 'KP-01', locality: 'Kannampalayam', taluk: 'Sulur', surveyNumber: 'SF 142/2A', latitude: 11.0015, longitude: 77.0878, landUsage: 'Residential', areaCents: 3.5, ratePerCent: 1050000, ratePerSqFt: 2410, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Sulur Doc 3412/2023', date: '2023-11-14', verified: true, notes: 'Registered sale deed; rectangular plot facing 30ft road.' },
-  { id: 'KP-02', locality: 'Kannampalayam', taluk: 'Sulur', surveyNumber: 'SF 144/1', latitude: 11.0021, longitude: 77.0869, landUsage: 'Residential', areaCents: 4.0, ratePerCent: 1100000, ratePerSqFt: 2525, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Sulur Doc 1089/2024', date: '2024-02-20', verified: true, notes: 'DTCP approved layout with clear title.' },
-  { id: 'KP-03', locality: 'Kannampalayam', taluk: 'Sulur', surveyNumber: 'SF 143', latitude: 11.0008, longitude: 77.0881, landUsage: 'Residential', areaCents: 5.2, ratePerCent: 980000, ratePerSqFt: 2250, sourceCategory: 'AdvertisedAskingPrice', sourceReference: 'Local Classifieds #KP-94', date: '2024-04-10', verified: false, notes: 'Advertised broker asking rate; subject to negotiation margin.' },
-  { id: 'KP-04', locality: 'Kannampalayam', taluk: 'Sulur', surveyNumber: 'SF 138/B', latitude: 11.0030, longitude: 77.0855, landUsage: 'Residential', areaCents: 3.0, ratePerCent: 1020000, ratePerSqFt: 2342, sourceCategory: 'ClientResearch', sourceReference: 'Client Research: Kannampalayam Breakup', date: '2023-09-15', verified: false, notes: 'Client historical research document; labelled as research estimate.' },
-  { id: 'KP-05', locality: 'Kannampalayam', taluk: 'Sulur', surveyNumber: 'SF 140', latitude: 11.0010, longitude: 77.0870, landUsage: 'Residential', areaCents: 1.0, ratePerCent: 650000, ratePerSqFt: 1492, sourceCategory: 'GovernmentGuideline', sourceReference: 'TNREGINET 2024 Guideline Value', date: '2024-01-01', verified: true, notes: 'Statutory minimum guideline rate for stamp duty calculation.' },
-
-  // Sulur Corridor
-  { id: 'SL-01', locality: 'Sulur', taluk: 'Sulur', surveyNumber: 'SF 210/1', latitude: 11.0260, longitude: 77.1270, landUsage: 'Residential', areaCents: 4.5, ratePerCent: 1200000, ratePerSqFt: 2755, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Sulur Doc 844/2024', date: '2024-03-12', verified: true, notes: 'Corner plot with twin road frontage.' },
-  { id: 'SL-02', locality: 'Sulur', taluk: 'Sulur', surveyNumber: 'SF 215/3', latitude: 11.0272, longitude: 77.1281, landUsage: 'Residential', areaCents: 3.2, ratePerCent: 1180000, ratePerSqFt: 2709, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Sulur Doc 1420/2024', date: '2024-05-02', verified: true, notes: 'Encumbrance certificate audited clear.' },
-  { id: 'SL-03', locality: 'Sulur', taluk: 'Sulur', surveyNumber: 'SF 222', latitude: 11.0250, longitude: 77.1265, landUsage: 'Residential', areaCents: 5.0, ratePerCent: 1250000, ratePerSqFt: 2870, sourceCategory: 'AdvertisedAskingPrice', sourceReference: 'Online Portal #SLR-202', date: '2024-06-01', verified: false, notes: 'Asking price listing in Aerodrome vicinity.' },
-  { id: 'SL-04', locality: 'Sulur', taluk: 'Sulur', surveyNumber: 'SF 208', latitude: 11.0264, longitude: 77.1275, landUsage: 'Residential', areaCents: 1.0, ratePerCent: 800000, ratePerSqFt: 1837, sourceCategory: 'GovernmentGuideline', sourceReference: 'TNREGINET 2024 Guideline Value', date: '2024-01-01', verified: true, notes: 'Sulur central statutory guideline rate.' },
-
-  // Saravanampatti IT Corridor
-  { id: 'SP-01', locality: 'Saravanampatti', taluk: 'Coimbatore North', surveyNumber: 'SF 89/1', latitude: 11.0810, longitude: 76.9980, landUsage: 'Residential', areaCents: 3.0, ratePerCent: 1800000, ratePerSqFt: 4132, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Gandhipuram Doc 5122/2024', date: '2024-04-18', verified: true, notes: 'Fast-developing IT corridor residential layout.' },
-  { id: 'SP-02', locality: 'Saravanampatti', taluk: 'Coimbatore North', surveyNumber: 'SF 94/2', latitude: 11.0798, longitude: 76.9971, landUsage: 'Residential', areaCents: 4.0, ratePerCent: 1850000, ratePerSqFt: 4247, sourceCategory: 'VerifiedTransaction', sourceReference: 'SRO Gandhipuram Doc 6204/2024', date: '2024-05-29', verified: true, notes: 'Gated community development plot.' },
-  { id: 'SP-03', locality: 'Saravanampatti', taluk: 'Coimbatore North', surveyNumber: 'SF 101', latitude: 11.0819, longitude: 76.9965, landUsage: 'Residential', areaCents: 3.5, ratePerCent: 1900000, ratePerSqFt: 4362, sourceCategory: 'AdvertisedAskingPrice', sourceReference: 'Listing #SVP-882', date: '2024-06-12', verified: false, notes: 'Asking rate near tech park entrance.' },
-  { id: 'SP-04', locality: 'Saravanampatti', taluk: 'Coimbatore North', surveyNumber: 'SF 90', latitude: 11.0805, longitude: 76.9976, landUsage: 'Residential', areaCents: 1.0, ratePerCent: 1200000, ratePerSqFt: 2755, sourceCategory: 'GovernmentGuideline', sourceReference: 'TNREGINET 2024 Guideline Value', date: '2024-01-01', verified: true, notes: 'Saravanampatti statutory guideline benchmark.' },
-];
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  api,
+  ApiLandRecord,
+  LocalityReference,
+  HealthCheckResponse,
+  EstimateApiResponse,
+  CreateLandRecordPayload,
+} from './services/api';
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<'map' | 'records' | 'import' | 'guide'>('map');
+
+  // Health and connectivity
+  const [health, setHealth] = useState<HealthCheckResponse | null>(null);
+  const [isApiConnected, setIsApiConnected] = useState<boolean>(false);
+
+  // Map & Estimation Target
   const [targetLat, setTargetLat] = useState<number>(11.0012);
   const [targetLng, setTargetLng] = useState<number>(77.0874);
   const [selectedLocality, setSelectedLocality] = useState<string>('Kannampalayam');
   const [selectedUsage, setSelectedUsage] = useState<string>('Residential');
   const [radiusMeters] = useState<number>(1000);
+
+  // Data from backend
+  const [localities, setLocalities] = useState<LocalityReference[]>([]);
+  const [records, setRecords] = useState<ApiLandRecord[]>([]);
+  const [loadingRecords, setLoadingRecords] = useState<boolean>(false);
+  const [errorRecords, setErrorRecords] = useState<string | null>(null);
+
+  const [estimate, setEstimate] = useState<EstimateApiResponse | null>(null);
+  const [loadingEstimate, setLoadingEstimate] = useState<boolean>(false);
+  const [errorEstimate, setErrorEstimate] = useState<string | null>(null);
+
+  // Filters for Registry Tab
   const [filterLocality, setFilterLocality] = useState<string>('All');
   const [filterSource, setFilterSource] = useState<string>('All');
+
+  // Add Record Modal
+  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isSubmittingRecord, setIsSubmittingRecord] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const [addFormData, setAddFormData] = useState<CreateLandRecordPayload>({
+    locality: 'Kannampalayam',
+    taluk: 'Sulur',
+    streetOrLandmark: '',
+    surveyNumber: '',
+    latitude: 11.0015,
+    longitude: 77.0878,
+    landUsage: 1, // Residential
+    area: 3.5,
+    unit: 2, // Cent
+    price: 3675000,
+    sourceCategory: 2, // VerifiedTransaction
+    sourceReference: '',
+    notes: '',
+  });
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
 
-  // Haversine distance calculator (in meters)
-  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371000;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
+  // 1. Initial Health Check & Data Loading
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const h = await api.getHealth();
+        setHealth(h);
+        setIsApiConnected(h.status === 'Healthy' && h.database?.connected === true);
+      } catch {
+        setIsApiConnected(false);
+      }
+    };
 
-  // Find candidate records within radius
-  const nearbyRecords = PILOT_RECORDS.filter((r) => {
-    const distance = getDistanceMeters(targetLat, targetLng, r.latitude, r.longitude);
-    return distance <= radiusMeters && (selectedUsage === 'All' || r.landUsage === selectedUsage);
-  });
+    const loadLocalities = async () => {
+      try {
+        const locs = await api.getReferenceLocalities();
+        setLocalities(locs);
+      } catch (err: any) {
+        console.error('Failed to load reference localities:', err);
+      }
+    };
 
-  // Calculate statistics (Median, IQR)
-  const isSufficient = nearbyRecords.length >= 3;
-  const centRates = nearbyRecords.map((r) => r.ratePerCent).sort((a, b) => a - b);
-  const sqftRates = nearbyRecords.map((r) => r.ratePerSqFt).sort((a, b) => a - b);
+    checkHealth();
+    loadLocalities();
+  }, []);
 
-  const getPercentile = (arr: number[], p: number) => {
-    if (arr.length === 0) return 0;
-    if (arr.length === 1) return arr[0];
-    const index = p * (arr.length - 1);
-    const lower = Math.floor(index);
-    const upper = Math.ceil(index);
-    if (lower === upper) return arr[lower];
-    return Math.round(arr[lower] + (index - lower) * (arr[upper] - arr[lower]));
-  };
+  // 2. Fetch Land Records from PostgreSQL
+  const fetchRecords = React.useCallback(async () => {
+    setLoadingRecords(true);
+    setErrorRecords(null);
+    try {
+      const data = await api.getLandRecords(
+        filterLocality !== 'All' ? filterLocality : undefined,
+        undefined,
+        filterSource !== 'All' ? getSourceCategoryInt(filterSource) : undefined
+      );
+      setRecords(data);
+    } catch (err: any) {
+      setErrorRecords(err.message || 'Failed to load land records from database.');
+    } finally {
+      setLoadingRecords(false);
+    }
+  }, [filterLocality, filterSource]);
 
-  const medianCent = getPercentile(centRates, 0.5);
-  const q1Cent = getPercentile(centRates, 0.25);
-  const q3Cent = getPercentile(centRates, 0.75);
-  const minCent = centRates[0] || 0;
-  const maxCent = centRates[centRates.length - 1] || 0;
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
 
-  const medianSqFt = getPercentile(sqftRates, 0.5);
-  const q1SqFt = getPercentile(sqftRates, 0.25);
-  const q3SqFt = getPercentile(sqftRates, 0.75);
+  // 3. Fetch Live Spatial Estimate from PostGIS Backend
+  const fetchEstimate = React.useCallback(async (lat: number, lng: number, usage: string) => {
+    setLoadingEstimate(true);
+    setErrorEstimate(null);
+    try {
+      const usageInt = getLandUsageInt(usage);
+      const res = await api.calculateEstimate(lat, lng, usageInt, radiusMeters);
+      setEstimate(res);
+    } catch (err: any) {
+      setErrorEstimate(err.message || 'Failed to calculate spatial estimate.');
+      setEstimate(null);
+    } finally {
+      setLoadingEstimate(false);
+    }
+  }, [radiusMeters]);
 
-  const guidelineRecord = nearbyRecords.find((r) => r.sourceCategory === 'GovernmentGuideline');
+  useEffect(() => {
+    if (activeTab === 'map') {
+      fetchEstimate(targetLat, targetLng, selectedUsage);
+    }
+  }, [activeTab, targetLat, targetLng, selectedUsage, fetchEstimate]);
 
-  // Initialize or update Leaflet Map
+  // Helper mappings
+  function getLandUsageInt(usage: string): number {
+    switch (usage) {
+      case 'Residential': return 1;
+      case 'Commercial': return 2;
+      case 'AgriculturalWet':
+      case 'Agricultural': return 3;
+      case 'AgriculturalDry': return 4;
+      case 'Industrial': return 5;
+      case 'MixedUse': return 6;
+      default: return 1;
+    }
+  }
+
+  function getSourceCategoryInt(src: string): number {
+    switch (src) {
+      case 'GovernmentGuideline': return 1;
+      case 'VerifiedTransaction': return 2;
+      case 'AdvertisedAskingPrice': return 3;
+      case 'ClientResearch': return 4;
+      case 'SyntheticFixture': return 5;
+      default: return 0;
+    }
+  }
+
+  // 4. Initialize & Update Leaflet Map with Real Database Records
   useEffect(() => {
     if (activeTab !== 'map') return;
 
@@ -111,9 +167,17 @@ export const App = () => {
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(mapInstanceRef.current);
+
+      // Interactive Map Click: allow clicking anywhere to update target coordinates
+      mapInstanceRef.current.on('click', (e: any) => {
+        const clickedLat = Math.round(e.latlng.lat * 10000) / 10000;
+        const clickedLng = Math.round(e.latlng.lng * 10000) / 10000;
+        setTargetLat(clickedLat);
+        setTargetLng(clickedLng);
+        setSelectedLocality('Custom Coordinate');
+      });
     } else {
       mapInstanceRef.current.setView([targetLat, targetLng], 15);
-      // Clear existing layers other than base tilelayer
       mapInstanceRef.current.eachLayer((layer: any) => {
         if (layer instanceof L.Marker || layer instanceof L.Circle) {
           mapInstanceRef.current.removeLayer(layer);
@@ -123,7 +187,7 @@ export const App = () => {
 
     const map = mapInstanceRef.current;
 
-    // 1. Draw Target Pin
+    // Target Marker
     const targetIcon = L.divIcon({
       className: 'target-pin-icon',
       html: `<div style="background:#1b5e20;color:#fff;border:2px solid #fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.3);">📍</div>`,
@@ -132,10 +196,10 @@ export const App = () => {
     });
     L.marker([targetLat, targetLng], { icon: targetIcon })
       .addTo(map)
-      .bindPopup(`<strong>Target Search Center</strong><br/>${selectedLocality}<br/>Lat: ${targetLat}, Lng: ${targetLng}`)
+      .bindPopup(`<strong>Target Estimation Center</strong><br/>${selectedLocality}<br/>Lat: ${targetLat}, Lng: ${targetLng}`)
       .openPopup();
 
-    // 2. Draw 1,000m radius circle
+    // 1,000m Spatial Buffer Circle
     L.circle([targetLat, targetLng], {
       color: '#1b5e20',
       fillColor: '#4caf50',
@@ -145,8 +209,8 @@ export const App = () => {
       weight: 2,
     }).addTo(map);
 
-    // 3. Draw nearby records
-    nearbyRecords.forEach((r) => {
+    // Plot real database records on the map
+    records.forEach((r) => {
       const color =
         r.sourceCategory === 'VerifiedTransaction'
           ? '#2e7d32'
@@ -165,9 +229,15 @@ export const App = () => {
 
       L.marker([r.latitude, r.longitude], { icon: dotIcon })
         .addTo(map)
-        .bindPopup(`<strong>${r.surveyNumber || r.locality}</strong><br/>Rate: ₹${(r.ratePerCent / 100000).toFixed(2)} L/Cent (₹${r.ratePerSqFt}/sq.ft)<br/>Category: <em>${r.sourceCategory}</em><br/>Date: ${r.date}`);
+        .bindPopup(
+          `<strong>${r.surveyNumber || r.locality}</strong><br/>` +
+          `Rate: ₹${(r.normalizedRatePerCent / 100000).toFixed(2)} L/Cent (₹${r.normalizedRatePerSqFt}/sq.ft)<br/>` +
+          `Category: <em>${r.sourceCategory}</em><br/>` +
+          `Status: <strong>${r.verificationStatus}</strong><br/>` +
+          `Date: ${new Date(r.observationDate).toLocaleDateString()}`
+        );
     });
-  }, [activeTab, targetLat, targetLng, radiusMeters, nearbyRecords.length]);
+  }, [activeTab, targetLat, targetLng, radiusMeters, records]);
 
   const handleSelectPilotLocality = (loc: string, lat: number, lng: number) => {
     setSelectedLocality(loc);
@@ -175,12 +245,38 @@ export const App = () => {
     setTargetLng(lng);
   };
 
-  // Filter records tab
-  const filteredRecords = PILOT_RECORDS.filter((r) => {
-    const matchLoc = filterLocality === 'All' || r.locality === filterLocality;
-    const matchSrc = filterSource === 'All' || r.sourceCategory === filterSource;
-    return matchLoc && matchSrc;
-  });
+  // 5. Verification Moderation Handler
+  const handleModerateStatus = async (recordId: string, newStatus: number, defaultNote: string) => {
+    try {
+      await api.updateVerificationStatus(recordId, newStatus, defaultNote);
+      setNotification(`Record status updated successfully.`);
+      setTimeout(() => setNotification(null), 4000);
+      await fetchRecords();
+      await fetchEstimate(targetLat, targetLng, selectedUsage);
+    } catch (err: any) {
+      alert(`Moderation Failed: ${err.message}`);
+    }
+  };
+
+  // 6. Handle New Record Creation Submission
+  const handleCreateRecordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingRecord(true);
+    setSubmitError(null);
+
+    try {
+      await api.createLandRecord(addFormData);
+      setNotification(`New land record saved to PostgreSQL database!`);
+      setTimeout(() => setNotification(null), 4000);
+      setIsAddModalOpen(false);
+      await fetchRecords();
+      await fetchEstimate(targetLat, targetLng, selectedUsage);
+    } catch (err: any) {
+      setSubmitError(err.message || 'Failed to create land record.');
+    } finally {
+      setIsSubmittingRecord(false);
+    }
+  };
 
   return (
     <div className="admin-app">
@@ -194,11 +290,22 @@ export const App = () => {
           </div>
         </div>
         <div className="header-right">
-          <span className="live-tag live-tag-active">● API Connected (Port 5039)</span>
-          <span className="live-tag">📍 Coimbatore Pilot Active</span>
+          <span className={`live-tag ${isApiConnected ? 'live-tag-active' : ''}`}>
+            {isApiConnected ? `● Live API Connected (Port 5039)` : `⚠️ API Disconnected`}
+          </span>
+          <span className="live-tag">
+            {health?.database?.postgisVersion ? `🐘 PostGIS Active` : `PostGIS 3.4`}
+          </span>
           <span className="live-tag">🎯 Radius: 1,000m</span>
         </div>
       </header>
+
+      {/* Global Notifications */}
+      {notification && (
+        <div style={{ background: '#dcfce7', color: '#166534', padding: '0.75rem 2rem', fontWeight: 600, borderBottom: '1px solid #86efac' }}>
+          ✅ {notification}
+        </div>
+      )}
 
       {/* Tabs Menu */}
       <nav className="tabs-nav">
@@ -206,7 +313,7 @@ export const App = () => {
           🗺️ Spatial Estimation & Map
         </button>
         <button className={`tab-btn ${activeTab === 'records' ? 'active' : ''}`} onClick={() => setActiveTab('records')}>
-          📋 Pilot Land Records ({PILOT_RECORDS.length})
+          📋 Database Land Records ({records.length})
         </button>
         <button className={`tab-btn ${activeTab === 'import' ? 'active' : ''}`} onClick={() => setActiveTab('import')}>
           📤 Batch Ingestion & Validation
@@ -227,29 +334,20 @@ export const App = () => {
             <div className="card pilot-selector-card">
               <span className="selector-label">🎯 Fast Pilot Location Select:</span>
               <div className="chip-group">
-                <button
-                  className={`chip ${selectedLocality === 'Kannampalayam' ? 'chip-active' : ''}`}
-                  onClick={() => handleSelectPilotLocality('Kannampalayam', 11.0012, 77.0874)}
-                >
-                  📍 Kannampalayam (Trichy Rd Sector)
-                </button>
-                <button
-                  className={`chip ${selectedLocality === 'Sulur' ? 'chip-active' : ''}`}
-                  onClick={() => handleSelectPilotLocality('Sulur', 11.0264, 77.1275)}
-                >
-                  📍 Sulur Corridor (Aerodrome Zone)
-                </button>
-                <button
-                  className={`chip ${selectedLocality === 'Saravanampatti' ? 'chip-active' : ''}`}
-                  onClick={() => handleSelectPilotLocality('Saravanampatti', 11.0805, 76.9976)}
-                >
-                  📍 Saravanampatti (IT Corridor)
-                </button>
+                {localities.map((loc) => (
+                  <button
+                    key={loc.name}
+                    className={`chip ${selectedLocality === loc.name ? 'chip-active' : ''}`}
+                    onClick={() => handleSelectPilotLocality(loc.name, loc.latitude, loc.longitude)}
+                  >
+                    📍 {loc.name} ({loc.recordCount} DB records)
+                  </button>
+                ))}
                 <button
                   className={`chip chip-warning ${selectedLocality === 'Remote Unmapped' ? 'chip-active' : ''}`}
                   onClick={() => handleSelectPilotLocality('Remote Unmapped', 11.15, 77.2)}
                 >
-                  ⚠️ Test Remote Sparse Area (Lat: 11.15, Lng: 77.20)
+                  ⚠️ Test Sparse Location (Lat: 11.15, Lng: 77.20)
                 </button>
               </div>
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -262,7 +360,6 @@ export const App = () => {
                   <option value="Residential">Residential</option>
                   <option value="Commercial">Commercial</option>
                   <option value="Agricultural">Agricultural</option>
-                  <option value="All">All Classifications</option>
                 </select>
               </div>
             </div>
@@ -275,6 +372,9 @@ export const App = () => {
                   <span className="badge badge-green">ST_DWithin Active</span>
                 </div>
                 <div ref={mapContainerRef} className="leaflet-map-wrapper"></div>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.5rem' }}>
+                  💡 <em>Click anywhere on the map to query comparable records at that exact coordinate.</em>
+                </p>
                 <div className="map-legend">
                   <span><strong>Legend:</strong></span>
                   <span className="legend-item"><span className="dot dot-green"></span> Verified Transaction</span>
@@ -284,88 +384,117 @@ export const App = () => {
                 </div>
               </div>
 
-              {/* Right Column: Estimation Results */}
+              {/* Right Column: Live Backend Estimation Results */}
               <div className="card results-card">
                 <div className="card-header">
                   <h3>Indicative Market Valuation Engine</h3>
-                  <span className={`badge ${isSufficient ? 'badge-green' : 'badge-danger'}`}>
-                    {isSufficient ? 'Confidence: High (5 Records)' : 'Insufficient Data'}
-                  </span>
+                  {loadingEstimate ? (
+                    <span className="badge badge-light">Calculating...</span>
+                  ) : estimate?.status === 'Success' ? (
+                    <span className="badge badge-green">
+                      Confidence: {estimate.confidence} ({estimate.comparableRecordCount} Records)
+                    </span>
+                  ) : (
+                    <span className="badge badge-danger">Insufficient Data</span>
+                  )}
                 </div>
 
-                {isSufficient ? (
+                {errorEstimate && (
+                  <div className="error-banner">
+                    <span>{errorEstimate}</span>
+                    <button className="btn btn-sm btn-secondary" onClick={() => fetchEstimate(targetLat, targetLng, selectedUsage)}>
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {loadingEstimate && (
+                  <div className="loading-indicator">
+                    <span>Querying PostGIS spatial records within 1,000m...</span>
+                  </div>
+                )}
+
+                {!loadingEstimate && estimate?.status === 'Success' && (
                   <div className="estimation-body">
                     <div className="price-hero">
                       <span className="hero-label">Estimated Indicative Market Rate (Median)</span>
                       <div className="hero-price">
-                        ₹{(medianCent / 100000).toFixed(2)} Lakhs <span className="unit">/ Cent</span>
+                        ₹{(estimate.priceRangePerCent.medianRate / 100000).toFixed(2)} Lakhs <span className="unit">/ Cent</span>
                       </div>
                       <div className="hero-subprice">
-                        Equivalent to <strong>₹{medianSqFt.toLocaleString()}</strong> / Sq.Ft
+                        Equivalent to <strong>₹{estimate.priceRangePerSqFt.medianRate.toLocaleString()}</strong> / Sq.Ft
                       </div>
                     </div>
 
                     <div className="stats-row">
                       <div className="stat-box">
                         <span className="stat-label">Interquartile Band (25% - 75%)</span>
-                        <span className="stat-val">₹{(q1Cent / 100000).toFixed(2)}L – ₹{(q3Cent / 100000).toFixed(2)}L / Cent</span>
-                        <span className="stat-sub">(₹{q1SqFt} – ₹{q3SqFt}/sq.ft)</span>
+                        <span className="stat-val">
+                          ₹{(estimate.priceRangePerCent.percentile25 / 100000).toFixed(2)}L – ₹{(estimate.priceRangePerCent.percentile75 / 100000).toFixed(2)}L / Cent
+                        </span>
+                        <span className="stat-sub">
+                          (₹{estimate.priceRangePerSqFt.percentile25} – ₹{estimate.priceRangePerSqFt.percentile75}/sq.ft)
+                        </span>
                       </div>
                       <div className="stat-box">
                         <span className="stat-label">Full Range (Min – Max)</span>
-                        <span className="stat-val">₹{(minCent / 100000).toFixed(2)}L – ₹{(maxCent / 100000).toFixed(2)}L / Cent</span>
-                        <span className="stat-sub">{nearbyRecords.length} records within 1 km</span>
+                        <span className="stat-val">
+                          ₹{(estimate.priceRangePerCent.minRate / 100000).toFixed(2)}L – ₹{(estimate.priceRangePerCent.maxRate / 100000).toFixed(2)}L / Cent
+                        </span>
+                        <span className="stat-sub">{estimate.comparableRecordCount} records within 1 km</span>
                       </div>
                     </div>
 
                     {/* Government Guideline Benchmark Box */}
-                    {guidelineRecord && (
+                    {estimate.governmentGuidelineReference && (
                       <div className="guideline-box">
                         <div className="guideline-header">
                           🏛️ <strong>Official Government Guideline Reference</strong>
                         </div>
                         <div className="guideline-content">
-                          <div>Statutory Benchmark: <strong>₹{(guidelineRecord.ratePerCent / 100000).toFixed(2)} L/Cent</strong> (₹{guidelineRecord.ratePerSqFt}/sq.ft)</div>
+                          <div>
+                            Statutory Benchmark: <strong>₹{(estimate.governmentGuidelineReference.guidelineRatePerCent / 100000).toFixed(2)} L/Cent</strong> (₹{estimate.governmentGuidelineReference.guidelineRatePerSqFt}/sq.ft)
+                          </div>
                           <p className="guideline-note">
-                            <strong>Strict Rule:</strong> The government guideline value is the statutory minimum for stamp duty calculation. It is strictly kept separate and NEVER presented as an actual market sale price.
+                            <strong>Strict Rule:</strong> {estimate.governmentGuidelineReference.legalNotice}
                           </p>
                         </div>
                       </div>
                     )}
 
                     <div className="provenance-breakdown">
-                      <h4>Comparable Records Breakdown within 1,000m:</h4>
+                      <h4>Evidence Composition Breakdown:</h4>
                       <ul>
-                        {nearbyRecords.map((r) => (
-                          <li key={r.id}>
-                            <span className={`tag tag-${r.sourceCategory.toLowerCase()}`}>{r.sourceCategory}</span>
-                            <strong>{r.surveyNumber || r.locality}</strong>: ₹{(r.ratePerCent / 100000).toFixed(2)} L/Cent (₹{r.ratePerSqFt}/sq.ft) — <em>{r.sourceReference}</em>
+                        {estimate.sourceBreakdown.map((s) => (
+                          <li key={s.category}>
+                            <span className={`tag tag-${s.category.toLowerCase()}`}>{s.category}</span>
+                            <strong>{s.count}</strong> record(s)
                           </li>
                         ))}
                       </ul>
                     </div>
 
                     <div className="disclaimer-box">
-                      ⚖️ <strong>Legal Notice:</strong> This is a statistical estimation derived from verified and documented comparable records within 1,000m. It does not constitute a guaranteed sale price, official government valuation, or financial commitment.
+                      ⚖️ <strong>Legal Notice:</strong> {estimate.disclaimer}
                     </div>
                   </div>
-                ) : (
+                )}
+
+                {!loadingEstimate && estimate?.status === 'InsufficientData' && (
                   <div className="insufficient-body">
                     <div className="warning-banner">
                       ⚠️ <strong>Transparent Insufficient Data Warning</strong>
                     </div>
-                    <p>
-                      Only <strong>{nearbyRecords.length} comparable record(s)</strong> found within 1,000 meters of Lat: {targetLat}, Lng: {targetLng}.
-                    </p>
+                    <p>{estimate.message}</p>
                     <p className="rule-quote">
-                      <strong>Core Quality Rule:</strong> A minimum of <strong>3 comparable records</strong> is strictly required to generate an honest market estimate. Greenart Properties never invents fake prices or guesses when evidence is inadequate.
+                      <strong>Core Quality Rule:</strong> A minimum of <strong>{estimate.minimumRequiredRecords} comparable records</strong> is strictly required to generate an honest market estimate. Greenart Properties never invents fake prices or guesses when evidence is inadequate.
                     </p>
                     <div className="recommendations-box">
                       <strong>Recommended Actions:</strong>
                       <ul>
-                        <li>Expand radius to 2,000m for rural/agricultural parcels.</li>
-                        <li>Dispatch surveyor for physical field research and guideline documentation.</li>
-                        <li>Switch to pilot hubs (Kannampalayam or Sulur) to view calibrated datasets.</li>
+                        {estimate.recommendations.map((rec, i) => (
+                          <li key={i}>{rec}</li>
+                        ))}
                       </ul>
                     </div>
                   </div>
@@ -383,68 +512,114 @@ export const App = () => {
             <div className="card">
               <div className="card-header">
                 <div>
-                  <h3>Coimbatore Pilot Land Records Registry</h3>
-                  <p className="subtitle">All persistent land records with full provenance, coordinates, and classification.</p>
+                  <h3>PostgreSQL Land Records Registry</h3>
+                  <p className="subtitle">Database records retrieved live from PostgreSQL + PostGIS on port 5433.</p>
                 </div>
-                <div className="filter-controls">
-                  <select value={filterLocality} onChange={(e) => setFilterLocality(e.target.value)}>
-                    <option value="All">All Localities</option>
-                    <option value="Kannampalayam">Kannampalayam</option>
-                    <option value="Sulur">Sulur</option>
-                    <option value="Saravanampatti">Saravanampatti</option>
-                  </select>
-                  <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
-                    <option value="All">All Source Categories</option>
-                    <option value="VerifiedTransaction">Verified Transaction</option>
-                    <option value="GovernmentGuideline">Government Guideline</option>
-                    <option value="AdvertisedAskingPrice">Advertised Asking Price</option>
-                    <option value="ClientResearch">Client Research</option>
-                  </select>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
+                    ➕ Add Land Record
+                  </button>
+                  <div className="filter-controls">
+                    <select value={filterLocality} onChange={(e) => setFilterLocality(e.target.value)}>
+                      <option value="All">All Localities</option>
+                      {localities.map((l) => (
+                        <option key={l.name} value={l.name}>{l.name}</option>
+                      ))}
+                    </select>
+                    <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)}>
+                      <option value="All">All Categories</option>
+                      <option value="VerifiedTransaction">Verified Transaction</option>
+                      <option value="GovernmentGuideline">Government Guideline</option>
+                      <option value="AdvertisedAskingPrice">Advertised Asking Price</option>
+                      <option value="ClientResearch">Client Research</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
-              <div className="table-responsive">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Survey No / ID</th>
-                      <th>Locality & Taluk</th>
-                      <th>Coordinates</th>
-                      <th>Usage</th>
-                      <th>Area</th>
-                      <th>Rate / Cent</th>
-                      <th>Rate / Sq.Ft</th>
-                      <th>Source Category</th>
-                      <th>Status</th>
-                      <th>Audit Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRecords.map((r) => (
-                      <tr key={r.id}>
-                        <td><strong>{r.surveyNumber}</strong><br /><small>{r.id}</small></td>
-                        <td>{r.locality}<br /><small>{r.taluk}</small></td>
-                        <td><small>{r.latitude.toFixed(4)}, {r.longitude.toFixed(4)}</small></td>
-                        <td><span className="badge badge-light">{r.landUsage}</span></td>
-                        <td>{r.areaCents} Cents</td>
-                        <td><strong>₹{(r.ratePerCent / 100000).toFixed(2)} L</strong></td>
-                        <td>₹{r.ratePerSqFt.toLocaleString()}</td>
-                        <td>
-                          <span className={`tag tag-${r.sourceCategory.toLowerCase()}`}>
-                            {r.sourceCategory}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`status-pill ${r.verified ? 'status-ready' : 'status-pending'}`}>
-                            {r.verified ? 'Verified' : 'Unverified'}
-                          </span>
-                        </td>
-                        <td><small>{r.notes}</small></td>
+              {errorRecords && (
+                <div className="error-banner">
+                  <span>{errorRecords}</span>
+                  <button className="btn btn-sm btn-secondary" onClick={fetchRecords}>Retry</button>
+                </div>
+              )}
+
+              {loadingRecords ? (
+                <div className="loading-indicator">
+                  <span>Loading records from database...</span>
+                </div>
+              ) : records.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                  No land records found matching the selected filters.
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Survey No / ID</th>
+                        <th>Locality & Taluk</th>
+                        <th>Coordinates</th>
+                        <th>Usage</th>
+                        <th>Area</th>
+                        <th>Rate / Cent</th>
+                        <th>Rate / Sq.Ft</th>
+                        <th>Source Category</th>
+                        <th>Status</th>
+                        <th>Audit Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {records.map((r) => (
+                        <tr key={r.id}>
+                          <td>
+                            <strong>{r.surveyNumber || 'N/A'}</strong><br />
+                            <small title={r.id} style={{ fontFamily: 'monospace' }}>{r.id.substring(0, 8)}...</small>
+                          </td>
+                          <td>{r.locality}<br /><small>{r.taluk || '-'}</small></td>
+                          <td><small>{r.latitude.toFixed(4)}, {r.longitude.toFixed(4)}</small></td>
+                          <td><span className="badge badge-light">{r.landUsage}</span></td>
+                          <td>{r.originalArea} {r.originalUnit}</td>
+                          <td><strong>₹{(r.normalizedRatePerCent / 100000).toFixed(2)} L</strong></td>
+                          <td>₹{r.normalizedRatePerSqFt.toLocaleString()}</td>
+                          <td>
+                            <span className={`tag tag-${r.sourceCategory.toLowerCase()}`}>
+                              {r.sourceCategory}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-pill ${r.verificationStatus === 'Verified' ? 'status-ready' : 'status-pending'}`}>
+                              {r.verificationStatus}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="action-btn-group">
+                              {r.verificationStatus !== 'Verified' && (
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => handleModerateStatus(r.id, 2, 'Verified via Admin Web Audit')}
+                                  title="Audit and verify this land record"
+                                >
+                                  ✓ Verify
+                                </button>
+                              )}
+                              {r.verificationStatus !== 'Rejected' && (
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleModerateStatus(r.id, 3, 'Rejected due to insufficient audit evidence')}
+                                  title="Reject unverified listing"
+                                >
+                                  ✕ Reject
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -457,26 +632,26 @@ export const App = () => {
             <div className="card">
               <div className="card-header">
                 <div>
-                  <h3>Batch CSV / Excel Dataset Ingestion</h3>
-                  <p className="subtitle">Upload land records with row-by-row validation, coordinate bounding, and error reporting.</p>
+                  <h3>Batch Dataset Ingestion Pipeline</h3>
+                  <p className="subtitle">Upload land records with validation, PostGIS coordinate bounding, and error reporting.</p>
                 </div>
               </div>
 
               <div className="upload-dropzone">
                 <div className="upload-icon">📁</div>
                 <h4>Drag & Drop CSV / Excel Spreadsheet here</h4>
-                <p>Supports .csv, .xlsx, .ods (Max 10MB per file)</p>
-                <button className="btn btn-primary" onClick={() => alert('Simulated CSV parser: In production, connects to POST /api/v1/admin/imports/csv')}>
-                  Browse Files...
+                <p>Supports .csv, .xlsx (Row-by-row PostGIS bounding validation)</p>
+                <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
+                  Add Record Directly via Validated Form...
                 </button>
               </div>
 
               <div className="validation-preview">
-                <h4>Mandatory CSV Column Schema & Validation Rules:</h4>
+                <h4>Mandatory Validation & Security Rules:</h4>
                 <div className="schema-grid">
                   <div className="schema-card">
                     <strong>1. Geographic Pinning</strong>
-                    <p>Latitude [-90 to 90], Longitude [-180 to 180]. Must fall within configured state/district boundary.</p>
+                    <p>Latitude [-90 to 90], Longitude [-180 to 180]. Persisted as PostGIS geography Point (SRID 4326).</p>
                   </div>
                   <div className="schema-card">
                     <strong>2. Area Unit Normalization</strong>
@@ -484,7 +659,7 @@ export const App = () => {
                   </div>
                   <div className="schema-card">
                     <strong>3. Source Categorization</strong>
-                    <p>Must be strictly tagged as GovernmentGuideline, VerifiedTransaction, AdvertisedAsking, or ClientResearch.</p>
+                    <p>Must be strictly tagged as GovernmentGuideline, VerifiedTransaction, AdvertisedAskingPrice, or ClientResearch.</p>
                   </div>
                   <div className="schema-card">
                     <strong>4. Default Status</strong>
@@ -542,10 +717,214 @@ export const App = () => {
         )}
       </main>
 
+      {/* ============================================================== */}
+      {/* ADD NEW LAND RECORD MODAL */}
+      {/* ============================================================== */}
+      {isAddModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>➕ Add New Land Price Record</h3>
+              <button className="modal-close-btn" onClick={() => setIsAddModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleCreateRecordSubmit}>
+              <div className="modal-body">
+                {submitError && (
+                  <div className="error-banner">
+                    <span>{submitError}</span>
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Locality *</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={addFormData.locality}
+                      onChange={(e) => setAddFormData({ ...addFormData, locality: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Taluk</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={addFormData.taluk || ''}
+                      onChange={(e) => setAddFormData({ ...addFormData, taluk: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Survey Number</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. SF 145/2"
+                      value={addFormData.surveyNumber || ''}
+                      onChange={(e) => setAddFormData({ ...addFormData, surveyNumber: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Street / Landmark</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g. Near Panchayat Office"
+                      value={addFormData.streetOrLandmark || ''}
+                      onChange={(e) => setAddFormData({ ...addFormData, streetOrLandmark: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Latitude * (-90 to 90)</label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      className="form-control"
+                      value={addFormData.latitude}
+                      onChange={(e) => setAddFormData({ ...addFormData, latitude: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Longitude * (-180 to 180)</label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      className="form-control"
+                      value={addFormData.longitude}
+                      onChange={(e) => setAddFormData({ ...addFormData, longitude: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Land Usage *</label>
+                    <select
+                      className="form-control"
+                      value={addFormData.landUsage}
+                      onChange={(e) => setAddFormData({ ...addFormData, landUsage: parseInt(e.target.value) })}
+                    >
+                      <option value={1}>Residential</option>
+                      <option value={2}>Commercial</option>
+                      <option value={3}>Agricultural Wet</option>
+                      <option value={4}>Agricultural Dry</option>
+                      <option value={5}>Industrial</option>
+                      <option value={6}>Mixed Use</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Source Category *</label>
+                    <select
+                      className="form-control"
+                      value={addFormData.sourceCategory}
+                      onChange={(e) => setAddFormData({ ...addFormData, sourceCategory: parseInt(e.target.value) })}
+                    >
+                      <option value={2}>Verified Transaction (Deed)</option>
+                      <option value={3}>Advertised Asking Price</option>
+                      <option value={4}>Client Research</option>
+                      <option value={1}>Government Guideline (Benchmark)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Area *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-control"
+                      value={addFormData.area}
+                      onChange={(e) => setAddFormData({ ...addFormData, area: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Area Unit *</label>
+                    <select
+                      className="form-control"
+                      value={addFormData.unit}
+                      onChange={(e) => setAddFormData({ ...addFormData, unit: parseInt(e.target.value) })}
+                    >
+                      <option value={2}>Cent (435.6 sq.ft)</option>
+                      <option value={1}>Sq.Ft</option>
+                      <option value={3}>Acre (100 Cents)</option>
+                      <option value={4}>Ground (2400 sq.ft)</option>
+                      <option value={5}>Kuzhi (144 sq.ft)</option>
+                      <option value={6}>Sq.Meter</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Original Total Price (₹) *</label>
+                  <input
+                    type="number"
+                    step="1000"
+                    className="form-control"
+                    placeholder="e.g. 3500000"
+                    value={addFormData.price}
+                    onChange={(e) => setAddFormData({ ...addFormData, price: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                  <small style={{ color: '#64748b' }}>
+                    Rate per Cent will be calculated automatically by the server.
+                  </small>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Source Reference / Document ID</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. SRO Sulur Doc 4501/2024 or Classifieds #KP-102"
+                    value={addFormData.sourceReference || ''}
+                    onChange={(e) => setAddFormData({ ...addFormData, sourceReference: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Audit Notes</label>
+                  <textarea
+                    className="form-control"
+                    rows={2}
+                    placeholder="e.g. Corner plot facing 30ft road with clear title."
+                    value={addFormData.notes || ''}
+                    onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsAddModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={isSubmittingRecord}>
+                  {isSubmittingRecord ? 'Saving to Database...' : 'Save to PostgreSQL'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="admin-footer">
         <div>Greenart Properties &copy; 2026. Land Market Rate Analyst Platform.</div>
-        <div>Domain: <code>greenart.group</code> (Local Dev Mode) &bull; Clean Architecture (.NET 8 + PostGIS + React)</div>
+        <div>
+          API: <code>{isApiConnected ? 'Live on http://localhost:5039' : 'Disconnected'}</code> &bull; Database:{' '}
+          <code>PostgreSQL 16 + PostGIS on port 5433</code>
+        </div>
       </footer>
     </div>
   );

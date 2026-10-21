@@ -51,3 +51,4 @@ public class SpatialDistanceTests
         Assert.False(distant.IsWithinRadius(center, 1000.0));
     }
 }
+

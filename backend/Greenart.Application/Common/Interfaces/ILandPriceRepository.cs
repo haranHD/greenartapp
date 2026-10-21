@@ -19,5 +19,13 @@ public interface ILandPriceRepository
         double radiusMeters,
         LandUsageType landUsage,
         CancellationToken cancellationToken = default);
+
+    Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default);
+
+    Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default);
+
+    Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
 }
 

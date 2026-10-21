@@ -7,7 +7,14 @@ namespace Greenart.Infrastructure.Repositories;
 
 public class CoimbatorePilotRepository : ILandPriceRepository
 {
-    private static readonly List<LandPriceRecord> _records = new()
+    private readonly List<LandPriceRecord> _records;
+
+    public CoimbatorePilotRepository()
+    {
+        _records = GetInitialRecords();
+    }
+
+    private static List<LandPriceRecord> GetInitialRecords() => new()
     {
         // ==========================================
         // 1. KANNAMPALAYAM (Center: 11.0012, 77.0874)
@@ -333,5 +340,33 @@ public class CoimbatorePilotRepository : ILandPriceRepository
 
         IReadOnlyList<LandPriceRecord> result = nearby;
         return Task.FromResult(result);
+    }
+
+    public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
+    {
+        _records.Add(record);
+        return Task.CompletedTask;
+    }
+
+    public Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default)
+    {
+        _records.AddRange(records);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
+    {
+        var index = _records.FindIndex(r => r.Id == record.Id);
+        if (index >= 0)
+        {
+            _records[index] = record;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var exists = _records.Any(r => r.Id == id);
+        return Task.FromResult(exists);
     }
 }

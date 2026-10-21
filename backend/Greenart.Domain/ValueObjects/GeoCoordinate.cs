@@ -66,3 +66,4 @@ public readonly struct GeoCoordinate : IEquatable<GeoCoordinate>
     public static bool operator ==(GeoCoordinate left, GeoCoordinate right) => left.Equals(right);
     public static bool operator !=(GeoCoordinate left, GeoCoordinate right) => !left.Equals(right);
 }
+

@@ -9,8 +9,26 @@ declare namespace JSX {
 
 declare module 'react' {
   export const React: any;
+  export function useState<T>(initialState: T | (() => T)): [T, (value: T | ((prev: T) => T)) => void];
+  export function useState<T = any>(): [T | undefined, (value: T | ((prev: T) => T)) => void];
+  export function useEffect(effect: () => void | (() => void), deps?: any[]): void;
+  export function useMemo<T>(factory: () => T, deps: any[] | undefined): T;
+  export function useCallback<T extends (...args: any[]) => any>(callback: T, deps: any[]): T;
+  export function useRef<T>(initialValue: T): { current: T };
+  export function useRef<T>(initialValue?: T): { current: T | undefined };
   export type FC<P = {}> = (props: P) => any;
   export type ReactNode = any;
+  export type ErrorInfo = any;
+  export class Component<P = {}, S = {}> {
+    constructor(props: P);
+    props: P;
+    state: S;
+    context: any;
+    refs: any;
+    forceUpdate(callback?: () => void): void;
+    setState(state: Partial<S> | ((prevState: S) => Partial<S>), callback?: () => void): void;
+    render(): ReactNode;
+  }
   export default React;
 }
 
@@ -33,6 +51,8 @@ declare module 'react-native' {
   export const Image: any;
   export const TextInput: any;
   export const FlatList: any;
+  export const ActivityIndicator: any;
+  export const Platform: any;
 }
 
 declare module 'expo-status-bar' {

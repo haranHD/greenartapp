@@ -96,3 +96,4 @@ public readonly struct LandArea : IEquatable<LandArea>
     public static bool operator ==(LandArea left, LandArea right) => left.Equals(right);
     public static bool operator !=(LandArea left, LandArea right) => !left.Equals(right);
 }
+

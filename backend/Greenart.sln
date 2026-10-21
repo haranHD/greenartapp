@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Greenart.Api", "Greenart.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Greenart.Tests.Unit", "..\tests\backend\Greenart.Tests.Unit\Greenart.Tests.Unit.csproj", "{BD7FDE33-8EE3-45CA-87C3-AF3F30797A49}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Greenart.Tests.Integration", "..\tests\backend\Greenart.Tests.Integration\Greenart.Tests.Integration.csproj", "{C706A605-BE50-4996-8E2D-0B02D2A92E59}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{BD7FDE33-8EE3-45CA-87C3-AF3F30797A49}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BD7FDE33-8EE3-45CA-87C3-AF3F30797A49}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BD7FDE33-8EE3-45CA-87C3-AF3F30797A49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C706A605-BE50-4996-8E2D-0B02D2A92E59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C706A605-BE50-4996-8E2D-0B02D2A92E59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C706A605-BE50-4996-8E2D-0B02D2A92E59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C706A605-BE50-4996-8E2D-0B02D2A92E59}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

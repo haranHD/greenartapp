@@ -47,3 +47,4 @@ public class UnitConversionTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new LandArea(invalidValue, AreaUnit.Cent));
     }
 }
+

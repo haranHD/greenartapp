@@ -174,3 +174,4 @@ public class EstimationEngine : IEstimationEngine
         return sorted[low] + fraction * (sorted[high] - sorted[low]);
     }
 }
+

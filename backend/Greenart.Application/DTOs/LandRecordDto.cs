@@ -37,3 +37,25 @@ public record LocalityReferenceDto(
     int RecordCount
 );
 
+public record CreateLandRecordRequest(
+    string Locality,
+    string? Taluk,
+    string? StreetOrLandmark,
+    string? SurveyNumber,
+    double Latitude,
+    double Longitude,
+    LandUsageType LandUsage,
+    decimal Area,
+    AreaUnit Unit,
+    decimal Price,
+    SourceCategory SourceCategory,
+    string? SourceReference,
+    DateTime? ObservationDate,
+    string? Notes
+);
+
+public record UpdateVerificationRequest(
+    VerificationStatus Status,
+    string? AuditNote
+);
+

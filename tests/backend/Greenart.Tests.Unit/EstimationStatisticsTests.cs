@@ -52,3 +52,4 @@ public class EstimationStatisticsTests
         Assert.Equal(expected, result);
     }
 }
+

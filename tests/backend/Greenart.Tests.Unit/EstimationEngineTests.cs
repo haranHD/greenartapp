@@ -38,6 +38,30 @@ public class EstimationEngineTests
 
             return Task.FromResult<IReadOnlyList<LandPriceRecord>>(result);
         }
+
+        public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
+        {
+            _records.Add(record);
+            return Task.CompletedTask;
+        }
+
+        public Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default)
+        {
+            _records.AddRange(records);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
+        {
+            var idx = _records.FindIndex(r => r.Id == record.Id);
+            if (idx >= 0) _records[idx] = record;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_records.Any(r => r.Id == id));
+        }
     }
 
     [Fact]
@@ -141,3 +165,4 @@ public class EstimationEngineTests
         );
     }
 }
+

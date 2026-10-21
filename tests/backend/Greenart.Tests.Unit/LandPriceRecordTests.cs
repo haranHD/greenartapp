@@ -63,3 +63,4 @@ public class LandPriceRecordTests
         Assert.False(recentRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
     }
 }
+
