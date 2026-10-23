@@ -8,7 +8,7 @@ public class LandPriceRecord
     public Guid Id { get; private set; }
     public string Country { get; private set; } = "India";
     public string State { get; private set; } = "Tamil Nadu";
-    public string District { get; private set; } = "Coimbatore";
+    public string District { get; private set; } = string.Empty;
     public string? Taluk { get; private set; }
     public string Locality { get; private set; } = string.Empty;
     public string? StreetOrLandmark { get; private set; }
@@ -65,7 +65,7 @@ public class LandPriceRecord
         Id = id == Guid.Empty ? Guid.NewGuid() : id;
         Country = country.Trim();
         State = state.Trim();
-        District = district.Trim();
+        District = TamilNaduGeoBounds.NormalizeDistrict(district);
         Taluk = taluk?.Trim();
         Locality = locality.Trim();
         StreetOrLandmark = streetOrLandmark?.Trim();

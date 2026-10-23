@@ -53,6 +53,18 @@ declare module 'react-native' {
   export const FlatList: any;
   export const ActivityIndicator: any;
   export const Platform: any;
+  export const BackHandler: {
+    addEventListener(eventName: string, handler: () => boolean | null | undefined): { remove: () => void };
+    removeEventListener(eventName: string, handler: () => boolean | null | undefined): void;
+    exitApp(): void;
+  };
+  export const KeyboardAvoidingView: any;
+}
+
+declare module 'react-native-safe-area-context' {
+  export const SafeAreaProvider: any;
+  export const SafeAreaView: any;
+  export function useSafeAreaInsets(): { top: number; right: number; bottom: number; left: number };
 }
 
 declare module 'expo-status-bar' {

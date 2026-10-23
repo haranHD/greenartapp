@@ -19,10 +19,25 @@ public class EstimationEngineTests
             _records = records;
         }
 
-        public Task<IReadOnlyList<LandPriceRecord>> GetAllAsync(string? locality = null, LandUsageType? landUsage = null, SourceCategory? sourceCategory = null, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<LandPriceRecord>> GetAllAsync(string? locality = null, LandUsageType? landUsage = null, SourceCategory? sourceCategory = null, string? district = null, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LandPriceRecord>>(_records);
+            var result = _records.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(locality))
+                result = result.Where(r => r.Locality.Equals(locality, StringComparison.OrdinalIgnoreCase));
+            if (landUsage.HasValue)
+                result = result.Where(r => r.LandUsage == landUsage.Value);
+            if (sourceCategory.HasValue)
+                result = result.Where(r => r.SourceCategory == sourceCategory.Value);
+            if (!string.IsNullOrWhiteSpace(district))
+                result = result.Where(r => r.District.Equals(district, StringComparison.OrdinalIgnoreCase));
+
+            return Task.FromResult<IReadOnlyList<LandPriceRecord>>(result.ToList());
         }
+
+        public Task RecordImportBatchAsync(ImportBatch batch, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<ImportBatch>> GetImportBatchesAsync(int limit = 20, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ImportBatch>>(new List<ImportBatch>());
+        public Task RecordAuditEventAsync(AuditEvent auditEvent, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<AuditEvent>> GetAuditEventsAsync(int limit = 50, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AuditEvent>>(new List<AuditEvent>());
 
         public Task<LandPriceRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {

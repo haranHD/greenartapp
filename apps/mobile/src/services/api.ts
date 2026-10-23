@@ -1,4 +1,5 @@
 // Centralized Typed API Client for Greenart Mobile Application
+import { Platform } from 'react-native';
 
 export interface PriceRangeDto {
   minRate: number;
@@ -59,11 +60,51 @@ export interface LocalityReference {
   recordCount: number;
 }
 
+export interface LandRecordDto {
+  id: string;
+  country: string;
+  state: string;
+  district: string;
+  taluk?: string;
+  locality: string;
+  streetOrLandmark?: string;
+  surveyNumber?: string;
+  latitude: number;
+  longitude: number;
+  landUsage: string;
+  originalArea: number;
+  originalUnit: string;
+  originalPrice: number;
+  normalizedRatePerCent: number;
+  normalizedRatePerSqFt: number;
+  sourceCategory: string;
+  sourceReference?: string;
+  observationDate: string;
+  verificationStatus: string;
+  isSynthetic: boolean;
+  notes?: string;
+}
+
+export interface HealthStatusResponse {
+  status: string;
+  database?: {
+    connected: boolean;
+    postgisVersion?: string;
+  };
+}
+
 const getApiBaseUrl = (): string => {
-  // Safe detection for Web, React Native, and Android emulator
+  if (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+  // Safe detection for Web browser
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
     return `http://${host}:5039/api/v1`;
+  }
+  // Android Emulator networking
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:5039/api/v1';
   }
   return 'http://localhost:5039/api/v1';
 };
@@ -71,13 +112,44 @@ const getApiBaseUrl = (): string => {
 class MobileApiClient {
   private baseUrl = getApiBaseUrl();
 
+  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 8000): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. Please check backend connection on port 5039.');
+      }
+      throw err;
+    }
+  }
+
+  async getHealth(): Promise<HealthStatusResponse> {
+    try {
+      const response = await this.fetchWithTimeout(`${this.baseUrl}/health`, {
+        headers: { Accept: 'application/json' },
+      }, 4000);
+      if (!response.ok) return { status: 'Degraded' };
+      return (await response.json()) as HealthStatusResponse;
+    } catch {
+      return { status: 'Offline' };
+    }
+  }
+
   async calculateEstimate(
     latitude: number,
     longitude: number,
     landUsage: number = 1,
     radiusMeters: number = 1000
   ): Promise<EstimateApiResponse> {
-    const response = await fetch(`${this.baseUrl}/estimates/calculate`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/estimates/calculate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,7 +179,7 @@ class MobileApiClient {
   }
 
   async getLocalities(): Promise<LocalityReference[]> {
-    const response = await fetch(`${this.baseUrl}/reference/localities`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/reference/localities`, {
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) {
@@ -115,7 +187,30 @@ class MobileApiClient {
     }
     return (await response.json()) as LocalityReference[];
   }
+
+  async getLandRecords(params?: {
+    locality?: string;
+    landUsage?: number;
+    sourceCategory?: number;
+    district?: string;
+  }): Promise<LandRecordDto[]> {
+    const query = new URLSearchParams();
+    if (params?.locality) query.append('locality', params.locality);
+    if (params?.landUsage !== undefined) query.append('landUsage', params.landUsage.toString());
+    if (params?.sourceCategory !== undefined) query.append('sourceCategory', params.sourceCategory.toString());
+    if (params?.district) query.append('district', params.district);
+
+    const url = `${this.baseUrl}/land-records${query.toString() ? `?${query.toString()}` : ''}`;
+    const response = await this.fetchWithTimeout(url, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load land records: ${response.statusText}`);
+    }
+    return (await response.json()) as LandRecordDto[];
+  }
 }
 
 export const mobileApi = new MobileApiClient();
+
 

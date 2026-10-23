@@ -8,6 +8,8 @@ namespace Greenart.Infrastructure.Repositories;
 public class CoimbatorePilotRepository : ILandPriceRepository
 {
     private readonly List<LandPriceRecord> _records;
+    private readonly List<ImportBatch> _batches = new();
+    private readonly List<AuditEvent> _auditEvents = new();
 
     public CoimbatorePilotRepository()
     {
@@ -293,9 +295,15 @@ public class CoimbatorePilotRepository : ILandPriceRepository
         string? locality = null,
         LandUsageType? landUsage = null,
         SourceCategory? sourceCategory = null,
+        string? district = null,
         CancellationToken cancellationToken = default)
     {
         var query = _records.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(district))
+        {
+            query = query.Where(r => r.District.Contains(district, StringComparison.OrdinalIgnoreCase));
+        }
 
         if (!string.IsNullOrWhiteSpace(locality))
         {
@@ -368,5 +376,29 @@ public class CoimbatorePilotRepository : ILandPriceRepository
     {
         var exists = _records.Any(r => r.Id == id);
         return Task.FromResult(exists);
+    }
+
+    public Task RecordImportBatchAsync(ImportBatch batch, CancellationToken cancellationToken = default)
+    {
+        _batches.Insert(0, batch);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<ImportBatch>> GetImportBatchesAsync(int limit = 20, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<ImportBatch> result = _batches.Take(limit).ToList();
+        return Task.FromResult(result);
+    }
+
+    public Task RecordAuditEventAsync(AuditEvent auditEvent, CancellationToken cancellationToken = default)
+    {
+        _auditEvents.Insert(0, auditEvent);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<AuditEvent>> GetAuditEventsAsync(int limit = 50, CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<AuditEvent> result = _auditEvents.Take(limit).ToList();
+        return Task.FromResult(result);
     }
 }

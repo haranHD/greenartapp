@@ -9,6 +9,7 @@ public interface ILandPriceRepository
         string? locality = null,
         LandUsageType? landUsage = null,
         SourceCategory? sourceCategory = null,
+        string? district = null,
         CancellationToken cancellationToken = default);
 
     Task<LandPriceRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
@@ -27,5 +28,11 @@ public interface ILandPriceRepository
     Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default);
 
     Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default);
+
+    // Audit and Batch Operations
+    Task RecordImportBatchAsync(ImportBatch batch, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ImportBatch>> GetImportBatchesAsync(int limit = 20, CancellationToken cancellationToken = default);
+    Task RecordAuditEventAsync(AuditEvent auditEvent, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditEvent>> GetAuditEventsAsync(int limit = 50, CancellationToken cancellationToken = default);
 }
 

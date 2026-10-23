@@ -20,12 +20,14 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.10" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\backend\Greenart.Application\Greenart.Application.csproj" />
     <ProjectReference Include="..\..\..\backend\Greenart.Domain\Greenart.Domain.csproj" />
     <ProjectReference Include="..\..\..\backend\Greenart.Infrastructure\Greenart.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\backend\Greenart.Api\Greenart.Api.csproj" />
   </ItemGroup>
 
 </Project>

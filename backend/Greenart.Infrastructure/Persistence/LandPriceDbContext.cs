@@ -12,6 +12,8 @@ public class LandPriceDbContext : DbContext
     }
 
     public DbSet<LandPriceRecord> LandPriceRecords => Set<LandPriceRecord>();
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

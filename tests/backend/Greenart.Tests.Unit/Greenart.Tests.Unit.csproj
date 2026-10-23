@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\backend\Greenart.Application\Greenart.Application.csproj" />
     <ProjectReference Include="..\..\..\backend\Greenart.Domain\Greenart.Domain.csproj" />
+    <ProjectReference Include="..\..\..\backend\Greenart.Infrastructure\Greenart.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

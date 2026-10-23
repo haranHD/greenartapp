@@ -90,6 +90,53 @@ export interface GuidelineReferenceDto {
   legalNotice: string;
 }
 
+export interface CsvRowDiagnostic {
+  rowNumber: number;
+  locality?: string;
+  surveyNumber?: string;
+  severity: 'Error' | 'Warning' | 'Info';
+  field: string;
+  message: string;
+}
+
+export interface ValidatedRecordPreview {
+  rowNumber: number;
+  locality: string;
+  taluk?: string;
+  streetOrLandmark?: string;
+  surveyNumber?: string;
+  latitude: number;
+  longitude: number;
+  landUsage: string;
+  area: number;
+  unit: string;
+  price: number;
+  normalizedRatePerCent: number;
+  normalizedRatePerSqFt: number;
+  sourceCategory: string;
+  sourceReference?: string;
+  observationDate: string;
+  verificationStatus: string;
+  isDuplicate: boolean;
+  duplicateReason?: string;
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface BatchImportSummaryResponse {
+  dryRun: boolean;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  importedRows: number;
+  skippedRows: number;
+  timestampUtc: string;
+  diagnostics: CsvRowDiagnostic[];
+  previews: ValidatedRecordPreview[];
+}
+
 export interface EstimateSuccessResponse {
   status: 'Success';
   targetCoordinates: { latitude: number; longitude: number };
@@ -117,14 +164,107 @@ export interface EstimateInsufficientDataResponse {
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
 
+export interface DistrictCoverageDetail {
+  district: string;
+  recordCount: number;
+  verifiedCount: number;
+  unverifiedCount: number;
+  guidelineCount: number;
+  status: 'PilotHub' | 'Moderate' | 'Sparse' | 'NoData' | string;
+  latestObservationDate: string | null;
+  activeLocalities: string[];
+}
+
+export interface StatewideCoverageSummary {
+  totalRecords: number;
+  totalVerified: number;
+  totalUnverified: number;
+  totalGuideline: number;
+  activeDistrictsCount: number;
+  totalTamilNaduDistricts: number;
+  latestObservationDateUtc: string | null;
+  districtBreakdown: DistrictCoverageDetail[];
+}
+
+export interface ImportBatchRecord {
+  id: string;
+  fileName: string;
+  fileSizeBytes: number;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  importedRows: number;
+  skippedRows: number;
+  dryRun: boolean;
+  triggeredBy: string;
+  executedAtUtc: string;
+  diagnosticSummary?: string;
+}
+
+export interface ProviderCoverage {
+  regionName: string;
+  coveredDistricts: string[];
+  statewide: boolean;
+  supportedLandUsages: string[];
+}
+
+export interface ProviderSummary {
+  providerId: string;
+  providerName: string;
+  sourceCategory: string;
+  permittedUsage: string;
+  coverage: ProviderCoverage;
+  lastUpdatedUtc: string;
+  isLiveFeedAvailable: boolean;
+  licenseTerms: string;
+  dataIntegrityNote: string;
+}
+
+export interface DistrictMlStatus {
+  district: string;
+  totalRecords: number;
+  verifiedTransactions: number;
+  askingPrices: number;
+  guidelineBenchmarks: number;
+  clientResearch: number;
+  densityStatus: string;
+  isEligibleForMlTraining: boolean;
+  requiredAdditionalRecords: number;
+}
+
+export interface MlTrainingFeatureSchema {
+  featureName: string;
+  dataType: string;
+  description: string;
+  isTarget: boolean;
+  treatmentPolicy: string;
+}
+
+export interface MlReadinessAuditReport {
+  auditTimestampUtc: string;
+  minimumRequiredVerifiedPerDistrict: number;
+  totalStatewideRecords: number;
+  totalStatewideVerifiedTransactions: number;
+  qualifiedDistrictsCount: number;
+  districts: DistrictMlStatus[];
+  featureSchema: MlTrainingFeatureSchema[];
+  dataLeakageSafeguards: string[];
+  validationBlockers: string[];
+  productionReadinessVerdict: string;
+}
+
 class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
-    const headers = {
-      'Content-Type': 'application/json',
+    const headers: Record<string, string> = {
       Accept: 'application/json',
-      ...options.headers,
+      ...((options.headers as Record<string, string>) || {}),
     };
+
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     try {
       const response = await fetch(url, { ...options, headers });
@@ -215,6 +355,72 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify({ status, auditNote }),
     });
+  }
+
+  // 8. Bulk CSV Land Records Import (Supports dryRun preview & skipDuplicates)
+  async importCsv(
+    file: File,
+    dryRun: boolean = false,
+    skipDuplicates: boolean = true,
+    adminKey?: string
+  ): Promise<BatchImportSummaryResponse> {
+    const key = adminKey || (import.meta as any).env?.VITE_ADMIN_API_KEY || 'greenart-admin-secret-key-2024';
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const query = new URLSearchParams({
+      dryRun: dryRun ? 'true' : 'false',
+      skipDuplicates: skipDuplicates ? 'true' : 'false',
+    });
+
+    return this.request<BatchImportSummaryResponse>(`/land-records/import/csv?${query.toString()}`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Admin-Key': key,
+      },
+    });
+  }
+
+  // 9. Download CSV Import Template
+  downloadCsvTemplate(): void {
+    const headers = 'locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate,district,state,country,notes';
+    const sampleRows = [
+      'Kannampalayam,Sulur,Trichy Road Branch,SF 142/2A,11.0015,77.0878,Residential,3.5,Cent,3675000,VerifiedTransaction,SRO Sulur Doc 3412/2023,2023-11-14,Coimbatore,Tamil Nadu,India,"Registered sale deed; rectangular plot facing 30ft road"',
+      'Sulur,Sulur,Airport Road Bypass,SF 88/1,11.0260,77.1280,Commercial,2400,SqFt,4800000,AdvertisedAskingPrice,Local Broker Listing #SLR-22,2024-03-01,Coimbatore,Tamil Nadu,India,"Commercial frontage plot asking rate"',
+      'Saravanampatti,Annur,Sathy Road Junction,SF 210/3,11.0820,76.9985,Residential,1.0,Acre,120000000,ClientResearch,Surveyor Field Valuation Sheet #12,2024-01-15,Coimbatore,Tamil Nadu,India,"One acre parcel assessed by field surveyor"'
+    ];
+
+    const csvContent = [headers, ...sampleRows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'greenart_land_records_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // 10. Statewide Coverage Summary
+  async getCoverageSummary(): Promise<StatewideCoverageSummary> {
+    return this.request<StatewideCoverageSummary>('/coverage/summary');
+  }
+
+  // 11. Batch Import Audit History
+  async getImportHistory(limit: number = 20): Promise<ImportBatchRecord[]> {
+    return this.request<ImportBatchRecord[]>(`/land-records/import/history?limit=${limit}`);
+  }
+
+  // 12. External Land Price Data Providers
+  async getProviders(): Promise<ProviderSummary[]> {
+    return this.request<ProviderSummary[]>('/providers');
+  }
+
+  // 13. ML Production Readiness Audit
+  async getMlReadiness(): Promise<MlReadinessAuditReport> {
+    return this.request<MlReadinessAuditReport>('/ml/readiness');
   }
 }
 

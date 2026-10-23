@@ -20,9 +20,16 @@ public class EfLandPriceRepository : ILandPriceRepository
         string? locality = null,
         LandUsageType? landUsage = null,
         SourceCategory? sourceCategory = null,
+        string? district = null,
         CancellationToken cancellationToken = default)
     {
         var query = _context.LandPriceRecords.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(district))
+        {
+            var trimmedDistrict = district.Trim().ToLower();
+            query = query.Where(r => EF.Functions.ILike(r.District, $"%{trimmedDistrict}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(locality))
         {
@@ -90,5 +97,35 @@ public class EfLandPriceRepository : ILandPriceRepository
     public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _context.LandPriceRecords.AnyAsync(r => r.Id == id, cancellationToken);
+    }
+
+    public async Task RecordImportBatchAsync(ImportBatch batch, CancellationToken cancellationToken = default)
+    {
+        await _context.ImportBatches.AddAsync(batch, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ImportBatch>> GetImportBatchesAsync(int limit = 20, CancellationToken cancellationToken = default)
+    {
+        return await _context.ImportBatches
+            .AsNoTracking()
+            .OrderByDescending(b => b.ExecutedAtUtc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task RecordAuditEventAsync(AuditEvent auditEvent, CancellationToken cancellationToken = default)
+    {
+        await _context.AuditEvents.AddAsync(auditEvent, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AuditEvent>> GetAuditEventsAsync(int limit = 50, CancellationToken cancellationToken = default)
+    {
+        return await _context.AuditEvents
+            .AsNoTracking()
+            .OrderByDescending(a => a.TimestampUtc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
     }
 }

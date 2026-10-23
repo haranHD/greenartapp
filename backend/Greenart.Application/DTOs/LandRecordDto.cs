@@ -39,19 +39,22 @@ public record LocalityReferenceDto(
 
 public record CreateLandRecordRequest(
     string Locality,
-    string? Taluk,
-    string? StreetOrLandmark,
-    string? SurveyNumber,
-    double Latitude,
-    double Longitude,
-    LandUsageType LandUsage,
-    decimal Area,
-    AreaUnit Unit,
-    decimal Price,
-    SourceCategory SourceCategory,
-    string? SourceReference,
-    DateTime? ObservationDate,
-    string? Notes
+    string? District = null,
+    string? State = null,
+    string? Country = null,
+    string? Taluk = null,
+    string? StreetOrLandmark = null,
+    string? SurveyNumber = null,
+    double Latitude = 0,
+    double Longitude = 0,
+    LandUsageType LandUsage = LandUsageType.Residential,
+    decimal Area = 0,
+    AreaUnit Unit = AreaUnit.Cent,
+    decimal Price = 0,
+    SourceCategory SourceCategory = SourceCategory.VerifiedTransaction,
+    string? SourceReference = null,
+    DateTime? ObservationDate = null,
+    string? Notes = null
 );
 
 public record UpdateVerificationRequest(
