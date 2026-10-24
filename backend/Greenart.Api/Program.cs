@@ -17,6 +17,13 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Cloud PaaS port binding (e.g. Render, Railway, Cloud Run injects PORT env variable)
+var renderPort = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(renderPort))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
+}
+
 // Load .env configuration if present in project or solution root
 var envCandidatePaths = new[]
 {
