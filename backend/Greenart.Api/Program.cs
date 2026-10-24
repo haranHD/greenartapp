@@ -9,6 +9,7 @@ using Greenart.Infrastructure.Persistence;
 using Greenart.Infrastructure.Persistence.Seeding;
 using Greenart.Infrastructure.Providers;
 using Greenart.Infrastructure.Repositories;
+using Greenart.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -16,10 +17,49 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load .env configuration if present in project or solution root
+var envCandidatePaths = new[]
+{
+    Path.Combine(builder.Environment.ContentRootPath, ".env"),
+    Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".env"),
+    Path.Combine(Directory.GetCurrentDirectory(), ".env")
+};
+
+foreach (var envPath in envCandidatePaths)
+{
+    if (File.Exists(envPath))
+    {
+        foreach (var line in File.ReadAllLines(envPath))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith('#') || !trimmed.Contains('='))
+                continue;
+
+            var parts = trimmed.Split('=', 2);
+            var key = parts[0].Trim();
+            var val = parts[1].Trim().Trim('"', '\'');
+            if (!string.IsNullOrEmpty(key) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            {
+                Environment.SetEnvironmentVariable(key, val);
+            }
+        }
+        break;
+    }
+}
+
 // Configure PostgreSQL + PostGIS Persistence
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
     ?? builder.Configuration["DB_CONNECTION_STRING"]
-    ?? "Host=localhost;Port=5433;Database=greenart_dev;Username=greenart_user;Password=greenart_dev_password";
+    ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+    ?? "Host=localhost;Port=5432;Database=greenart_db;Username=postgres";
+
+// If connection string lacks password, check DB_PASSWORD
+var dbPassword = builder.Configuration["DB_PASSWORD"] ?? Environment.GetEnvironmentVariable("DB_PASSWORD");
+if (!string.IsNullOrWhiteSpace(connectionString) && !connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(dbPassword))
+{
+    connectionString = $"{connectionString.TrimEnd(';')};Password={dbPassword}";
+}
 
 builder.Services.AddDbContext<LandPriceDbContext>(options =>
 {
@@ -36,6 +76,10 @@ builder.Services.AddScoped<ILandPriceDataProvider, TnReginetGuidelineProvider>()
 builder.Services.AddScoped<ILandPriceDataProvider, CommercialPropTechDataProvider>();
 builder.Services.AddScoped<IDataProviderRegistry, DataProviderRegistry>();
 builder.Services.AddScoped<IMlReadinessService, MlReadinessService>();
+
+// Register Geocoding and Locality Search Proxy
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient<IGeocodingService, GooglePlacesGeocodingService>();
 
 // Enable CORS for frontend and mobile access
 builder.Services.AddCors(options =>
@@ -293,6 +337,91 @@ app.MapGet("/api/v1/land-records", async (
 .WithOpenApi();
 
 // ---------------------------------------------------------
+// 3b. Dedicated Server-Side Spatial Nearby Endpoint
+// ---------------------------------------------------------
+app.MapGet("/api/v1/land-records/nearby", async (
+    [FromQuery] double? latitude,
+    [FromQuery] double? longitude,
+    [FromQuery] double? radiusMeters,
+    [FromQuery] LandUsageType? landUsage,
+    [FromServices] ILandPriceRepository repository,
+    CancellationToken ct) =>
+{
+    if (!latitude.HasValue || !longitude.HasValue)
+    {
+        return Results.BadRequest(new { Error = "Both latitude and longitude query parameters are required." });
+    }
+
+    var lat = latitude.Value;
+    var lng = longitude.Value;
+
+    if (lat < -90.0 || lat > 90.0)
+    {
+        return Results.BadRequest(new { Error = "Latitude must be between -90.0 and 90.0." });
+    }
+
+    if (lng < -180.0 || lng > 180.0)
+    {
+        return Results.BadRequest(new { Error = "Longitude must be between -180.0 and 180.0." });
+    }
+
+    if (TamilNaduGeoBounds.AreCoordinatesTransposed(lat, lng))
+    {
+        return Results.BadRequest(new { Error = "Coordinates appear to be transposed (Latitude in India is [6-38], Longitude is [68-98])." });
+    }
+
+    if (!TamilNaduGeoBounds.IsWithinIndia(lat, lng))
+    {
+        return Results.BadRequest(new { Error = $"Coordinates ({lat:F4}, {lng:F4}) fall outside Indian geographic territory." });
+    }
+
+    var radius = radiusMeters.GetValueOrDefault(1000.0);
+    if (radius <= 0 || radius > 10000.0)
+    {
+        return Results.BadRequest(new { Error = "Radius must be greater than 0 and not exceed 10,000 meters." });
+    }
+
+    if (landUsage.HasValue && !Enum.IsDefined(typeof(LandUsageType), landUsage.Value))
+    {
+        return Results.BadRequest(new { Error = $"Invalid landUsage value: {landUsage.Value}." });
+    }
+
+    var results = await repository.GetNearbyAsync(lat, lng, radius, landUsage, ct);
+
+    var dtos = results.Select(item => new NearbyLandRecordDto(
+        item.Record.Id,
+        item.Record.Country,
+        item.Record.State,
+        item.Record.District,
+        item.Record.Taluk,
+        item.Record.Locality,
+        item.Record.StreetOrLandmark,
+        item.Record.SurveyNumber,
+        item.Record.Latitude,
+        item.Record.Longitude,
+        item.Record.LandUsage.ToString(),
+        item.Record.OriginalArea,
+        item.Record.OriginalUnit.ToString(),
+        item.Record.OriginalPrice,
+        item.Record.NormalizedRatePerCent,
+        item.Record.NormalizedRatePerSqFt,
+        item.Record.SourceCategory.ToString(),
+        item.Record.SourceReference,
+        item.Record.ObservationDate,
+        item.Record.VerificationStatus.ToString(),
+        item.Record.IsSynthetic,
+        item.Record.Notes,
+        item.DistanceMeters
+    )).ToList();
+
+    return Results.Ok(dtos);
+})
+.WithName("GetNearbyLandRecords")
+.WithSummary("Retrieve Nearby Land Records Within Spatial Radius")
+.WithDescription("Performs a PostGIS spatial query returning eligible land records within the requested geodesic radius sorted by increasing distance.")
+.WithOpenApi();
+
+// ---------------------------------------------------------
 // 4. Get Land Record by ID
 // ---------------------------------------------------------
 app.MapGet("/api/v1/land-records/{id:guid}", async (
@@ -338,13 +467,33 @@ app.MapGet("/api/v1/land-records/{id:guid}", async (
 .WithOpenApi();
 
 // ---------------------------------------------------------
+// Administrative Authorization Helper
+// ---------------------------------------------------------
+static bool IsAuthorizedAdmin(string? adminKey, IConfiguration config)
+{
+    var configuredKey = config["AdminSettings:ApiKey"]
+        ?? config["ADMIN_API_KEY"]
+        ?? "greenart-admin-secret-key-2024";
+
+    return !string.IsNullOrWhiteSpace(adminKey) && string.Equals(adminKey.Trim(), configuredKey.Trim(), StringComparison.Ordinal);
+}
+
+// ---------------------------------------------------------
 // 5. Create New Land Record Endpoint
 // ---------------------------------------------------------
 app.MapPost("/api/v1/land-records", async (
     [FromBody] CreateLandRecordRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
     [FromServices] ILandPriceRepository repository,
     CancellationToken ct) =>
 {
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
     if (string.IsNullOrWhiteSpace(request.Locality))
     {
         return Results.BadRequest(new { Error = "Locality is required." });
@@ -442,9 +591,18 @@ app.MapPost("/api/v1/land-records", async (
 app.MapPatch("/api/v1/land-records/{id:guid}/verification", async (
     Guid id,
     [FromBody] UpdateVerificationRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
     [FromServices] ILandPriceRepository repository,
     CancellationToken ct) =>
 {
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
     var record = await repository.GetByIdAsync(id, ct);
     if (record == null)
     {
@@ -455,6 +613,9 @@ app.MapPatch("/api/v1/land-records/{id:guid}/verification", async (
     {
         case VerificationStatus.Verified:
             record.MarkVerified(request.AuditNote);
+            break;
+        case VerificationStatus.PendingReview:
+            record.MarkPendingReview(request.AuditNote);
             break;
         case VerificationStatus.Rejected:
             record.MarkRejected(request.AuditNote ?? "Rejected by administrative audit.");
@@ -467,6 +628,23 @@ app.MapPatch("/api/v1/land-records/{id:guid}/verification", async (
     }
 
     await repository.UpdateAsync(record, ct);
+
+    var auditEvent = new AuditEvent(
+        id: Guid.NewGuid(),
+        entityType: "LandPriceRecord",
+        entityId: record.Id,
+        action: $"VerificationStatusChanged:{request.Status}",
+        performedBy: "Administrator",
+        details: request.AuditNote ?? $"Status transitioned to {request.Status}"
+    );
+    try
+    {
+        await repository.RecordAuditEventAsync(auditEvent, ct);
+    }
+    catch
+    {
+        // Suppress audit log failure if audit table not initialized
+    }
 
     var dto = new LandRecordDto(
         record.Id,
@@ -512,15 +690,21 @@ app.MapGet("/api/v1/reference/localities", async (
 
     if (records.Count == 0)
     {
-        // Safe baseline fallback if database has not yet been populated
-        var fallback = new List<LocalityReferenceDto>
+        // Only provide baseline fallback if no district was specified or Coimbatore was specifically queried
+        if (string.IsNullOrWhiteSpace(district) || district.Equals("Coimbatore", StringComparison.OrdinalIgnoreCase))
         {
-            new("Kannampalayam", "Coimbatore", 11.0012, 77.0874, 650000m, 1492.20m, 0),
-            new("Sulur", "Coimbatore", 11.0264, 77.1275, 800000m, 1836.55m, 0),
-            new("Saravanampatti", "Coimbatore", 11.0805, 76.9976, 1200000m, 2754.82m, 0),
-            new("Pollachi", "Coimbatore", 10.6609, 77.0089, 450000m, 1033.06m, 0)
-        };
-        return Results.Ok(fallback);
+            var fallback = new List<LocalityReferenceDto>
+            {
+                new("Kannampalayam", "Coimbatore", 11.0012, 77.0874, 650000m, 1492.20m, 0),
+                new("Sulur", "Coimbatore", 11.0264, 77.1275, 800000m, 1836.55m, 0),
+                new("Saravanampatti", "Coimbatore", 11.0805, 76.9976, 1200000m, 2754.82m, 0),
+                new("Pollachi", "Coimbatore", 10.6609, 77.0089, 450000m, 1033.06m, 0)
+            };
+            return Results.Ok(fallback);
+        }
+
+        // Return empty list if a specific district filter yielded zero records
+        return Results.Ok(Array.Empty<LocalityReferenceDto>());
     }
 
     var localities = records
@@ -557,6 +741,60 @@ app.MapGet("/api/v1/reference/localities", async (
 .WithOpenApi();
 
 // ---------------------------------------------------------
+// 6. External Geocoding & Locality Search Proxy Endpoints
+// ---------------------------------------------------------
+app.MapGet("/api/v1/localities/search", async (
+    [FromQuery] string? q,
+    [FromServices] IGeocodingService geocodingService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
+    {
+        return Results.Ok(Array.Empty<LocalitySuggestionDto>());
+    }
+
+    if (q.Length > 100)
+    {
+        return Results.BadRequest(new { Error = "Query length cannot exceed 100 characters." });
+    }
+
+    var suggestions = await geocodingService.SearchLocalitiesAsync(q.Trim(), ct);
+    return Results.Ok(suggestions);
+})
+.WithName("SearchLocalities")
+.WithSummary("Search Localities and Places")
+.WithDescription("Queries Google Places API (New) via a secure backend proxy with 30-minute caching and zero client secret exposure.")
+.WithOpenApi();
+
+app.MapGet("/api/v1/localities/details", async (
+    [FromQuery] string? placeId,
+    [FromServices] IGeocodingService geocodingService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(placeId))
+    {
+        return Results.BadRequest(new { Error = "placeId parameter is required." });
+    }
+
+    if (placeId.Length > 200)
+    {
+        return Results.BadRequest(new { Error = "placeId length cannot exceed 200 characters." });
+    }
+
+    var details = await geocodingService.GetPlaceDetailsAsync(placeId.Trim(), ct);
+    if (details == null)
+    {
+        return Results.NotFound(new { Error = $"Locality details for placeId '{placeId}' could not be resolved." });
+    }
+
+    return Results.Ok(details);
+})
+.WithName("GetLocalityDetails")
+.WithSummary("Get Place Details & Geographic Coordinates")
+.WithDescription("Resolves coordinates, formatted address, and administrative hierarchy for a place identifier with 24-hour caching.")
+.WithOpenApi();
+
+// ---------------------------------------------------------
 // 7. Bulk CSV Land Records Import Endpoint (Admin Protected)
 // ---------------------------------------------------------
 app.MapPost("/api/v1/land-records/import/csv", async (
@@ -573,11 +811,7 @@ app.MapPost("/api/v1/land-records/import/csv", async (
     var shouldSkipDuplicates = skipDuplicates ?? true;
 
     // Administrator authorization verification
-    var configuredKey = config["AdminSettings:ApiKey"] 
-        ?? config["ADMIN_API_KEY"] 
-        ?? "greenart-admin-secret-key-2024";
-
-    if (string.IsNullOrWhiteSpace(adminKey) || !string.Equals(adminKey.Trim(), configuredKey.Trim(), StringComparison.Ordinal))
+    if (!IsAuthorizedAdmin(adminKey, config))
     {
         return Results.Json(
             new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },

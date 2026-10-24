@@ -28,6 +28,8 @@ public class MlReadinessServiceTests
 
         public Task<LandPriceRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult(_records.FirstOrDefault(r => r.Id == id));
         public Task<IReadOnlyList<LandPriceRecord>> GetNearbyComparableAsync(double latitude, double longitude, double radiusMeters, LandUsageType landUsage, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<LandPriceRecord>>(new List<LandPriceRecord>());
+        public Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(double latitude, double longitude, double radiusMeters, LandUsageType? landUsage = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>>(new List<(LandPriceRecord Record, double DistanceMeters)>());
         public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default) { _records.Add(record); return Task.CompletedTask; }
         public Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default) { _records.AddRange(records); return Task.CompletedTask; }
         public Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default) => Task.CompletedTask;

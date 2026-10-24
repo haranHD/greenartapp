@@ -21,6 +21,13 @@ public interface ILandPriceRepository
         LandUsageType landUsage,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(
+        double latitude,
+        double longitude,
+        double radiusMeters,
+        LandUsageType? landUsage = null,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default);
 
     Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default);

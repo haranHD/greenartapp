@@ -120,6 +120,15 @@ public class LandPriceRecord
         }
     }
 
+    public void MarkPendingReview(string? auditNote = null)
+    {
+        VerificationStatus = VerificationStatus.PendingReview;
+        if (!string.IsNullOrWhiteSpace(auditNote))
+        {
+            Notes = string.IsNullOrWhiteSpace(Notes) ? $"PendingReview: {auditNote}" : $"{Notes} | PendingReview: {auditNote}";
+        }
+    }
+
     public void MarkRejected(string reason)
     {
         VerificationStatus = VerificationStatus.Rejected;

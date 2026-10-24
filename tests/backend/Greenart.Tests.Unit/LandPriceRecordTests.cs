@@ -61,6 +61,18 @@ public class LandPriceRecordTests
         // Rejected record
         recentRecord.MarkRejected("Disputed title");
         Assert.False(recentRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+
+        // Pending review record is eligible unless rejected or archived
+        var pendingRecord = new LandPriceRecord(
+            Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
+            null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
+            new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.VerifiedTransaction,
+            null, new DateTime(2026, 4, 1)
+        );
+        pendingRecord.MarkPendingReview("Awaiting document verification");
+        Assert.Equal(VerificationStatus.PendingReview, pendingRecord.VerificationStatus);
+        Assert.Contains("PendingReview: Awaiting document verification", pendingRecord.Notes);
+        Assert.True(pendingRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
     }
 }
 

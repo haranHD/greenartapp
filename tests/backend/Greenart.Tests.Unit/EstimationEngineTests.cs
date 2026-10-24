@@ -54,6 +54,20 @@ public class EstimationEngineTests
             return Task.FromResult<IReadOnlyList<LandPriceRecord>>(result);
         }
 
+        public Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(double latitude, double longitude, double radiusMeters, LandUsageType? landUsage = null, CancellationToken cancellationToken = default)
+        {
+            var target = new GeoCoordinate(latitude, longitude);
+            var result = _records
+                .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
+                .Where(r => !landUsage.HasValue || r.LandUsage == landUsage.Value)
+                .Select(r => (Record: r, DistanceMeters: Math.Round(r.Coordinates.DistanceToMeters(target), 1)))
+                .Where(x => x.DistanceMeters <= radiusMeters)
+                .OrderBy(x => x.DistanceMeters)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>>(result);
+        }
+
         public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
         {
             _records.Add(record);
@@ -155,6 +169,80 @@ public class EstimationEngineTests
         // Guideline value is extracted separately
         Assert.NotNull(success.GovernmentGuidelineReference);
         Assert.Equal(600000.00m, success.GovernmentGuidelineReference.GuidelineRatePerCent);
+    }
+
+    [Fact]
+    public async Task EstimateMarketPrice_WithAllVerificationStatuses_ShouldOnlyIncludeEligibleRecords()
+    {
+        // 1 Verified, 1 PendingReview, 1 Unverified, 1 Rejected, 1 Archived
+        var records = new List<LandPriceRecord>
+        {
+            CreateRecordWithStatus(11.0010, 77.0870, 1000000m, SourceCategory.VerifiedTransaction, VerificationStatus.Verified),
+            CreateRecordWithStatus(11.0015, 77.0875, 1100000m, SourceCategory.ClientResearch, VerificationStatus.PendingReview),
+            CreateRecordWithStatus(11.0020, 77.0878, 1200000m, SourceCategory.AdvertisedAskingPrice, VerificationStatus.Unverified),
+            CreateRecordWithStatus(11.0025, 77.0880, 5000000m, SourceCategory.AdvertisedAskingPrice, VerificationStatus.Rejected),
+            CreateRecordWithStatus(11.0030, 77.0885, 4000000m, SourceCategory.VerifiedTransaction, VerificationStatus.Archived)
+        };
+
+        var repo = new MockLandPriceRepository(records);
+        var engine = new EstimationEngine(repo);
+
+        var request = new CalculateEstimateRequest(11.0012, 77.0874, LandUsageType.Residential, RadiusMeters: 1000);
+        var response = await engine.EstimateMarketPriceAsync(request);
+
+        var success = Assert.IsType<EstimateSuccessResponse>(response);
+
+        // Exactly 3 eligible records (Verified, PendingReview, Unverified); Rejected and Archived strictly excluded
+        Assert.Equal(3, success.ComparableRecordCount);
+        Assert.Equal(1100000.00m, success.PriceRangePerCent.MedianRate);
+        Assert.Equal(1000000.00m, success.PriceRangePerCent.MinRate);
+        Assert.Equal(1200000.00m, success.PriceRangePerCent.MaxRate);
+    }
+
+    [Fact]
+    public async Task EstimateMarketPrice_WhenEligibleDropBelowThresholdDueToRejectedOrArchived_ReturnsInsufficientData()
+    {
+        // 2 Verified, 1 Rejected -> Total 3 candidates, but only 2 eligible
+        var records = new List<LandPriceRecord>
+        {
+            CreateRecordWithStatus(11.0010, 77.0870, 1000000m, SourceCategory.VerifiedTransaction, VerificationStatus.Verified),
+            CreateRecordWithStatus(11.0015, 77.0875, 1100000m, SourceCategory.VerifiedTransaction, VerificationStatus.Verified),
+            CreateRecordWithStatus(11.0020, 77.0878, 1200000m, SourceCategory.AdvertisedAskingPrice, VerificationStatus.Rejected)
+        };
+
+        var repo = new MockLandPriceRepository(records);
+        var engine = new EstimationEngine(repo);
+
+        var request = new CalculateEstimateRequest(11.0012, 77.0874, LandUsageType.Residential, RadiusMeters: 1000);
+        var response = await engine.EstimateMarketPriceAsync(request);
+
+        var insufficient = Assert.IsType<EstimateInsufficientDataResponse>(response);
+        Assert.Equal("InsufficientData", insufficient.Status);
+        Assert.Equal(2, insufficient.ComparableRecordsFound);
+        Assert.Equal(3, insufficient.MinimumRequiredRecords);
+    }
+
+    private static LandPriceRecord CreateRecordWithStatus(double lat, double lon, decimal ratePerCent, SourceCategory category, VerificationStatus status)
+    {
+        var area = new LandArea(1.0m, AreaUnit.Cent);
+        return new LandPriceRecord(
+            id: Guid.NewGuid(),
+            country: "India",
+            state: "Tamil Nadu",
+            district: "Coimbatore",
+            taluk: "Sulur",
+            locality: "Kannampalayam",
+            streetOrLandmark: "Main Road",
+            surveyNumber: "SF 100",
+            coordinates: new GeoCoordinate(lat, lon),
+            landUsage: LandUsageType.Residential,
+            area: area,
+            originalPrice: ratePerCent,
+            sourceCategory: category,
+            sourceReference: "Ref",
+            observationDate: DateTime.UtcNow.AddMonths(-2),
+            verificationStatus: status
+        );
     }
 
     private static LandPriceRecord CreateRecord(double lat, double lon, decimal ratePerCent, SourceCategory category)

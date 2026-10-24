@@ -337,23 +337,46 @@ class ApiClient {
     });
   }
 
+  // Admin Authentication Key Management (Stored in SessionStorage; never hardcoded in bundle)
+  getAdminKey(): string {
+    if (typeof sessionStorage !== 'undefined') {
+      const stored = sessionStorage.getItem('greenart_admin_api_key');
+      if (stored) return stored;
+    }
+    return (import.meta as any).env?.VITE_ADMIN_API_KEY || '';
+  }
+
+  setAdminKey(key: string): void {
+    if (typeof sessionStorage !== 'undefined') {
+      if (key && key.trim()) {
+        sessionStorage.setItem('greenart_admin_api_key', key.trim());
+      } else {
+        sessionStorage.removeItem('greenart_admin_api_key');
+      }
+    }
+  }
+
   // 6. Create and Persist New Land Record
   async createLandRecord(payload: CreateLandRecordPayload): Promise<ApiLandRecord> {
+    const key = this.getAdminKey();
     return this.request<ApiLandRecord>('/land-records', {
       method: 'POST',
       body: JSON.stringify(payload),
+      headers: key ? { 'X-Admin-Key': key } : {},
     });
   }
 
   // 7. Update Verification Status (Audit & Moderation)
   async updateVerificationStatus(
     id: string,
-    status: number, // 2 = Verified, 3 = Rejected, 4 = Archived
+    status: number, // 1 = PendingReview, 2 = Verified, 3 = Rejected, 4 = Archived
     auditNote?: string
   ): Promise<ApiLandRecord> {
+    const key = this.getAdminKey();
     return this.request<ApiLandRecord>(`/land-records/${id}/verification`, {
       method: 'PATCH',
       body: JSON.stringify({ status, auditNote }),
+      headers: key ? { 'X-Admin-Key': key } : {},
     });
   }
 
@@ -364,7 +387,7 @@ class ApiClient {
     skipDuplicates: boolean = true,
     adminKey?: string
   ): Promise<BatchImportSummaryResponse> {
-    const key = adminKey || (import.meta as any).env?.VITE_ADMIN_API_KEY || 'greenart-admin-secret-key-2024';
+    const key = adminKey || this.getAdminKey();
     const formData = new FormData();
     formData.append('file', file);
 
@@ -383,7 +406,25 @@ class ApiClient {
   }
 
   // 9. Download CSV Import Template
-  downloadCsvTemplate(): void {
+  async downloadCsvTemplate(): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/land-records/import/csv-template`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'greenart_land_records_template.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        return;
+      }
+    } catch {
+      // Fallback to client-side standard template
+    }
+
     const headers = 'locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate,district,state,country,notes';
     const sampleRows = [
       'Kannampalayam,Sulur,Trichy Road Branch,SF 142/2A,11.0015,77.0878,Residential,3.5,Cent,3675000,VerifiedTransaction,SRO Sulur Doc 3412/2023,2023-11-14,Coimbatore,Tamil Nadu,India,"Registered sale deed; rectangular plot facing 30ft road"',

@@ -80,5 +80,23 @@ public class RecordWriteAndModerationTests
         Assert.Equal(VerificationStatus.Rejected, updated.VerificationStatus);
         Assert.Contains("Rejected: Disputed boundary", updated.Notes);
     }
+
+    [Fact]
+    public async Task UpdateAsync_ShouldUpdateVerificationStatus_ToPendingReviewWithAuditNote()
+    {
+        var repo = CreateRepository();
+        var recordId = Guid.Parse("11111111-1111-1111-1111-111111111105"); // Unverified record
+
+        var record = await repo.GetByIdAsync(recordId);
+        Assert.NotNull(record);
+
+        record.MarkPendingReview("Needs secondary surveyor validation");
+        await repo.UpdateAsync(record);
+
+        var updated = await repo.GetByIdAsync(recordId);
+        Assert.NotNull(updated);
+        Assert.Equal(VerificationStatus.PendingReview, updated.VerificationStatus);
+        Assert.Contains("PendingReview: Needs secondary surveyor validation", updated.Notes);
+    }
 }
 

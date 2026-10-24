@@ -1,6 +1,7 @@
 using Greenart.Application.Common.Interfaces;
 using Greenart.Domain.Entities;
 using Greenart.Domain.Enums;
+using Greenart.Domain.ValueObjects;
 using Greenart.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
@@ -74,6 +75,35 @@ public class EfLandPriceRepository : ILandPriceRepository
             .Where(r => r.LandUsage == landUsage &&
                         EF.Functions.IsWithinDistance(EF.Property<Point>(r, "Location"), targetPoint, radiusMeters, true))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(
+        double latitude,
+        double longitude,
+        double radiusMeters,
+        LandUsageType? landUsage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var targetPoint = new Point(longitude, latitude) { SRID = 4326 };
+        var targetCoord = new GeoCoordinate(latitude, longitude);
+
+        var query = _context.LandPriceRecords
+            .AsNoTracking()
+            .Where(r => r.VerificationStatus != VerificationStatus.Rejected &&
+                        r.VerificationStatus != VerificationStatus.Archived)
+            .Where(r => EF.Functions.IsWithinDistance(EF.Property<Point>(r, "Location"), targetPoint, radiusMeters, true));
+
+        if (landUsage.HasValue)
+        {
+            query = query.Where(r => r.LandUsage == landUsage.Value);
+        }
+
+        var records = await query.ToListAsync(cancellationToken);
+
+        return records
+            .Select(r => (Record: r, DistanceMeters: Math.Round(r.DistanceToMeters(targetCoord), 1)))
+            .OrderBy(x => x.DistanceMeters)
+            .ToList();
     }
 
     public async Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)

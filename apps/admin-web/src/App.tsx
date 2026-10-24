@@ -5,6 +5,7 @@ import {
   LocalityReference,
   EstimateApiResponse,
   BatchImportSummaryResponse,
+  ValidatedRecordPreview,
   ImportBatchRecord,
   StatewideCoverageSummary,
   MlReadinessAuditReport,
@@ -71,6 +72,21 @@ const Icons = {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   ),
+  Key: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" />
+    </svg>
+  ),
+  Check: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  ),
+  Alert: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
 };
 
 type TabView = 'dashboard' | 'explorer' | 'records' | 'import' | 'statewide' | 'methodology';
@@ -135,6 +151,17 @@ export const App = () => {
   // Notifications
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Admin Key Management (Stored in sessionStorage; never bundled)
+  const [adminKey, setAdminKey] = useState<string>(() => api.getAdminKey());
+  const [isAdminKeyModalOpen, setIsAdminKeyModalOpen] = useState<boolean>(false);
+  const [adminKeyInput, setAdminKeyInput] = useState<string>('');
+
+  // Record Moderation / Verification Modal State
+  const [moderationRecord, setModerationRecord] = useState<ApiLandRecord | null>(null);
+  const [moderationTargetStatus, setModerationTargetStatus] = useState<number>(2); // Default to Verified
+  const [moderationAuditNote, setModerationAuditNote] = useState<string>('');
+  const [isSubmittingModeration, setIsSubmittingModeration] = useState<boolean>(false);
+
   // CSV Import State
   const [selectedCsvFile, setSelectedCsvFile] = useState<File | null>(null);
   const [skipDuplicates, setSkipDuplicates] = useState<boolean>(true);
@@ -143,7 +170,12 @@ export const App = () => {
   const [csvSummary, setCsvSummary] = useState<BatchImportSummaryResponse | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState<boolean>(false);
+  const [importConfirmAcknowledged, setImportConfirmAcknowledged] = useState<boolean>(false);
   const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
+  const [showSchemaGuide, setShowSchemaGuide] = useState<boolean>(false);
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'valid' | 'duplicate' | 'invalid'>('all');
+  const [previewSearch, setPreviewSearch] = useState<string>('');
+  const [previewPage, setPreviewPage] = useState<number>(1);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Statewide Coverage & ML Readiness
@@ -439,17 +471,39 @@ export const App = () => {
   };
 
   // 5. Audit & Moderation Action Handlers
-  const handleModerateStatus = async (recordId: string, newStatus: number, defaultNote: string) => {
+  const handleOpenModerationModal = (record: ApiLandRecord, targetStatus: number) => {
+    setModerationRecord(record);
+    setModerationTargetStatus(targetStatus);
+    const defaultNote =
+      targetStatus === 2 ? 'Verified against official land deed and survey records.' :
+        targetStatus === 1 ? 'Pending physical survey and secondary title verification.' :
+          targetStatus === 3 ? 'Rejected by administrative audit (disputed boundary / outlier pricing).' :
+            'Archived historical land record.';
+    setModerationAuditNote(defaultNote);
+  };
+
+  const handleConfirmModeration = async () => {
+    if (!moderationRecord) return;
+    setIsSubmittingModeration(true);
     try {
-      await api.updateVerificationStatus(recordId, newStatus, defaultNote);
-      setNotification(`Record verification status updated to ${newStatus === 2 ? 'Verified' : newStatus === 3 ? 'Rejected' : 'Archived'}.`);
+      await api.updateVerificationStatus(moderationRecord.id, moderationTargetStatus, moderationAuditNote);
+      const statusLabels: Record<number, string> = {
+        1: 'Pending Review',
+        2: 'Verified',
+        3: 'Rejected',
+        4: 'Archived',
+      };
+      setNotification(`Record verification status updated to ${statusLabels[moderationTargetStatus] || 'Updated'}.`);
       setTimeout(() => setNotification(null), 4000);
+      setModerationRecord(null);
       await fetchRecords();
       if (activeTab === 'explorer') {
         await fetchEstimate(targetLat, targetLng, selectedUsage);
       }
     } catch (err: any) {
       alert(`Moderation Error: ${err.message}`);
+    } finally {
+      setIsSubmittingModeration(false);
     }
   };
 
@@ -508,12 +562,20 @@ export const App = () => {
 
     setSelectedCsvFile(file);
     setIsAnalyzingCsv(true);
+    setCsvError(null);
+    setImportSuccessMessage(null);
+    setPreviewPage(1);
 
     try {
-      const previewSummary = await api.importCsv(file, true, skipDuplicates);
+      const previewSummary = await api.importCsv(file, true, skipDuplicates, adminKey);
       setCsvSummary(previewSummary);
     } catch (err: any) {
-      setCsvError(err.message || 'Failed to validate and preview CSV file.');
+      if (err.status === 401 || err.message?.includes('401') || err.message?.toLowerCase().includes('unauthorized')) {
+        setCsvError('Unauthorized: A valid Admin API Key is required. Click "Set Admin Key" in the top bar to provide it.');
+        setIsAdminKeyModalOpen(true);
+      } else {
+        setCsvError(err.message || 'Failed to validate and preview CSV file.');
+      }
       setCsvSummary(null);
     } finally {
       setIsAnalyzingCsv(false);
@@ -525,7 +587,7 @@ export const App = () => {
     if (selectedCsvFile) {
       setIsAnalyzingCsv(true);
       try {
-        const previewSummary = await api.importCsv(selectedCsvFile, true, newVal);
+        const previewSummary = await api.importCsv(selectedCsvFile, true, newVal, adminKey);
         setCsvSummary(previewSummary);
       } catch (err: any) {
         setCsvError(err.message || 'Failed to re-analyze CSV file.');
@@ -543,7 +605,7 @@ export const App = () => {
     setIsImportConfirmOpen(false);
 
     try {
-      const summary = await api.importCsv(selectedCsvFile, false, skipDuplicates);
+      const summary = await api.importCsv(selectedCsvFile, false, skipDuplicates, adminKey);
       setCsvSummary(summary);
       setImportSuccessMessage(
         `Batch Ingestion Completed: ${summary.importedRows} records imported. ${summary.skippedRows} duplicates skipped.`
@@ -562,7 +624,12 @@ export const App = () => {
         // Suppress reference localities error if offline
       }
     } catch (err: any) {
-      setCsvError(err.message || 'Failed to complete batch ingestion.');
+      if (err.status === 401 || err.message?.includes('401') || err.message?.toLowerCase().includes('unauthorized')) {
+        setCsvError('Unauthorized: Ingestion requires a valid Admin API Key. Please configure your admin key.');
+        setIsAdminKeyModalOpen(true);
+      } else {
+        setCsvError(err.message || 'Failed to complete batch ingestion.');
+      }
     } finally {
       setIsExecutingImport(false);
     }
@@ -573,6 +640,9 @@ export const App = () => {
     setCsvSummary(null);
     setCsvError(null);
     setImportSuccessMessage(null);
+    setPreviewPage(1);
+    setPreviewSearch('');
+    setPreviewFilter('all');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -582,6 +652,7 @@ export const App = () => {
   const analytics = React.useMemo(() => {
     const total = records.length;
     const verified = records.filter(r => r.verificationStatus === 'Verified').length;
+    const pendingReview = records.filter(r => r.verificationStatus === 'PendingReview').length;
     const unverified = records.filter(r => r.verificationStatus === 'Unverified').length;
     const rejected = records.filter(r => r.verificationStatus === 'Rejected').length;
     const archived = records.filter(r => r.verificationStatus === 'Archived').length;
@@ -601,7 +672,7 @@ export const App = () => {
       MixedUse: records.filter(r => r.landUsage === 'MixedUse').length,
     };
 
-    return { total, verified, unverified, rejected, archived, bySource, byUsage };
+    return { total, verified, pendingReview, unverified, rejected, archived, bySource, byUsage };
   }, [records]);
 
   // Filtered Records for Registry Table
@@ -615,9 +686,40 @@ export const App = () => {
 
       const matchLocality = filterLocality === 'All' || r.locality.toLowerCase() === filterLocality.toLowerCase();
       const matchStatus = filterStatus === 'All' || r.verificationStatus === filterStatus;
-      return matchSearch && matchLocality && matchStatus;
+      const matchSource = filterSource === 'All' || r.sourceCategory === filterSource;
+      const matchUsage = filterUsage === 'All' || r.landUsage === filterUsage || (filterUsage === 'Agricultural' && r.landUsage.startsWith('Agricultural'));
+
+      return matchSearch && matchLocality && matchStatus && matchSource && matchUsage;
     });
-  }, [records, filterSearch, filterLocality, filterStatus]);
+  }, [records, filterSearch, filterLocality, filterStatus, filterSource, filterUsage]);
+
+  // Previews filtering and pagination for CSV Import Tab
+  const filteredPreviews = React.useMemo(() => {
+    if (!csvSummary || !csvSummary.previews) return [];
+    return csvSummary.previews.filter((p: ValidatedRecordPreview) => {
+      if (previewFilter === 'valid' && (!p.isValid || p.isDuplicate)) return false;
+      if (previewFilter === 'duplicate' && !p.isDuplicate) return false;
+      if (previewFilter === 'invalid' && p.isValid) return false;
+      if (previewSearch.trim()) {
+        const query = previewSearch.toLowerCase();
+        const loc = (p.locality || '').toLowerCase();
+        const srv = (p.surveyNumber || '').toLowerCase();
+        const tlk = (p.taluk || '').toLowerCase();
+        const usg = (p.landUsage || '').toLowerCase();
+        if (!loc.includes(query) && !srv.includes(query) && !tlk.includes(query) && !usg.includes(query)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [csvSummary, previewFilter, previewSearch]);
+
+  const previewPageSize = 10;
+  const totalPreviewPages = Math.max(1, Math.ceil(filteredPreviews.length / previewPageSize));
+  const paginatedPreviews = React.useMemo(() => {
+    const start = (previewPage - 1) * previewPageSize;
+    return filteredPreviews.slice(start, start + previewPageSize);
+  }, [filteredPreviews, previewPage, previewPageSize]);
 
   return (
     <div className="workspace-layout">
@@ -720,6 +822,30 @@ export const App = () => {
                 onChange={(e) => setFilterSearch(e.target.value)}
               />
             </div>
+
+            <button
+              className="btn btn-sm"
+              onClick={() => {
+                setAdminKeyInput(adminKey);
+                setIsAdminKeyModalOpen(true);
+              }}
+              style={{
+                background: adminKey ? '#f0fdf4' : '#fef2f2',
+                color: adminKey ? '#166534' : '#991b1b',
+                border: adminKey ? '1px solid #bbf7d0' : '1px solid #fecaca',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                padding: '4px 8px',
+                cursor: 'pointer',
+                borderRadius: '4px',
+              }}
+              title="Configure Administrative API Key for Ingestion & Verification"
+            >
+              <Icons.Key />
+              <span>{adminKey ? 'Admin Key Set' : 'Set Admin Key'}</span>
+            </button>
 
             <div className="user-profile-badge">
               <div className="user-avatar">GA</div>
@@ -1396,8 +1522,9 @@ export const App = () => {
                       onChange={(e) => setFilterStatus(e.target.value)}
                     >
                       <option value="All">All Statuses</option>
-                      <option value="Unverified">Unverified</option>
                       <option value="Verified">Verified</option>
+                      <option value="PendingReview">Pending Review</option>
+                      <option value="Unverified">Unverified</option>
                       <option value="Rejected">Rejected</option>
                       <option value="Archived">Archived</option>
                     </select>
@@ -1506,30 +1633,46 @@ export const App = () => {
                             <td>
                               <span className={
                                 r.verificationStatus === 'Verified' ? 'badge badge-green' :
-                                  r.verificationStatus === 'Unverified' ? 'badge badge-gold' :
-                                    r.verificationStatus === 'Rejected' ? 'badge badge-danger' : 'badge badge-gray'
+                                  r.verificationStatus === 'PendingReview' ? 'badge badge-orange' :
+                                    r.verificationStatus === 'Unverified' ? 'badge badge-gold' :
+                                      r.verificationStatus === 'Rejected' ? 'badge badge-danger' : 'badge badge-gray'
                               }>
-                                {r.verificationStatus}
+                                {r.verificationStatus === 'PendingReview' ? 'Pending Review' : r.verificationStatus}
                               </span>
+                              {r.notes && (
+                                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '3px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.notes}>
+                                  {r.notes}
+                                </div>
+                              )}
                             </td>
                             <td>
-                              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                              <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
                                 {r.verificationStatus !== 'Verified' && (
                                   <button
                                     className="btn btn-sm"
-                                    style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 6px' }}
-                                    onClick={() => handleModerateStatus(r.id, 2, 'Verified deed audit.')}
-                                    title="Mark Verified"
+                                    style={{ background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 5px', fontSize: '0.72rem' }}
+                                    onClick={() => handleOpenModerationModal(r, 2)}
+                                    title="Verify Record (Eligible for Valuations)"
                                   >
                                     Verify
+                                  </button>
+                                )}
+                                {r.verificationStatus !== 'PendingReview' && (
+                                  <button
+                                    className="btn btn-sm"
+                                    style={{ background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', padding: '2px 5px', fontSize: '0.72rem' }}
+                                    onClick={() => handleOpenModerationModal(r, 1)}
+                                    title="Mark Pending Review"
+                                  >
+                                    Review
                                   </button>
                                 )}
                                 {r.verificationStatus !== 'Rejected' && (
                                   <button
                                     className="btn btn-sm btn-danger"
-                                    style={{ padding: '2px 6px' }}
-                                    onClick={() => handleModerateStatus(r.id, 3, 'Rejected by audit.')}
-                                    title="Mark Rejected"
+                                    style={{ padding: '2px 5px', fontSize: '0.72rem' }}
+                                    onClick={() => handleOpenModerationModal(r, 3)}
+                                    title="Reject Record (Excluded from Valuations)"
                                   >
                                     Reject
                                   </button>
@@ -1537,9 +1680,9 @@ export const App = () => {
                                 {r.verificationStatus !== 'Archived' && (
                                   <button
                                     className="btn btn-sm btn-secondary"
-                                    style={{ padding: '2px 6px' }}
-                                    onClick={() => handleModerateStatus(r.id, 4, 'Archived historical deed.')}
-                                    title="Archive Record"
+                                    style={{ padding: '2px 5px', fontSize: '0.72rem' }}
+                                    onClick={() => handleOpenModerationModal(r, 4)}
+                                    title="Archive Historical Deed"
                                   >
                                     Archive
                                   </button>
@@ -1568,6 +1711,42 @@ export const App = () => {
                 </div>
               )}
 
+              {/* Final Import Summary Card */}
+              {csvSummary && !csvSummary.dryRun && csvSummary.importedRows !== undefined && (
+                <div className="panel-card" style={{ borderLeft: '4px solid #16a34a', marginBottom: '1.25rem' }}>
+                  <div className="panel-card-body" style={{ padding: '1.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                          <span style={{ color: '#16a34a' }}><Icons.Check /></span>
+                          <h4 style={{ color: '#166534', margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+                            Batch Dataset Ingested Successfully
+                          </h4>
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#475569', lineHeight: 1.5 }}>
+                          Persisted <strong>{csvSummary.importedRows}</strong> land price records into the database with default <code>Unverified</code> status.
+                          {csvSummary.skippedRows > 0 && ` Skipped ${csvSummary.skippedRows} duplicates.`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={handleResetCsv}
+                        >
+                          Import Another File
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => setActiveTab('records')}
+                        >
+                          View in Records Registry →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {csvError && (
                 <div className="flash-banner flash-error">
                   <span>{csvError}</span>
@@ -1580,15 +1759,73 @@ export const App = () => {
                 <div className="panel-card-header">
                   <div>
                     <h3>Batch CSV Ingestion</h3>
-                    <div className="panel-card-subtitle">Upload CSV files to ingest and validate land records</div>
+                    <div className="panel-card-subtitle">Upload CSV files to ingest, validate, and audit land records</div>
                   </div>
-                  <button className="btn btn-sm btn-secondary" onClick={() => api.downloadCsvTemplate()}>
-                    <Icons.Download />
-                    <span>Download Template</span>
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setShowSchemaGuide(!showSchemaGuide)}
+                    >
+                      <span>{showSchemaGuide ? 'Hide Schema Guide' : 'Column Mapping Guide'}</span>
+                    </button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => api.downloadCsvTemplate()}>
+                      <Icons.Download />
+                      <span>Download Template</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="panel-card-body">
+                  {/* Schema Guide Drawer */}
+                  {showSchemaGuide && (
+                    <div style={{
+                      background: '#f8fafc',
+                      padding: '1rem',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      marginBottom: '1.25rem',
+                      fontSize: '0.8125rem'
+                    }}>
+                      <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '0.5rem' }}>
+                        Canonical CSV Header Requirements & Formatting:
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                        <div>
+                          <div style={{ color: '#166534', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            ✓ Required Columns (9):
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#334155', lineHeight: 1.6 }}>
+                            <li><code>locality</code> (e.g., Kannampalayam, Sulur)</li>
+                            <li><code>latitude</code> (8.0 to 14.0 inside Tamil Nadu)</li>
+                            <li><code>longitude</code> (76.0 to 81.0 inside Tamil Nadu)</li>
+                            <li><code>landUsage</code> (Residential, Commercial, Industrial, AgriculturalWet, AgriculturalDry, MixedUse)</li>
+                            <li><code>area</code> (Numeric, e.g., 3.5, 2400)</li>
+                            <li><code>unit</code> (Cent, SqFt, Acre, Ground, Kuzhi, SqMeter)</li>
+                            <li><code>price</code> (Total price in INR, e.g., 3675000)</li>
+                            <li><code>sourceCategory</code> (VerifiedTransaction, GovernmentGuideline, AdvertisedAskingPrice, ClientResearch)</li>
+                            <li><code>observationDate</code> (YYYY-MM-DD)</li>
+                          </ul>
+                        </div>
+                        <div>
+                          <div style={{ color: '#475569', fontWeight: 600, marginBottom: '0.25rem' }}>
+                            ○ Optional Columns (8):
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#64748b', lineHeight: 1.6 }}>
+                            <li><code>surveyNumber</code> (e.g., SF 142/2A)</li>
+                            <li><code>taluk</code> (e.g., Sulur, Coimbatore South)</li>
+                            <li><code>streetOrLandmark</code> (e.g., Trichy Road Branch)</li>
+                            <li><code>district</code> (Default: Coimbatore)</li>
+                            <li><code>state</code> (Default: Tamil Nadu)</li>
+                            <li><code>country</code> (Default: India)</li>
+                            <li><code>sourceReference</code> (e.g., SRO Sulur Doc 3412/2023)</li>
+                            <li><code>notes</code> (Surveyor observations)</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload Dropzone */}
                   <div style={{
                     border: '1.5px dashed #cbd5e1',
                     borderRadius: '6px',
@@ -1616,8 +1853,8 @@ export const App = () => {
                   </div>
 
                   {isAnalyzingCsv && (
-                    <div style={{ textAlign: 'center', padding: '1rem', color: '#64748b', fontSize: '0.85rem' }}>
-                      Validating file headers and data rows...
+                    <div style={{ textAlign: 'center', padding: '1.25rem', color: '#64748b', fontSize: '0.85rem' }}>
+                      Validating file headers, normalizing units, and checking spatial duplicate records...
                     </div>
                   )}
 
@@ -1644,6 +1881,15 @@ export const App = () => {
                           <span className="kpi-title">Invalid / Errors</span>
                           <div className="kpi-value" style={{ color: '#991b1b' }}>{csvSummary.invalidRows}</div>
                         </div>
+
+                        <div className="kpi-card">
+                          <span className="kpi-title">Ready to Ingest</span>
+                          <div className="kpi-value" style={{ color: '#581c87' }}>
+                            {skipDuplicates
+                              ? Math.max(0, csvSummary.validRows - csvSummary.duplicateRows)
+                              : csvSummary.validRows}
+                          </div>
+                        </div>
                       </div>
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginTop: '1rem', padding: '0.85rem', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
@@ -1653,7 +1899,7 @@ export const App = () => {
                             checked={skipDuplicates}
                             onChange={(e) => handleToggleSkipDuplicates(e.target.checked)}
                           />
-                          <span>Skip duplicate records during ingestion</span>
+                          <span>Skip duplicate records (spatial proximity &amp; survey number match)</span>
                         </label>
 
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1663,9 +1909,12 @@ export const App = () => {
                           <button
                             className="btn btn-primary btn-sm"
                             disabled={csvSummary.validRows === 0 || isExecutingImport}
-                            onClick={() => setIsImportConfirmOpen(true)}
+                            onClick={() => {
+                              setImportConfirmAcknowledged(false);
+                              setIsImportConfirmOpen(true);
+                            }}
                           >
-                            {isExecutingImport ? 'Importing...' : 'Execute Import'}
+                            {isExecutingImport ? 'Importing...' : `Execute Import (${skipDuplicates ? Math.max(0, csvSummary.validRows - csvSummary.duplicateRows) : csvSummary.validRows} Records)`}
                           </button>
                         </div>
                       </div>
@@ -1673,8 +1922,8 @@ export const App = () => {
                       {/* Row Diagnostics / Validation Errors */}
                       {csvSummary.diagnostics && csvSummary.diagnostics.length > 0 && (
                         <div style={{ marginTop: '1.25rem' }}>
-                          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', marginBottom: '0.5rem' }}>
-                            Validation Issues ({csvSummary.diagnostics.length})
+                          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#991b1b', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                            <Icons.Alert /> Validation Issues ({csvSummary.diagnostics.length})
                           </h4>
                           <div className="table-wrapper">
                             <table className="data-table">
@@ -1702,6 +1951,209 @@ export const App = () => {
                               </tbody>
                             </table>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Record Previews Table */}
+                      {csvSummary.previews && csvSummary.previews.length > 0 && (
+                        <div style={{ marginTop: '1.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                            <div>
+                              <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a', margin: '0 0 0.15rem 0' }}>
+                                Parsed Records Preview ({filteredPreviews.length} of {csvSummary.previews.length} rows)
+                              </h4>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                Inspect normalized rates and duplicate status before committing to database
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    borderRadius: 0,
+                                    border: 'none',
+                                    background: previewFilter === 'all' ? '#240046' : '#ffffff',
+                                    color: previewFilter === 'all' ? '#ffffff' : '#475569',
+                                    padding: '4px 8px',
+                                    fontSize: '0.75rem',
+                                  }}
+                                  onClick={() => { setPreviewFilter('all'); setPreviewPage(1); }}
+                                >
+                                  All ({csvSummary.previews.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    borderRadius: 0,
+                                    border: 'none',
+                                    borderLeft: '1px solid #cbd5e1',
+                                    background: previewFilter === 'valid' ? '#166534' : '#ffffff',
+                                    color: previewFilter === 'valid' ? '#ffffff' : '#475569',
+                                    padding: '4px 8px',
+                                    fontSize: '0.75rem',
+                                  }}
+                                  onClick={() => { setPreviewFilter('valid'); setPreviewPage(1); }}
+                                >
+                                  Valid ({csvSummary.validRows - csvSummary.duplicateRows})
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    borderRadius: 0,
+                                    border: 'none',
+                                    borderLeft: '1px solid #cbd5e1',
+                                    background: previewFilter === 'duplicate' ? '#92400e' : '#ffffff',
+                                    color: previewFilter === 'duplicate' ? '#ffffff' : '#475569',
+                                    padding: '4px 8px',
+                                    fontSize: '0.75rem',
+                                  }}
+                                  onClick={() => { setPreviewFilter('duplicate'); setPreviewPage(1); }}
+                                >
+                                  Duplicates ({csvSummary.duplicateRows})
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    borderRadius: 0,
+                                    border: 'none',
+                                    borderLeft: '1px solid #cbd5e1',
+                                    background: previewFilter === 'invalid' ? '#991b1b' : '#ffffff',
+                                    color: previewFilter === 'invalid' ? '#ffffff' : '#475569',
+                                    padding: '4px 8px',
+                                    fontSize: '0.75rem',
+                                  }}
+                                  onClick={() => { setPreviewFilter('invalid'); setPreviewPage(1); }}
+                                >
+                                  Errors ({csvSummary.invalidRows})
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                className="text-input"
+                                placeholder="Search locality or survey..."
+                                value={previewSearch}
+                                onChange={(e) => { setPreviewSearch(e.target.value); setPreviewPage(1); }}
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', width: '180px' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="table-wrapper">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Row</th>
+                                  <th>Status</th>
+                                  <th>Locality</th>
+                                  <th>Survey #</th>
+                                  <th>Coordinates</th>
+                                  <th>Usage</th>
+                                  <th>Area</th>
+                                  <th>Price</th>
+                                  <th>Normalized Rates</th>
+                                  <th>Source</th>
+                                  <th>Diagnostics / Notes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {paginatedPreviews.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={11} style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b' }}>
+                                      No preview records match the selected filter.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  paginatedPreviews.map((p: ValidatedRecordPreview) => (
+                                    <tr key={p.rowNumber}>
+                                      <td><code>Row {p.rowNumber}</code></td>
+                                      <td>
+                                        {!p.isValid ? (
+                                          <span className="badge badge-danger">Invalid</span>
+                                        ) : p.isDuplicate ? (
+                                          <span className="badge badge-orange">{skipDuplicates ? 'Duplicate (Skip)' : 'Duplicate'}</span>
+                                        ) : (
+                                          <span className="badge badge-green">Ready to Import</span>
+                                        )}
+                                      </td>
+                                      <td>
+                                        <strong>{p.locality}</strong>
+                                        {p.taluk && <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{p.taluk}</div>}
+                                      </td>
+                                      <td><code>{p.surveyNumber || '—'}</code></td>
+                                      <td>
+                                        <small>{p.latitude.toFixed(4)}, {p.longitude.toFixed(4)}</small>
+                                      </td>
+                                      <td>{p.landUsage}</td>
+                                      <td>{p.area} {p.unit}</td>
+                                      <td>₹{p.price.toLocaleString('en-IN')}</td>
+                                      <td>
+                                        <strong>₹{(p.normalizedRatePerCent / 100000).toFixed(2)}L/c</strong>
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b' }}>₹{p.normalizedRatePerSqFt.toLocaleString('en-IN')}/sq.ft</div>
+                                      </td>
+                                      <td>
+                                        <span className={
+                                          p.sourceCategory === 'VerifiedTransaction' ? 'badge badge-green' :
+                                            p.sourceCategory === 'GovernmentGuideline' ? 'badge badge-blue' :
+                                              p.sourceCategory === 'AdvertisedAskingPrice' ? 'badge badge-orange' : 'badge badge-purple'
+                                        }>
+                                          {p.sourceCategory}
+                                        </span>
+                                      </td>
+                                      <td>
+                                        {!p.isValid && p.errors.length > 0 && (
+                                          <div style={{ color: '#991b1b', fontSize: '0.72rem' }}>
+                                            {p.errors.join('; ')}
+                                          </div>
+                                        )}
+                                        {p.isDuplicate && (
+                                          <div style={{ color: '#92400e', fontSize: '0.72rem' }}>
+                                            {p.duplicateReason || 'Duplicate spatial coordinates / survey number.'}
+                                          </div>
+                                        )}
+                                        {p.isValid && !p.isDuplicate && (
+                                          <div style={{ color: '#166534', fontSize: '0.72rem' }}>
+                                            ✓ Coordinates valid within Tamil Nadu bounds
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Pagination Bar */}
+                          {totalPreviewPages > 1 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', fontSize: '0.8125rem', color: '#64748b' }}>
+                              <span>
+                                Showing page {previewPage} of {totalPreviewPages} ({filteredPreviews.length} total preview rows)
+                              </span>
+                              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                <button
+                                  className="btn btn-sm btn-secondary"
+                                  disabled={previewPage <= 1}
+                                  onClick={() => setPreviewPage(p => Math.max(1, p - 1))}
+                                >
+                                  Previous
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-secondary"
+                                  disabled={previewPage >= totalPreviewPages}
+                                  onClick={() => setPreviewPage(p => Math.min(totalPreviewPages, p + 1))}
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2182,9 +2634,9 @@ export const App = () => {
           ========================================================================= */}
       {isImportConfirmOpen && csvSummary && (
         <div className="modal-backdrop">
-          <div className="modal-dialog" style={{ maxWidth: '480px' }}>
+          <div className="modal-dialog" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
-              <h3>Confirm Batch Import</h3>
+              <h3>Confirm Batch Dataset Ingestion</h3>
               <button
                 onClick={() => setIsImportConfirmOpen(false)}
                 style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}
@@ -2195,25 +2647,364 @@ export const App = () => {
 
             <div className="modal-body">
               <p style={{ color: '#0f172a', fontSize: '0.875rem', lineHeight: 1.5, marginBottom: '0.85rem' }}>
-                You are about to persist <strong>
-                  {skipDuplicates
-                    ? Math.max(0, csvSummary.validRows - csvSummary.duplicateRows)
-                    : csvSummary.validRows}
-                </strong> land price records into the database.
+                You are about to execute database ingestion for file: <strong>{selectedCsvFile?.name}</strong>.
               </p>
 
-              <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.8125rem' }}>
-                <div>• All imported records will default to <code>Unverified</code> status.</div>
-                <div>• Duplicate handling: <strong>{skipDuplicates ? `Skip ${csvSummary.duplicateRows} duplicates` : `Import all`}</strong></div>
+              <div style={{ background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8125rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Records to Ingest:</span>
+                    <strong style={{ color: '#166534', fontSize: '1.1rem' }}>
+                      {skipDuplicates
+                        ? Math.max(0, csvSummary.validRows - csvSummary.duplicateRows)
+                        : csvSummary.validRows}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Duplicates to Skip:</span>
+                    <strong style={{ color: '#92400e', fontSize: '1.1rem' }}>
+                      {skipDuplicates ? csvSummary.duplicateRows : 0}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Invalid Excluded:</span>
+                    <strong style={{ color: '#991b1b', fontSize: '1.1rem' }}>{csvSummary.invalidRows}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Default Status:</span>
+                    <span className="badge badge-gold">Unverified</span>
+                  </div>
+                </div>
+                <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.5rem', color: '#64748b', fontSize: '0.75rem' }}>
+                  • Ingested records will be persisted to PostgreSQL and indexed spatially via PostGIS.
+                  <br />• All imported records require administrative audit before becoming eligible as verified market evidence.
+                </div>
               </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.5rem', background: '#f1f5f9', borderRadius: '4px' }}>
+                <input
+                  type="checkbox"
+                  style={{ marginTop: '2px' }}
+                  checked={importConfirmAcknowledged}
+                  onChange={(e) => setImportConfirmAcknowledged(e.target.checked)}
+                />
+                <span>
+                  I have inspected the previewed records and confirm committing these records to the Greenart production database.
+                </span>
+              </label>
             </div>
 
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setIsImportConfirmOpen(false)}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={handleExecuteImport} disabled={isExecutingImport}>
-                {isExecutingImport ? 'Importing...' : 'Confirm & Import'}
+              <button
+                className="btn btn-primary"
+                onClick={handleExecuteImport}
+                disabled={isExecutingImport || !importConfirmAcknowledged}
+              >
+                {isExecutingImport ? 'Ingesting Dataset...' : 'Confirm & Ingest Records'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: LAND RECORD VERIFICATION & MODERATION
+          ========================================================================= */}
+      {moderationRecord && (
+        <div className="modal-backdrop">
+          <div className="modal-dialog" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>Review Land Record</h3>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px' }}>
+                  ID: <code>{moderationRecord.id.substring(0, 8)}</code> • {moderationRecord.locality} ({moderationRecord.district})
+                </div>
+              </div>
+              <button
+                onClick={() => setModerationRecord(null)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              {/* Record Summary Box */}
+              <div style={{ background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '1rem', fontSize: '0.82rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.65rem' }}>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Survey Number</span>
+                    <strong>{moderationRecord.surveyNumber || 'None / Unspecified'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Coordinates</span>
+                    <code>{moderationRecord.latitude.toFixed(4)}, {moderationRecord.longitude.toFixed(4)}</code>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Area & Usage</span>
+                    <span>{moderationRecord.originalArea} {moderationRecord.originalUnit} • {moderationRecord.landUsage}</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#64748b', display: 'block', fontSize: '0.72rem' }}>Price & Rates</span>
+                    <strong>₹{(moderationRecord.normalizedRatePerCent / 100000).toFixed(2)}L/cent</strong>
+                    <span style={{ color: '#64748b', marginLeft: '4px' }}>(₹{moderationRecord.normalizedRatePerSqFt}/sq.ft)</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: '0.65rem', paddingTop: '0.5rem', borderTop: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ color: '#64748b' }}>Current Status:</span>
+                  <span className={
+                    moderationRecord.verificationStatus === 'Verified' ? 'badge badge-green' :
+                      moderationRecord.verificationStatus === 'PendingReview' ? 'badge badge-orange' :
+                        moderationRecord.verificationStatus === 'Unverified' ? 'badge badge-gold' :
+                          moderationRecord.verificationStatus === 'Rejected' ? 'badge badge-danger' : 'badge badge-gray'
+                  }>
+                    {moderationRecord.verificationStatus === 'PendingReview' ? 'Pending Review' : moderationRecord.verificationStatus}
+                  </span>
+                  <span style={{ color: '#64748b', marginLeft: 'auto' }}>Source: <strong>{moderationRecord.sourceCategory}</strong></span>
+                </div>
+              </div>
+
+              {/* Status Selector */}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Target Verification Status *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModerationTargetStatus(2);
+                      setModerationAuditNote('Verified against official land deed and survey records.');
+                    }}
+                    style={{
+                      padding: '0.65rem',
+                      borderRadius: '6px',
+                      border: moderationTargetStatus === 2 ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                      background: moderationTargetStatus === 2 ? '#f0fdf4' : '#ffffff',
+                      color: moderationTargetStatus === 2 ? '#166534' : '#334155',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    <div>✓ Verified</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginTop: '2px' }}>
+                      Eligible for valuation
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModerationTargetStatus(1);
+                      setModerationAuditNote('Pending physical survey and secondary title verification.');
+                    }}
+                    style={{
+                      padding: '0.65rem',
+                      borderRadius: '6px',
+                      border: moderationTargetStatus === 1 ? '2px solid #f97316' : '1px solid #cbd5e1',
+                      background: moderationTargetStatus === 1 ? '#fff7ed' : '#ffffff',
+                      color: moderationTargetStatus === 1 ? '#c2410c' : '#334155',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    <div>⏱ Pending Review</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginTop: '2px' }}>
+                      Held for audit
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModerationTargetStatus(3);
+                      setModerationAuditNote('Rejected by administrative audit (disputed boundary / outlier pricing).');
+                    }}
+                    style={{
+                      padding: '0.65rem',
+                      borderRadius: '6px',
+                      border: moderationTargetStatus === 3 ? '2px solid #dc2626' : '1px solid #cbd5e1',
+                      background: moderationTargetStatus === 3 ? '#fef2f2' : '#ffffff',
+                      color: moderationTargetStatus === 3 ? '#991b1b' : '#334155',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    <div>✕ Rejected</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginTop: '2px' }}>
+                      Excluded from valuation
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModerationTargetStatus(4);
+                      setModerationAuditNote('Archived historical land record.');
+                    }}
+                    style={{
+                      padding: '0.65rem',
+                      borderRadius: '6px',
+                      border: moderationTargetStatus === 4 ? '2px solid #64748b' : '1px solid #cbd5e1',
+                      background: moderationTargetStatus === 4 ? '#f1f5f9' : '#ffffff',
+                      color: moderationTargetStatus === 4 ? '#334155' : '#334155',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '0.82rem'
+                    }}
+                  >
+                    <div>📦 Archived</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginTop: '2px' }}>
+                      Historical deed
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Audit Reason / Note */}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label">Audit Note & Reason *</label>
+                <textarea
+                  className="text-input"
+                  rows={3}
+                  value={moderationAuditNote}
+                  onChange={(e) => setModerationAuditNote(e.target.value)}
+                  placeholder="Enter administrative audit reason or deed verification reference..."
+                  style={{ width: '100%', resize: 'vertical' }}
+                  required
+                />
+              </div>
+
+              {/* Domain Rule Explanation Alert */}
+              <div style={{
+                padding: '0.75rem',
+                borderRadius: '4px',
+                fontSize: '0.78rem',
+                lineHeight: 1.4,
+                background: moderationTargetStatus === 2 ? '#f0fdf4' : moderationTargetStatus === 3 || moderationTargetStatus === 4 ? '#fef2f2' : '#fffbeb',
+                color: moderationTargetStatus === 2 ? '#166534' : moderationTargetStatus === 3 || moderationTargetStatus === 4 ? '#991b1b' : '#92400e',
+                border: moderationTargetStatus === 2 ? '1px solid #bbf7d0' : moderationTargetStatus === 3 || moderationTargetStatus === 4 ? '1px solid #fecaca' : '1px solid #fde68a',
+              }}>
+                {moderationTargetStatus === 2 && (
+                  <div><strong>Valuation Impact:</strong> This record will be actively included in the 1,000m radius median estimation and IQR calculation as verified evidence.</div>
+                )}
+                {moderationTargetStatus === 1 && (
+                  <div><strong>Valuation Impact:</strong> This record is flagged for physical surveyor inspection. It will remain in review until an administrator verifies or rejects it.</div>
+                )}
+                {moderationTargetStatus === 3 && (
+                  <div><strong>Valuation Impact:</strong> Rejected records are strictly quarantined and permanently excluded from land valuation calculations.</div>
+                )}
+                {moderationTargetStatus === 4 && (
+                  <div><strong>Valuation Impact:</strong> Archived records are preserved for audit logging but excluded from current market rate estimations.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setModerationRecord(null)}
+                disabled={isSubmittingModeration}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleConfirmModeration}
+                disabled={isSubmittingModeration || !moderationAuditNote.trim()}
+              >
+                {isSubmittingModeration ? 'Updating...' : 'Confirm Status Transition'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL: ADMIN API KEY CONFIGURATION
+          ========================================================================= */}
+      {isAdminKeyModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-dialog" style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <h3>Admin API Key Configuration</h3>
+              <button
+                onClick={() => setIsAdminKeyModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#64748b' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p style={{ color: '#475569', fontSize: '0.8125rem', lineHeight: 1.5, marginBottom: '1rem' }}>
+                Protected operations (Batch CSV ingestion and record moderation) require administrative authentication via the <code>X-Admin-Key</code> header.
+              </p>
+
+              <div className="form-group">
+                <label className="form-label">Administrative API Key</label>
+                <input
+                  type="password"
+                  className="text-input"
+                  style={{ width: '100%' }}
+                  placeholder="Enter administrative API key..."
+                  value={adminKeyInput}
+                  onChange={(e) => setAdminKeyInput(e.target.value)}
+                />
+              </div>
+
+              <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#64748b' }}>
+                Key is securely stored in your browser's session storage and cleared when you close the tab.
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              {adminKey && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  style={{ marginRight: 'auto' }}
+                  onClick={() => {
+                    api.setAdminKey('');
+                    setAdminKey('');
+                    setAdminKeyInput('');
+                    setIsAdminKeyModalOpen(false);
+                    setNotification('Admin API Key cleared from session.');
+                    setTimeout(() => setNotification(null), 3000);
+                  }}
+                >
+                  Clear Key
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsAdminKeyModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  api.setAdminKey(adminKeyInput);
+                  setAdminKey(adminKeyInput.trim());
+                  setIsAdminKeyModalOpen(false);
+                  setNotification('Admin API Key saved successfully in session.');
+                  setTimeout(() => setNotification(null), 3000);
+                }}
+              >
+                Save Key
               </button>
             </div>
           </div>

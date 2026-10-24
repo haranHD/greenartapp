@@ -626,14 +626,20 @@ public class CsvLandPriceImporter : ICsvLandPriceImporter
                     }
                     currentRow.Add(currentField.ToString().Trim());
                     currentField.Clear();
-                    rows.Add(currentRow);
+                    if (currentRow.Any(f => !string.IsNullOrWhiteSpace(f)))
+                    {
+                        rows.Add(currentRow);
+                    }
                     currentRow = new List<string>();
                 }
                 else if (c == '\n')
                 {
                     currentRow.Add(currentField.ToString().Trim());
                     currentField.Clear();
-                    rows.Add(currentRow);
+                    if (currentRow.Any(f => !string.IsNullOrWhiteSpace(f)))
+                    {
+                        rows.Add(currentRow);
+                    }
                     currentRow = new List<string>();
                 }
                 else
@@ -647,7 +653,10 @@ public class CsvLandPriceImporter : ICsvLandPriceImporter
         if (currentField.Length > 0 || currentRow.Count > 0)
         {
             currentRow.Add(currentField.ToString().Trim());
-            rows.Add(currentRow);
+            if (currentRow.Any(f => !string.IsNullOrWhiteSpace(f)))
+            {
+                rows.Add(currentRow);
+            }
         }
 
         return rows;

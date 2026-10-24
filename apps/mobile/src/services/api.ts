@@ -60,6 +60,26 @@ export interface LocalityReference {
   recordCount: number;
 }
 
+export interface LocalitySuggestionDto {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+  fullText: string;
+  types: string[];
+}
+
+export interface LocalityDetailsDto {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  latitude: number;
+  longitude: number;
+  locality: string;
+  district: string;
+  state: string;
+  country: string;
+}
+
 export interface LandRecordDto {
   id: string;
   country: string;
@@ -83,6 +103,10 @@ export interface LandRecordDto {
   verificationStatus: string;
   isSynthetic: boolean;
   notes?: string;
+}
+
+export interface NearbyLandRecordDto extends LandRecordDto {
+  distanceMeters: number;
 }
 
 export interface HealthStatusResponse {
@@ -208,6 +232,79 @@ class MobileApiClient {
       throw new Error(`Failed to load land records: ${response.statusText}`);
     }
     return (await response.json()) as LandRecordDto[];
+  }
+
+  async getNearbyLandRecords(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number = 1000,
+    landUsage?: number
+  ): Promise<NearbyLandRecordDto[]> {
+    const query = new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      radiusMeters: radiusMeters.toString(),
+    });
+    if (landUsage !== undefined) {
+      query.append('landUsage', landUsage.toString());
+    }
+
+    const url = `${this.baseUrl}/land-records/nearby?${query.toString()}`;
+    const response = await this.fetchWithTimeout(url, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errJson = await response.json();
+        if (errJson && errJson.error) errorMsg = errJson.error;
+        else if (errJson && errJson.message) errorMsg = errJson.message;
+      } catch {
+        // Not JSON
+      }
+      throw new Error(errorMsg);
+    }
+
+    return (await response.json()) as NearbyLandRecordDto[];
+  }
+
+  async searchLocalities(query: string): Promise<LocalitySuggestionDto[]> {
+    if (!query || query.trim().length < 2) return [];
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/localities/search?q=${encodeURIComponent(query.trim())}`,
+        { headers: { Accept: 'application/json' } },
+        10000
+      );
+      if (!response.ok) {
+        console.warn(`[searchLocalities] API returned HTTP ${response.status}: ${response.statusText}`);
+        return [];
+      }
+      return (await response.json()) as LocalitySuggestionDto[];
+    } catch (err: any) {
+      console.warn('[searchLocalities] Request failed:', err?.message || err);
+      return [];
+    }
+  }
+
+  async getLocalityDetails(placeId: string): Promise<LocalityDetailsDto | null> {
+    if (!placeId) return null;
+    try {
+      const response = await this.fetchWithTimeout(
+        `${this.baseUrl}/localities/details?placeId=${encodeURIComponent(placeId.trim())}`,
+        { headers: { Accept: 'application/json' } },
+        10000
+      );
+      if (!response.ok) {
+        console.warn(`[getLocalityDetails] API returned HTTP ${response.status}: ${response.statusText}`);
+        return null;
+      }
+      return (await response.json()) as LocalityDetailsDto;
+    } catch (err: any) {
+      console.warn('[getLocalityDetails] Request failed:', err?.message || err);
+      return null;
+    }
   }
 }
 

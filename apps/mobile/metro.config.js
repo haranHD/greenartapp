@@ -19,6 +19,8 @@ config.resolver.nodeModulesPaths = [
 config.resolver.extraNodeModules = {
   react: path.resolve(monorepoRoot, 'node_modules/react'),
   'react-dom': path.resolve(monorepoRoot, 'node_modules/react-dom'),
+  'react/jsx-runtime': path.resolve(monorepoRoot, 'node_modules/react/jsx-runtime'),
+  'react/jsx-dev-runtime': path.resolve(monorepoRoot, 'node_modules/react/jsx-dev-runtime'),
 };
 
 module.exports = config;

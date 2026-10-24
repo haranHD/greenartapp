@@ -314,6 +314,86 @@ Kannampalayam,11.0035,77.0890,Residential,2.0,Cent,2000000,ClientResearch,2024-0
         Assert.Contains(result.Diagnostics, d => d.Severity == "Error" && d.Field == "Database");
     }
 
+    [Fact]
+    public async Task ProcessCsvAsync_WithQuotedCommasAndEscapedQuotes_ShouldParseCorrectly()
+    {
+        var repo = new InMemoryTestLandPriceRepository();
+        var importer = new CsvLandPriceImporter(repo, _logger);
+
+        var csv = "locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate,notes\r\n" +
+                  "Kannampalayam,Sulur,\"Trichy Road, Landmark Near SRO\",\"SF 142/2 \"\"A\"\"\",11.0020,77.0870,Residential,2.5,Cent,3000000,AdvertisedAskingPrice,Ref-1,2024-03-01,\"Deed note, with commas, and quotes\"\r\n";
+
+        var result = await importer.ProcessCsvAsync(CreateStream(csv), dryRun: false);
+
+        Assert.Equal(1, result.TotalRows);
+        Assert.Equal(1, result.ValidRows);
+        Assert.Equal(1, result.ImportedRows);
+
+        var preview = result.Previews[0];
+        Assert.Equal("Trichy Road, Landmark Near SRO", preview.StreetOrLandmark);
+        Assert.Equal("SF 142/2 \"A\"", preview.SurveyNumber);
+    }
+
+    [Fact]
+    public async Task ProcessCsvAsync_WithInterspersedBlankLines_ShouldParseCleanlyWithoutErrors()
+    {
+        var repo = new InMemoryTestLandPriceRepository();
+        var importer = new CsvLandPriceImporter(repo, _logger);
+
+        var csv = "locality,latitude,longitude,landUsage,area,unit,price,sourceCategory,observationDate\r\n\r\n" +
+                  "Kannampalayam,11.0020,77.0870,Residential,2.5,Cent,3000000,AdvertisedAskingPrice,2024-03-01\r\n\r\n" +
+                  "Sulur,11.0260,77.1280,Commercial,2000,SqFt,4000000,VerifiedTransaction,2024-03-05\r\n\r\n";
+
+        var result = await importer.ProcessCsvAsync(CreateStream(csv), dryRun: false);
+
+        Assert.Equal(2, result.TotalRows);
+        Assert.Equal(2, result.ValidRows);
+        Assert.Equal(2, result.ImportedRows);
+    }
+
+    [Fact]
+    public async Task ProcessCsvAsync_RepeatingSameImport_ShouldDetectAllAsDuplicatesAndSkip()
+    {
+        var repo = new InMemoryTestLandPriceRepository();
+        var importer = new CsvLandPriceImporter(repo, _logger);
+
+        var csv = "locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate\r\n" +
+                  "Kannampalayam,Sulur,Trichy Road,SF 999,11.0020,77.0870,Residential,2.5,Cent,3000000,AdvertisedAskingPrice,Ref-99,2024-03-01\r\n";
+
+        // First import persists record
+        var firstResult = await importer.ProcessCsvAsync(CreateStream(csv), dryRun: false, skipDuplicates: true);
+        Assert.Equal(1, firstResult.ImportedRows);
+        Assert.Equal(0, firstResult.DuplicateRows);
+
+        // Repeating exact same import immediately flags duplicate and skips
+        var secondResult = await importer.ProcessCsvAsync(CreateStream(csv), dryRun: false, skipDuplicates: true);
+        Assert.Equal(0, secondResult.ImportedRows);
+        Assert.Equal(1, secondResult.DuplicateRows);
+        Assert.Equal(1, secondResult.SkippedRows);
+        Assert.True(secondResult.Previews[0].IsDuplicate);
+    }
+
+    [Fact]
+    public async Task ProcessCsvAsync_WithIntraFileDuplicates_ShouldDetectSecondOccurrenceAsDuplicate()
+    {
+        var repo = new InMemoryTestLandPriceRepository();
+        var importer = new CsvLandPriceImporter(repo, _logger);
+
+        var csv = "locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate\r\n" +
+                  "Kannampalayam,Sulur,Trichy Road,SF 500,11.0020,77.0870,Residential,2.5,Cent,3000000,AdvertisedAskingPrice,Ref-A,2024-03-01\r\n" +
+                  "Kannampalayam,Sulur,Trichy Road,SF 500,11.0020,77.0870,Residential,2.5,Cent,3000000,AdvertisedAskingPrice,Ref-B,2024-03-01\r\n";
+
+        var result = await importer.ProcessCsvAsync(CreateStream(csv), dryRun: false, skipDuplicates: true);
+
+        Assert.Equal(2, result.TotalRows);
+        Assert.Equal(2, result.ValidRows);
+        Assert.Equal(1, result.DuplicateRows);
+        Assert.Equal(1, result.ImportedRows);
+        Assert.Equal(1, result.SkippedRows);
+        Assert.False(result.Previews[0].IsDuplicate);
+        Assert.True(result.Previews[1].IsDuplicate);
+    }
+
     private class InMemoryTestLandPriceRepository : ILandPriceRepository
     {
         private readonly List<LandPriceRecord> _records = new();
@@ -345,6 +425,20 @@ Kannampalayam,11.0035,77.0890,Residential,2.0,Cent,2000000,ClientResearch,2024-0
             var target = new GeoCoordinate(latitude, longitude);
             var result = _records.Where(r => r.LandUsage == landUsage && r.Coordinates.DistanceToMeters(target) <= radiusMeters).ToList();
             return Task.FromResult<IReadOnlyList<LandPriceRecord>>(result);
+        }
+
+        public Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(double latitude, double longitude, double radiusMeters, LandUsageType? landUsage = null, CancellationToken cancellationToken = default)
+        {
+            var target = new GeoCoordinate(latitude, longitude);
+            var result = _records
+                .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
+                .Where(r => !landUsage.HasValue || r.LandUsage == landUsage.Value)
+                .Select(r => (Record: r, DistanceMeters: Math.Round(r.Coordinates.DistanceToMeters(target), 1)))
+                .Where(x => x.DistanceMeters <= radiusMeters)
+                .OrderBy(x => x.DistanceMeters)
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>>(result);
         }
 
         public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
@@ -382,6 +476,7 @@ Kannampalayam,11.0035,77.0890,Residential,2.0,Cent,2000000,ClientResearch,2024-0
 
         public Task<LandPriceRecord?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<LandPriceRecord?>(null);
         public Task<IReadOnlyList<LandPriceRecord>> GetNearbyComparableAsync(double latitude, double longitude, double radiusMeters, LandUsageType landUsage, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<LandPriceRecord>>(new List<LandPriceRecord>());
+        public Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(double latitude, double longitude, double radiusMeters, LandUsageType? landUsage = null, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Simulated connection timeout");
         public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Simulated connection timeout");
         public Task AddRangeAsync(IEnumerable<LandPriceRecord> records, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Simulated connection timeout");
         public Task UpdateAsync(LandPriceRecord record, CancellationToken cancellationToken = default) => throw new InvalidOperationException("Simulated connection timeout");

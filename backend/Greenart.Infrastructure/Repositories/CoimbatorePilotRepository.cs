@@ -350,6 +350,28 @@ public class CoimbatorePilotRepository : ILandPriceRepository
         return Task.FromResult(result);
     }
 
+    public Task<IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)>> GetNearbyAsync(
+        double latitude,
+        double longitude,
+        double radiusMeters,
+        LandUsageType? landUsage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var target = new GeoCoordinate(latitude, longitude);
+
+        var nearby = _records
+            .Where(r => r.VerificationStatus != VerificationStatus.Rejected &&
+                        r.VerificationStatus != VerificationStatus.Archived)
+            .Where(r => !landUsage.HasValue || r.LandUsage == landUsage.Value)
+            .Select(r => (Record: r, DistanceMeters: Math.Round(r.Coordinates.DistanceToMeters(target), 1)))
+            .Where(x => x.DistanceMeters <= radiusMeters)
+            .OrderBy(x => x.DistanceMeters)
+            .ToList();
+
+        IReadOnlyList<(LandPriceRecord Record, double DistanceMeters)> result = nearby;
+        return Task.FromResult(result);
+    }
+
     public Task AddAsync(LandPriceRecord record, CancellationToken cancellationToken = default)
     {
         _records.Add(record);
