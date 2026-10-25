@@ -114,55 +114,51 @@ var app = builder.Build();
 
 app.UseCors();
 
-// Enable Swagger in Development with clean relative path
-if (app.Environment.IsDevelopment())
+// Enable Swagger in all environments (Development, Staging, and Production) for client demo & API documentation
+app.Use(async (context, next) =>
 {
-    // Fix Swagger UI 5.x compatibility: normalize "openapi": "3.0.4" to "openapi": "3.0.1"
-    app.Use(async (context, next) =>
+    if (context.Request.Path.Value?.EndsWith("/swagger.json", StringComparison.OrdinalIgnoreCase) == true)
     {
-        if (context.Request.Path.Value?.EndsWith("/swagger.json", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            var originalBodyStream = context.Response.Body;
-            using var responseBody = new MemoryStream();
-            context.Response.Body = responseBody;
-
-            await next();
-
-            if (context.Response.StatusCode == StatusCodes.Status200OK)
-            {
-                responseBody.Seek(0, SeekOrigin.Begin);
-                using var reader = new StreamReader(responseBody);
-                var json = await reader.ReadToEndAsync();
-
-                if (json.Contains("\"openapi\": \"3.0.4\""))
-                {
-                    json = json.Replace("\"openapi\": \"3.0.4\"", "\"openapi\": \"3.0.1\"");
-                }
-
-                var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-                context.Response.Body = originalBodyStream;
-                context.Response.ContentLength = bytes.Length;
-                await context.Response.Body.WriteAsync(bytes);
-            }
-            else
-            {
-                context.Response.Body = originalBodyStream;
-                responseBody.Seek(0, SeekOrigin.Begin);
-                await responseBody.CopyToAsync(originalBodyStream);
-            }
-            return;
-        }
+        var originalBodyStream = context.Response.Body;
+        using var responseBody = new MemoryStream();
+        context.Response.Body = responseBody;
 
         await next();
-    });
 
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Greenart Properties API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+        if (context.Response.StatusCode == StatusCodes.Status200OK)
+        {
+            responseBody.Seek(0, SeekOrigin.Begin);
+            using var reader = new StreamReader(responseBody);
+            var json = await reader.ReadToEndAsync();
+
+            if (json.Contains("\"openapi\": \"3.0.4\""))
+            {
+                json = json.Replace("\"openapi\": \"3.0.4\"", "\"openapi\": \"3.0.1\"");
+            }
+
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
+            context.Response.Body = originalBodyStream;
+            context.Response.ContentLength = bytes.Length;
+            await context.Response.Body.WriteAsync(bytes);
+        }
+        else
+        {
+            context.Response.Body = originalBodyStream;
+            responseBody.Seek(0, SeekOrigin.Begin);
+            await responseBody.CopyToAsync(originalBodyStream);
+        }
+        return;
+    }
+
+    await next();
+});
+
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Greenart Properties API v1");
+    c.RoutePrefix = "swagger";
+});
 
 // Do not force HTTPS redirection in local dev to avoid SSL certificate errors on http://localhost:5039
 if (!app.Environment.IsDevelopment())
@@ -173,7 +169,7 @@ if (!app.Environment.IsDevelopment())
 // Root redirect to Swagger
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
-// Automatically apply migrations and seed pilot data in development when DB is available
+// Automatically apply migrations and seed pilot data when DB is reachable
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -181,18 +177,15 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var dbContext = services.GetRequiredService<LandPriceDbContext>();
-        if (app.Environment.IsDevelopment())
+        if (await dbContext.Database.CanConnectAsync())
         {
-            if (await dbContext.Database.CanConnectAsync())
-            {
-                logger.LogInformation("Applying pending PostGIS database migrations...");
-                await dbContext.Database.MigrateAsync();
-                await LandPriceDataSeeder.SeedAsync(dbContext, logger);
-            }
-            else
-            {
-                logger.LogWarning("PostgreSQL database is currently unreachable. Migrations and seeding postponed until database is started.");
-            }
+            logger.LogInformation("Applying pending PostGIS database migrations...");
+            await dbContext.Database.MigrateAsync();
+            await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+        }
+        else
+        {
+            logger.LogWarning("PostgreSQL database is currently unreachable. Migrations and seeding postponed until database is started.");
         }
     }
     catch (Exception ex)
