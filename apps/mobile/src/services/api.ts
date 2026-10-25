@@ -124,6 +124,9 @@ const getApiBaseUrl = (): string => {
   // Safe detection for Web browser
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
+    if (host.includes('vercel.app')) {
+      return 'https://greenartapp-1.onrender.com/api/v1';
+    }
     return `http://${host}:5039/api/v1`;
   }
   // Android Emulator networking

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Application.DTOs;
 using Greenart.Application.Estimation;
@@ -54,12 +55,52 @@ foreach (var envPath in envCandidatePaths)
     }
 }
 
+// Helper to normalize postgres:// and postgresql:// URIs into standard ADO.NET connection strings
+static string NormalizePostgresConnectionString(string connection)
+{
+    if (string.IsNullOrWhiteSpace(connection)) return connection;
+
+    if (connection.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+        connection.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        try
+        {
+            var uri = new Uri(connection);
+            var userInfo = uri.UserInfo.Split(':');
+            var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+            var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+            var host = uri.Host;
+            var port = uri.Port > 0 ? uri.Port : 5432;
+            var database = uri.AbsolutePath.TrimStart('/');
+
+            var builder = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = host,
+                Port = port,
+                Database = database,
+                Username = username,
+                Password = password,
+                SslMode = Npgsql.SslMode.Prefer
+            };
+            return builder.ConnectionString;
+        }
+        catch
+        {
+            return connection;
+        }
+    }
+
+    return connection;
+}
+
 // Configure PostgreSQL + PostGIS Persistence
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+var rawConnectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
     ?? builder.Configuration["DB_CONNECTION_STRING"]
     ?? Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
     ?? "Host=localhost;Port=5432;Database=greenart_db;Username=postgres";
+
+var connectionString = NormalizePostgresConnectionString(rawConnectionString);
 
 // If connection string lacks password, check DB_PASSWORD
 var dbPassword = builder.Configuration["DB_PASSWORD"] ?? Environment.GetEnvironmentVariable("DB_PASSWORD");
@@ -112,6 +153,49 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// 1. Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
+// 2. Resilient Global CORS & Error Handling Middleware (Always active, attaches CORS headers to all responses)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+    context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Server error handling request {Path}", context.Request.Path);
+
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            context.Response.ContentType = "application/json; charset=utf-8";
+            context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                status = "error",
+                message = "An error occurred while processing your request.",
+                detail = ex.Message
+            });
+        }
+    }
+});
+
 app.UseCors();
 
 // Enable Swagger in all environments (Development, Staging, and Production) for client demo & API documentation
@@ -160,14 +244,30 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Do not force HTTPS redirection in local dev to avoid SSL certificate errors on http://localhost:5039
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
-
 // Root redirect to Swagger
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
+
+// API v1 welcome & status endpoint (Prevents 404 when directly visiting /api/v1)
+app.MapGet("/api/v1", () => Results.Ok(new
+{
+    status = "online",
+    application = "Greenart Properties — Land Market Rate Analyst API",
+    version = "1.0.0-pilot",
+    documentation = "/swagger",
+    health = "/api/v1/health",
+    endpoints = new
+    {
+        health = "/api/v1/health",
+        localities = "/api/v1/reference/localities",
+        estimates = "/api/v1/estimates/calculate",
+        records = "/api/v1/land-records",
+        nearby = "/api/v1/land-records/nearby",
+        coverage = "/api/v1/coverage/summary",
+        mlReadiness = "/api/v1/ml/readiness"
+    }
+})).ExcludeFromDescription();
+
+app.MapGet("/api", () => Results.Redirect("/api/v1")).ExcludeFromDescription();
 
 // Automatically apply migrations and seed pilot data when DB is reachable
 using (var scope = app.Services.CreateScope())

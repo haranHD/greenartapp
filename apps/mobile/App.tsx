@@ -14,6 +14,11 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Safe insets hook: avoids reading React context on Web builds where SafeAreaProvider is omitted
+const useSafeInsets = Platform.OS === 'web'
+  ? () => ({ top: 0, bottom: 0, left: 0, right: 0 })
+  : useSafeAreaInsets;
 import {
   mobileApi,
   EstimateApiResponse,
@@ -136,7 +141,7 @@ const formatLakhs = (val?: number): string => {
 // Main Application Component
 // =========================================================================
 function GreenartMobileApp() {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeInsets();
   const [activeTab, setActiveTab] = useState<MobileTab>('home');
   const [previousTab, setPreviousTab] = useState<MobileTab>('home');
   const [estimateStep, setEstimateStep] = useState<EstimateStep>('selection');
@@ -2048,8 +2053,16 @@ const WEB_INITIAL_METRICS = {
 };
 
 export default function App() {
+  if (Platform.OS === 'web') {
+    return (
+      <SafeErrorBoundary>
+        <GreenartMobileApp />
+      </SafeErrorBoundary>
+    );
+  }
+
   return (
-    <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? WEB_INITIAL_METRICS : undefined}>
+    <SafeAreaProvider>
       <SafeErrorBoundary>
         <GreenartMobileApp />
       </SafeErrorBoundary>
