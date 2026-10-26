@@ -46,6 +46,7 @@ export interface EstimateInsufficientDataResponse {
   minimumRequiredRecords: number;
   message: string;
   recommendations: string[];
+  governmentGuidelineReference?: GuidelineReferenceDto;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -139,9 +140,11 @@ const getApiBaseUrl = (): string => {
 class MobileApiClient {
   private baseUrl = getApiBaseUrl();
 
-  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = 8000): Promise<Response> {
+  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs?: number): Promise<Response> {
+    const isRender = this.baseUrl.includes('onrender.com');
+    const effectiveTimeout = timeoutMs ?? (isRender ? 35000 : 10000);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
     try {
       const response = await fetch(url, {
         ...options,
@@ -152,7 +155,9 @@ class MobileApiClient {
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Request timed out. Please check backend connection on port 5039.');
+        throw new Error(isRender
+          ? 'Cloud service is waking up from free-tier sleep (takes ~45s). Please retry.'
+          : 'Request timed out. Please check backend connection on port 5039.');
       }
       throw err;
     }
@@ -160,9 +165,10 @@ class MobileApiClient {
 
   async getHealth(): Promise<HealthStatusResponse> {
     try {
+      const isRender = this.baseUrl.includes('onrender.com');
       const response = await this.fetchWithTimeout(`${this.baseUrl}/health`, {
         headers: { Accept: 'application/json' },
-      }, 4000);
+      }, isRender ? 30000 : 4000);
       if (!response.ok) return { status: 'Degraded' };
       return (await response.json()) as HealthStatusResponse;
     } catch {

@@ -19,10 +19,12 @@ public class EstimationEngine : IEstimationEngine
     public const int MaxRecordAgeMonths = 36;
 
     private readonly ILandPriceRepository _repository;
+    private readonly ILandLensClient? _landLensClient;
 
-    public EstimationEngine(ILandPriceRepository repository)
+    public EstimationEngine(ILandPriceRepository repository, ILandLensClient? landLensClient = null)
     {
         _repository = repository;
+        _landLensClient = landLensClient;
     }
 
     public async Task<object> EstimateMarketPriceAsync(CalculateEstimateRequest request, CancellationToken cancellationToken = default)
@@ -53,6 +55,63 @@ public class EstimationEngine : IEstimationEngine
                 LegalNotice: "Statutory minimum valuation benchmark from TNREGINET for stamp duty calculation. Not an open-market transaction."
             );
         }
+        else if (_landLensClient != null && _landLensClient.IsConfigured)
+        {
+            try
+            {
+                // Step A: Resolve parcel to extract revenue village/district/survey
+                var parcel = await _landLensClient.ResolveParcelAsync(targetCoord.Latitude, targetCoord.Longitude, cancellationToken);
+
+                // Step B: Query guideline value using coordinates and resolved parcel details
+                var gl = await _landLensClient.GetGuidelineValueAsync(new GuidelineValueRequest
+                {
+                    Lat = targetCoord.Latitude,
+                    Lng = targetCoord.Longitude,
+                    DistrictName = parcel?.DistrictName,
+                    VillageName = parcel?.VillageName,
+                    SurveyNumber = parcel?.SurveyNumber,
+                    RuralUrban = parcel?.RuralUrban,
+                    UrbanBlockNumber = parcel?.UrbanBlockNumber,
+                    FirkaWardNumber = parcel?.FirkaWardNumber
+                }, cancellationToken);
+
+                if (gl != null && ((gl.GuidelineRatePerCent.HasValue && gl.GuidelineRatePerCent > 0) ||
+                                  (gl.GuidelineRatePerSqFt.HasValue && gl.GuidelineRatePerSqFt > 0)))
+                {
+                    guidelineBenchmark = new GuidelineReferenceDto(
+                        GuidelineRatePerCent: gl.GuidelineRatePerCent ?? Math.Round((gl.GuidelineRatePerSqFt ?? 0) * 435.6m, 2),
+                        GuidelineRatePerSqFt: gl.GuidelineRatePerSqFt ?? Math.Round((gl.GuidelineRatePerCent ?? 0) / 435.6m, 2),
+                        Locality: gl.StreetName ?? parcel?.VillageName ?? "Resolved Area",
+                        SurveyNumber: parcel?.SurveyNumber,
+                        LegalNotice: "Statutory minimum guideline rate from TNREGINET (via LandLens live feed). Not an open-market transaction."
+                    );
+                }
+                else if (parcel != null && !string.IsNullOrWhiteSpace(parcel.VillageName))
+                {
+                    // Step C: Fallback to village locality value distribution if specific survey is unrated / govt land
+                    var loc = await _landLensClient.GetLocalityValueContextAsync(parcel.VillageName, "Coimbatore", cancellationToken);
+                    if (loc != null && loc.MedianRatePerSqFt > 0)
+                    {
+                        var centRate = Math.Round(loc.MedianRatePerSqFt * 435.6m, 2);
+                        var localityLabel = loc.PricedStreetsCount > 0
+                            ? $"{loc.VillageName} (Benchmark: ₹{loc.MedianRatePerSqFt:N0}/sq.ft across {loc.PricedStreetsCount} streets)"
+                            : loc.VillageName;
+
+                        guidelineBenchmark = new GuidelineReferenceDto(
+                            GuidelineRatePerCent: centRate,
+                            GuidelineRatePerSqFt: loc.MedianRatePerSqFt,
+                            Locality: localityLabel,
+                            SurveyNumber: parcel.SurveyNumber,
+                            LegalNotice: $"Statutory guideline benchmark for {loc.VillageName} from TNREGINET (via LandLens). Range: ₹{loc.MinRatePerSqFt:N0} - ₹{loc.MaxRatePerSqFt:N0}/sq.ft. Not an open-market transaction."
+                        );
+                    }
+                }
+            }
+            catch
+            {
+                // Non-blocking statutory benchmark fallback
+            }
+        }
 
         // 3. Filter eligible market records (Verified Transactions, Advertised Asking, Client Research)
         var asOfDate = DateTime.UtcNow;
@@ -76,7 +135,8 @@ public class EstimationEngine : IEstimationEngine
                     "Expand the search radius to 2,000 meters if appropriate for this rural/semi-urban locality.",
                     "Verify if client research documents or unverified broker listings in this sector can be audited and promoted.",
                     "Review nearby pilot hubs (Kannampalayam or Sulur Corridor) where dense verified transaction history is available."
-                }
+                },
+                GovernmentGuidelineReference: guidelineBenchmark
             );
         }
 

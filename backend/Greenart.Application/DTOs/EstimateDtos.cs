@@ -56,6 +56,7 @@ public record EstimateInsufficientDataResponse(
     int ComparableRecordsFound,
     int MinimumRequiredRecords,
     string Message,
-    List<string> Recommendations
+    List<string> Recommendations,
+    GuidelineReferenceDto? GovernmentGuidelineReference = null
 );
 

@@ -163,6 +163,7 @@ export interface EstimateInsufficientDataResponse {
   minimumRequiredRecords: number;
   message: string;
   recommendations: string[];
+  governmentGuidelineReference?: GuidelineReferenceDto;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -290,7 +291,10 @@ class ApiClient {
       return (await response.json()) as T;
     } catch (err: any) {
       if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        throw new Error(`Cannot reach API at ${API_BASE_URL}. Ensure ASP.NET Core backend is running on port 5039.`);
+        const hint = API_BASE_URL.includes('onrender.com')
+          ? 'Cloud service may be waking up from sleep (Render free tier cold start ~45s). Please wait a moment and retry.'
+          : 'Ensure ASP.NET Core backend is running on port 5039.';
+        throw new Error(`Cannot reach API at ${API_BASE_URL}. ${hint}`);
       }
       throw err;
     }

@@ -11,7 +11,14 @@ public class LandPriceDbContextFactory : IDesignTimeDbContextFactory<LandPriceDb
 
         // Default local dev connection string for design-time migrations
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
-            ?? "Host=localhost;Port=5433;Database=greenart_dev;Username=greenart_user;Password=greenart_dev_password";
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+            ?? "Host=localhost;Port=5432;Database=greenart_db;Username=postgres";
+
+        var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
+        if (!string.IsNullOrWhiteSpace(password) && !connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
+        {
+            connectionString = $"{connectionString.TrimEnd(';')};Password={password}";
+        }
 
         optionsBuilder.UseNpgsql(connectionString, o => o.UseNetTopologySuite());
 

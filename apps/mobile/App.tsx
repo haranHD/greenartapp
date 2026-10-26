@@ -15,10 +15,14 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Safe insets hook: avoids reading React context on Web builds where SafeAreaProvider is omitted
-const useSafeInsets = Platform.OS === 'web'
-  ? () => ({ top: 0, bottom: 0, left: 0, right: 0 })
-  : useSafeAreaInsets;
+// Safe insets hook: safely reads insets with fallback if context is unavailable
+const useSafeInsets = () => {
+  try {
+    return useSafeAreaInsets();
+  } catch {
+    return { top: 0, bottom: 0, left: 0, right: 0 };
+  }
+};
 import {
   mobileApi,
   EstimateApiResponse,
@@ -1495,6 +1499,7 @@ function GreenartMobileApp() {
                   ) : estimate && estimate.status === 'InsufficientData' ? (
                     (() => {
                       const insuff = estimate as EstimateInsufficientDataResponse;
+                      const guideline = insuff.governmentGuidelineReference;
                       return (
                         <View style={styles.insufficientDataCard}>
                           <View style={styles.insufficientBadge}>
@@ -1509,6 +1514,29 @@ function GreenartMobileApp() {
                             <Text style={styles.insufficientAdvice}>
                               {insuff.recommendations.join(' ')}
                             </Text>
+                          )}
+
+                          {guideline && (
+                            <View style={[styles.guidelineCard, { marginTop: 14, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                              <View style={styles.guidelineTopRow}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.guidelineTag, { color: '#166534' }]}>Statutory Guideline Value</Text>
+                                  <Text style={styles.guidelineSubTitle}>
+                                    {guideline.locality ? `${guideline.locality}` : 'TNREGINET Official Benchmark'}
+                                  </Text>
+                                </View>
+                                <Text style={[styles.guidelineRateVal, { color: '#15803D' }]}>
+                                  {formatLakhs(guideline.guidelineRatePerCent)} / Cent
+                                </Text>
+                              </View>
+                              <Text style={{ fontSize: 11, color: '#166534', marginTop: 3, fontWeight: '600' }}>
+                                ₹{Number(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft
+                              </Text>
+                              <Text style={[styles.guidelineNotice, { color: '#166534', marginTop: 6 }]}>
+                                {guideline.legalNotice ||
+                                  'Government statutory minimum used for stamp duty registration. Kept strictly separate from open-market valuations.'}
+                              </Text>
+                            </View>
                           )}
 
                           <TouchableOpacity
@@ -2053,16 +2081,8 @@ const WEB_INITIAL_METRICS = {
 };
 
 export default function App() {
-  if (Platform.OS === 'web') {
-    return (
-      <SafeErrorBoundary>
-        <GreenartMobileApp />
-      </SafeErrorBoundary>
-    );
-  }
-
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? WEB_INITIAL_METRICS : undefined}>
       <SafeErrorBoundary>
         <GreenartMobileApp />
       </SafeErrorBoundary>

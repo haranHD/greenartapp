@@ -10,37 +10,45 @@ const config = getDefaultConfig(projectRoot);
 const hasMonorepoModules = fs.existsSync(path.resolve(monorepoRoot, 'node_modules'));
 config.watchFolders = hasMonorepoModules ? [monorepoRoot] : [projectRoot];
 
-// Canonical paths to strictly deduplicate React across all monorepo workspaces and node_modules
-const reactCanonicalPath = fs.realpathSync(require.resolve('react'));
-const reactDomCanonicalPath = fs.realpathSync(require.resolve('react-dom'));
-const reactJsxRuntimePath = fs.realpathSync(require.resolve('react/jsx-runtime'));
-const reactJsxDevRuntimePath = fs.realpathSync(require.resolve('react/jsx-dev-runtime'));
+config.resolver.nodeModulesPaths = [
+  path.resolve(projectRoot, 'node_modules'),
+  ...(hasMonorepoModules ? [path.resolve(monorepoRoot, 'node_modules')] : []),
+];
+
+// Helper to safely locate package root directory
+function resolvePkgDir(name) {
+  try {
+    return path.dirname(require.resolve(`${name}/package.json`, { paths: [projectRoot, monorepoRoot] }));
+  } catch {
+    return path.resolve(monorepoRoot, 'node_modules', name);
+  }
+}
+
+const reactDir = resolvePkgDir('react');
+const reactDomDir = resolvePkgDir('react-dom');
+
+config.resolver.extraNodeModules = {
+  react: reactDir,
+  'react-dom': reactDomDir,
+};
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (moduleName === 'react') {
-    return {
-      filePath: reactCanonicalPath,
-      type: 'sourceFile',
-    };
+  if (moduleName === 'react' || moduleName.startsWith('react/')) {
+    const subpath = moduleName === 'react' ? 'index.js' : moduleName.slice('react/'.length);
+    const resolvedPath = path.resolve(reactDir, subpath.endsWith('.js') || subpath.endsWith('.json') ? subpath : `${subpath}.js`);
+    if (fs.existsSync(resolvedPath)) {
+      return { filePath: fs.realpathSync(resolvedPath), type: 'sourceFile' };
+    }
   }
-  if (moduleName === 'react-dom') {
-    return {
-      filePath: reactDomCanonicalPath,
-      type: 'sourceFile',
-    };
+
+  if (moduleName === 'react-dom' || moduleName.startsWith('react-dom/')) {
+    const subpath = moduleName === 'react-dom' ? 'index.js' : moduleName.slice('react-dom/'.length);
+    const resolvedPath = path.resolve(reactDomDir, subpath.endsWith('.js') || subpath.endsWith('.json') ? subpath : `${subpath}.js`);
+    if (fs.existsSync(resolvedPath)) {
+      return { filePath: fs.realpathSync(resolvedPath), type: 'sourceFile' };
+    }
   }
-  if (moduleName === 'react/jsx-runtime') {
-    return {
-      filePath: reactJsxRuntimePath,
-      type: 'sourceFile',
-    };
-  }
-  if (moduleName === 'react/jsx-dev-runtime') {
-    return {
-      filePath: reactJsxDevRuntimePath,
-      type: 'sourceFile',
-    };
-  }
+
   return context.resolveRequest(context, moduleName, platform);
 };
 

@@ -25,6 +25,334 @@ namespace Greenart.Infrastructure.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Greenart.Domain.Entities.AuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("details");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entity_type");
+
+                    b.Property<string>("PerformedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("performed_by");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("timestamp_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc")
+                        .HasDatabaseName("idx_audit_events_timestamp");
+
+                    b.HasIndex("EntityType", "EntityId")
+                        .HasDatabaseName("idx_audit_events_entity");
+
+                    b.ToTable("audit_events", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AlgorithmVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("algorithm_version");
+
+                    b.Property<DateTime>("CalculatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("calculated_at_utc");
+
+                    b.Property<string>("ConfidenceLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("confidence_level");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("country");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("district");
+
+                    b.Property<decimal?>("EstimatedRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("estimated_rate_per_cent");
+
+                    b.Property<decimal?>("EstimatedRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("estimated_rate_per_sqft");
+
+                    b.Property<decimal?>("GuidelineRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("guideline_rate_per_cent");
+
+                    b.Property<decimal?>("GuidelineRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("guideline_rate_per_sqft");
+
+                    b.Property<string>("LandUsage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("land_usage");
+
+                    b.Property<string>("Limitations")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("limitations");
+
+                    b.Property<string>("Locality")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("locality");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .HasColumnType("geography(Point, 4326)")
+                        .HasColumnName("location");
+
+                    b.Property<decimal?>("MaxRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("max_rate_per_cent");
+
+                    b.Property<decimal?>("MaxRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("max_rate_per_sqft");
+
+                    b.Property<string>("Methodology")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("methodology");
+
+                    b.Property<decimal?>("MinRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("min_rate_per_cent");
+
+                    b.Property<decimal?>("MinRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("min_rate_per_sqft");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("review_status");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<int>("SampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sample_count");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Taluk")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("taluk");
+
+                    b.Property<int>("TargetYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("target_year");
+
+                    b.Property<int>("VerifiedSampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("verified_sample_count");
+
+                    b.ComplexProperty<Dictionary<string, object>>("Coordinates", "Greenart.Domain.Entities.HistoricalEstimate.Coordinates#GeoCoordinate", b1 =>
+                        {
+                            b1.Property<double>("Latitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("double precision")
+                                .HasColumnName("latitude");
+
+                            b1.Property<double>("Longitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("double precision")
+                                .HasColumnName("longitude");
+                        });
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("idx_historical_estimates_location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("District", "TargetYear")
+                        .HasDatabaseName("idx_historical_estimates_district_year");
+
+                    b.HasIndex("Locality", "TargetYear", "LandUsage")
+                        .HasDatabaseName("idx_historical_estimates_locality_year_usage");
+
+                    b.ToTable("historical_estimates", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimateObservation", b =>
+                {
+                    b.Property<Guid>("EstimateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("estimate_id");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("observation_id");
+
+                    b.Property<double>("ContributionWeight")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("double precision")
+                        .HasColumnName("contribution_weight");
+
+                    b.Property<double>("DistanceMeters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("distance_meters");
+
+                    b.Property<bool>("IsOutlier")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_outlier");
+
+                    b.Property<int>("TemporalOffsetMonths")
+                        .HasColumnType("integer")
+                        .HasColumnName("temporal_offset_months");
+
+                    b.HasKey("EstimateId", "ObservationId");
+
+                    b.HasIndex("ObservationId")
+                        .HasDatabaseName("idx_historical_estimate_observations_obs_id");
+
+                    b.ToTable("historical_estimate_observations", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.ImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DiagnosticSummary")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("diagnostic_summary");
+
+                    b.Property<bool>("DryRun")
+                        .HasColumnType("boolean")
+                        .HasColumnName("dry_run");
+
+                    b.Property<int>("DuplicateRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("duplicate_rows");
+
+                    b.Property<DateTime>("ExecutedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("executed_at_utc");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size_bytes");
+
+                    b.Property<int>("ImportedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("imported_rows");
+
+                    b.Property<int>("InvalidRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("invalid_rows");
+
+                    b.Property<int>("SkippedRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("skipped_rows");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("total_rows");
+
+                    b.Property<string>("TriggeredBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("triggered_by");
+
+                    b.Property<int>("ValidRows")
+                        .HasColumnType("integer")
+                        .HasColumnName("valid_rows");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutedAtUtc")
+                        .HasDatabaseName("idx_import_batches_executed_at");
+
+                    b.ToTable("import_batches", (string)null);
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.LandPriceRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -37,6 +365,11 @@ namespace Greenart.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("country");
+
+                    b.Property<string>("DataQualityFlags")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("data_quality_flags");
 
                     b.Property<string>("District")
                         .IsRequired()
@@ -98,6 +431,10 @@ namespace Greenart.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("source_category");
+
+                    b.Property<Guid?>("SourceDocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_document_id");
 
                     b.Property<string>("SourceReference")
                         .HasMaxLength(300)
@@ -174,7 +511,169 @@ namespace Greenart.Infrastructure.Migrations
                     b.HasIndex("SourceCategory")
                         .HasDatabaseName("idx_land_price_records_source_category");
 
+                    b.HasIndex("SourceDocumentId")
+                        .HasDatabaseName("idx_land_price_records_source_document_id");
+
                     b.ToTable("land_price_records", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.SourceDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ArchivalReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("archival_reason");
+
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("archived_at_utc");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("document_type");
+
+                    b.Property<string>("ExtractedMetadataJson")
+                        .HasColumnType("text")
+                        .HasColumnName("extracted_metadata_json");
+
+                    b.Property<string>("FileChecksumSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("file_checksum_sha256");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("file_size_bytes");
+
+                    b.Property<Guid?>("ImportBatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("import_batch_id");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("mime_type");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at_utc");
+
+                    b.Property<string>("ProcessingStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("processing_status");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reviewed_by");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("storage_path");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("uploaded_at_utc");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("uploaded_by");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("validation_status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentType")
+                        .HasDatabaseName("idx_source_documents_document_type");
+
+                    b.HasIndex("FileChecksumSha256")
+                        .IsUnique()
+                        .HasDatabaseName("idx_source_documents_checksum_unique");
+
+                    b.HasIndex("IsArchived")
+                        .HasDatabaseName("idx_source_documents_is_archived");
+
+                    b.HasIndex("ProcessingStatus", "ValidationStatus")
+                        .HasDatabaseName("idx_source_documents_status");
+
+                    b.ToTable("source_documents", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimateObservation", b =>
+                {
+                    b.HasOne("Greenart.Domain.Entities.HistoricalEstimate", "HistoricalEstimate")
+                        .WithMany("SupportingObservations")
+                        .HasForeignKey("EstimateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Greenart.Domain.Entities.LandPriceRecord", "Observation")
+                        .WithMany()
+                        .HasForeignKey("ObservationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("HistoricalEstimate");
+
+                    b.Navigation("Observation");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.LandPriceRecord", b =>
+                {
+                    b.HasOne("Greenart.Domain.Entities.SourceDocument", "SourceDocument")
+                        .WithMany("LandPriceRecords")
+                        .HasForeignKey("SourceDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("SourceDocument");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimate", b =>
+                {
+                    b.Navigation("SupportingObservations");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.SourceDocument", b =>
+                {
+                    b.Navigation("LandPriceRecords");
                 });
 #pragma warning restore 612, 618
         }

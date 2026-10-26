@@ -26,6 +26,9 @@ public class LandPriceRecord
     public VerificationStatus VerificationStatus { get; private set; }
     public bool IsSynthetic { get; private set; }
     public string? Notes { get; private set; }
+    public Guid? SourceDocumentId { get; private set; }
+    public SourceDocument? SourceDocument { get; private set; }
+    public string? DataQualityFlags { get; private set; }
 
     // Navigation / compatibility properties for flat access
     public double Latitude => Coordinates.Latitude;
@@ -54,7 +57,9 @@ public class LandPriceRecord
         DateTime observationDate,
         VerificationStatus verificationStatus = VerificationStatus.Unverified,
         bool isSynthetic = false,
-        string? notes = null)
+        string? notes = null,
+        Guid? sourceDocumentId = null,
+        string? dataQualityFlags = null)
     {
         if (string.IsNullOrWhiteSpace(country)) throw new ArgumentException("Country is required.", nameof(country));
         if (string.IsNullOrWhiteSpace(state)) throw new ArgumentException("State is required.", nameof(state));
@@ -81,6 +86,8 @@ public class LandPriceRecord
         VerificationStatus = verificationStatus;
         IsSynthetic = isSynthetic;
         Notes = notes?.Trim();
+        SourceDocumentId = sourceDocumentId;
+        DataQualityFlags = dataQualityFlags?.Trim();
 
         // Calculate normalized unit rates preserving precision
         var totalCents = area.ToCents();
@@ -139,5 +146,16 @@ public class LandPriceRecord
     {
         VerificationStatus = VerificationStatus.Archived;
         Notes = string.IsNullOrWhiteSpace(Notes) ? $"Archived: {reason}" : $"{Notes} | Archived: {reason}";
+    }
+
+    public void AttachSourceDocument(Guid sourceDocumentId)
+    {
+        if (sourceDocumentId == Guid.Empty) throw new ArgumentException("SourceDocumentId cannot be empty.", nameof(sourceDocumentId));
+        SourceDocumentId = sourceDocumentId;
+    }
+
+    public void SetDataQualityFlags(string? flags)
+    {
+        DataQualityFlags = flags?.Trim();
     }
 }

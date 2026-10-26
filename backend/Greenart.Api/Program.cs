@@ -11,6 +11,7 @@ using Greenart.Infrastructure.Persistence.Seeding;
 using Greenart.Infrastructure.Providers;
 using Greenart.Infrastructure.Repositories;
 using Greenart.Infrastructure.Services;
+using Greenart.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -128,6 +129,9 @@ builder.Services.AddScoped<IMlReadinessService, MlReadinessService>();
 // Register Geocoding and Locality Search Proxy
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IGeocodingService, GooglePlacesGeocodingService>();
+
+// Register LandLens API Client
+builder.Services.AddHttpClient<ILandLensClient, LandLensClient>();
 
 // Enable CORS for frontend and mobile access
 builder.Services.AddCors(options =>
@@ -269,7 +273,7 @@ app.MapGet("/api/v1", () => Results.Ok(new
 
 app.MapGet("/api", () => Results.Redirect("/api/v1")).ExcludeFromDescription();
 
-// Automatically apply migrations and seed pilot data when DB is reachable
+// Controlled database startup migration and health diagnostic
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -279,18 +283,45 @@ using (var scope = app.Services.CreateScope())
         var dbContext = services.GetRequiredService<LandPriceDbContext>();
         if (await dbContext.Database.CanConnectAsync())
         {
-            logger.LogInformation("Applying pending PostGIS database migrations...");
-            await dbContext.Database.MigrateAsync();
-            await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+            var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+            bool isDev = app.Environment.IsDevelopment();
+            bool autoMigrateConfigured = app.Configuration.GetValue<bool>("Database:AutoMigrate", false);
+
+            if (pendingMigrations.Count > 0)
+            {
+                if (isDev && autoMigrateConfigured)
+                {
+                    logger.LogInformation("Development auto-migration enabled: applying {Count} pending migration(s)...", pendingMigrations.Count);
+                    await dbContext.Database.MigrateAsync();
+                    await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Database has {Count} pending migration(s) ({Migrations}). Automatic migration is DISABLED in environment '{Env}' (Database:AutoMigrate={Flag}). Schema will NOT be modified. To apply migrations manually, run: dotnet ef database update --project Greenart.Infrastructure --startup-project Greenart.Api",
+                        pendingMigrations.Count,
+                        string.Join(", ", pendingMigrations),
+                        app.Environment.EnvironmentName,
+                        autoMigrateConfigured);
+                }
+            }
+            else
+            {
+                logger.LogInformation("Database schema is up to date. No pending migrations.");
+                if (isDev && autoMigrateConfigured)
+                {
+                    await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                }
+            }
         }
         else
         {
-            logger.LogWarning("PostgreSQL database is currently unreachable. Migrations and seeding postponed until database is started.");
+            logger.LogWarning("PostgreSQL database is currently unreachable. Database migration and seeding postponed.");
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Notice: Database migration/seeding could not complete on startup: {Message}", ex.Message);
+        logger.LogError(ex, "Notice: Database startup diagnostic encountered an exception: {Message}", ex.Message);
     }
 }
 
@@ -304,6 +335,7 @@ app.MapGet("/api/v1/health", async (
     bool dbConnected = false;
     bool postgisEnabled = false;
     string? postgisVersion = null;
+    int pendingMigrationsCount = 0;
 
     try
     {
@@ -324,6 +356,9 @@ app.MapGet("/api/v1/health", async (
                 postgisEnabled = true;
                 postgisVersion = result.ToString();
             }
+
+            var pendingList = await dbContext.Database.GetPendingMigrationsAsync(ct);
+            pendingMigrationsCount = pendingList.Count();
         }
     }
     catch
@@ -344,7 +379,9 @@ app.MapGet("/api/v1/health", async (
             Connected = dbConnected,
             PostgisEnabled = postgisEnabled,
             PostgisVersion = postgisVersion ?? "Unavailable",
-            Engine = "PostgreSQL 16 + PostGIS"
+            Engine = "PostgreSQL 16 + PostGIS",
+            PendingMigrations = pendingMigrationsCount,
+            SchemaStatus = pendingMigrationsCount > 0 ? "PendingMigrations" : "UpToDate"
         },
         TimestampUtc = DateTime.UtcNow
     };
@@ -1038,6 +1075,186 @@ app.MapGet("/api/v1/ml/readiness", async (
 .WithName("GetMlReadinessReport")
 .WithSummary("Machine Learning Production Readiness Assessment")
 .WithDescription("Audits dataset volume, spatial/temporal distributions, and 500-sample promotion gates to govern transition from heuristic to ML models.")
+.WithOpenApi();
+
+// ---------------------------------------------------------
+// 13. LandLens Integration Endpoints (Administrative)
+// ---------------------------------------------------------
+var landlensGroup = app.MapGroup("/api/v1/integrations/landlens")
+    .WithTags("LandLens Integration");
+
+landlensGroup.MapGet("/status", (
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config) =>
+{
+    var baseUrl = config["LandLens:BaseUrl"] ?? "https://verified.realestate/api/v1";
+    var timeout = int.TryParse(config["LandLens:TimeoutSeconds"], out var t) ? t : 30;
+    return Results.Ok(new LandLensStatusResponse(
+        Configured: client.IsConfigured,
+        BaseUrl: baseUrl,
+        TimeoutSeconds: timeout,
+        Status: client.IsConfigured ? "Ready" : "Unconfigured"
+    ));
+})
+.WithName("GetLandLensStatus")
+.WithSummary("LandLens Integration Configuration Status")
+.WithDescription("Checks whether the LandLens API key is present without exposing the credential.")
+.WithOpenApi();
+
+landlensGroup.MapGet("/me", async (
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!client.IsConfigured)
+    {
+        return Results.BadRequest(new { Error = "LandLens API key is not configured. Please set LANDLENS_API_KEY in .env." });
+    }
+
+    try
+    {
+        var account = await client.GetAccountStatusAsync(ct);
+        if (account == null)
+        {
+            return Results.Problem("Could not retrieve account details from LandLens.", statusCode: StatusCodes.Status502BadGateway);
+        }
+        return Results.Ok(account);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Results.Json(new { Error = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+})
+.WithName("GetLandLensAccount")
+.WithSummary("LandLens Account Balance & Spend Diagnostics")
+.WithDescription("Queries verified account credentials, spent today, and remaining credit balance.")
+.WithOpenApi();
+
+landlensGroup.MapGet("/tools", async (
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!client.IsConfigured)
+    {
+        return Results.BadRequest(new { Error = "LandLens API key is not configured. Please set LANDLENS_API_KEY in .env." });
+    }
+
+    var tools = await client.GetToolsAsync(ct);
+    return Results.Ok(tools);
+})
+.WithName("GetLandLensTools")
+.WithSummary("LandLens Tools Catalog")
+.WithDescription("Lists all ~130 available tools, categories, and credit pricing.")
+.WithOpenApi();
+
+landlensGroup.MapPost("/resolve-parcel", async (
+    [FromBody] ResolveParcelRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!client.IsConfigured)
+    {
+        return Results.BadRequest(new { Error = "LandLens API key is not configured. Please set LANDLENS_API_KEY in .env." });
+    }
+
+    var result = await client.ResolveParcelAsync(request.Lat, request.Lng, ct);
+    if (result == null)
+    {
+        return Results.NotFound(new { Message = "No parcel resolved for the given coordinates." });
+    }
+    return Results.Ok(result);
+})
+.WithName("ResolveLandParcel")
+.WithSummary("Resolve GPS Coordinates to Land Parcel")
+.WithDescription("Resolves latitude/longitude to Tamil Nadu survey number, subdivision, village, and GeoJSON boundary (Free endpoint).")
+.WithOpenApi();
+
+landlensGroup.MapPost("/guideline-value", async (
+    [FromBody] GuidelineValueRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!client.IsConfigured)
+    {
+        return Results.BadRequest(new { Error = "LandLens API key is not configured. Please set LANDLENS_API_KEY in .env." });
+    }
+
+    var result = await client.GetGuidelineValueAsync(request, ct);
+    if (result == null)
+    {
+        return Results.NotFound(new { Message = "Guideline value not found for the requested criteria." });
+    }
+    return Results.Ok(result);
+})
+.WithName("GetGuidelineValue")
+.WithSummary("Fetch Government Guideline Value")
+.WithDescription("Returns official registration benchmark value used for stamp duty (Free endpoint).")
+.WithOpenApi();
+
+landlensGroup.MapPost("/guideline-history", async (
+    [FromBody] GuidelineHistoryRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] ILandLensClient client,
+    [FromServices] IConfiguration config,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!client.IsConfigured)
+    {
+        return Results.BadRequest(new { Error = "LandLens API key is not configured. Please set LANDLENS_API_KEY in .env." });
+    }
+
+    var result = await client.GetGuidelineHistoryAsync(request, ct);
+    if (result == null)
+    {
+        return Results.NotFound(new { Message = "Guideline history series not found." });
+    }
+    return Results.Ok(result);
+})
+.WithName("GetGuidelineHistory")
+.WithSummary("Historical Guideline Value Series")
+.WithDescription("Returns year-by-year guideline series from 2002 to 2024 (Free endpoint).")
 .WithOpenApi();
 
 app.Run();

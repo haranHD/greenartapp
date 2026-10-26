@@ -118,6 +118,21 @@ public class LandPriceRecordConfiguration : IEntityTypeConfiguration<LandPriceRe
             .HasColumnName("notes")
             .HasMaxLength(1000);
 
+        builder.Property(r => r.SourceDocumentId)
+            .HasColumnName("source_document_id")
+            .IsRequired(false);
+
+        builder.Property(r => r.DataQualityFlags)
+            .HasColumnName("data_quality_flags")
+            .HasMaxLength(500)
+            .IsRequired(false);
+
+        // Foreign key to SourceDocument (Restrict enforces evidence provenance protection against accidental document hard-deletion)
+        builder.HasOne(r => r.SourceDocument)
+            .WithMany(d => d.LandPriceRecords)
+            .HasForeignKey(r => r.SourceDocumentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Indices for high-frequency queries
         builder.HasIndex(r => r.Locality)
             .HasDatabaseName("idx_land_price_records_locality");
@@ -127,5 +142,8 @@ public class LandPriceRecordConfiguration : IEntityTypeConfiguration<LandPriceRe
 
         builder.HasIndex(r => r.SourceCategory)
             .HasDatabaseName("idx_land_price_records_source_category");
+
+        builder.HasIndex(r => r.SourceDocumentId)
+            .HasDatabaseName("idx_land_price_records_source_document_id");
     }
 }
