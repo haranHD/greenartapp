@@ -292,7 +292,9 @@ public class LandLensClient : ILandLensClient
     public async Task<LocalityValueContextResult?> GetLocalityValueContextAsync(string village, string? zone = null, CancellationToken ct = default)
     {
         EnsureConfigured();
-        var payload = new { village, zone = zone ?? "Coimbatore" };
+        var payload = string.IsNullOrWhiteSpace(zone)
+            ? (object)new { village }
+            : new { village, zone };
         var envelope = await PostToolAsync<JsonElement>("locality_value_context", payload, ct);
 
         if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object)

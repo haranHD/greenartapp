@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -114,7 +115,14 @@ public class GooglePlacesGeocodingService : IGeocodingService
             if (!response.IsSuccessStatusCode)
             {
                 var statusCode = (int)response.StatusCode;
-                _logger.LogWarning("Google Places Autocomplete API returned non-success HTTP status {StatusCode}", statusCode);
+                if (statusCode == (int)HttpStatusCode.Forbidden || statusCode == (int)HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogInformation("Google Places Autocomplete rate-limit/quota restriction (HTTP {StatusCode}).", statusCode);
+                }
+                else
+                {
+                    _logger.LogWarning("Google Places Autocomplete API returned non-success HTTP status {StatusCode}", statusCode);
+                }
                 return Array.Empty<LocalitySuggestionDto>();
             }
 
@@ -190,7 +198,14 @@ public class GooglePlacesGeocodingService : IGeocodingService
             if (!response.IsSuccessStatusCode)
             {
                 var statusCode = (int)response.StatusCode;
-                _logger.LogWarning("Google Places Details API returned non-success HTTP status {StatusCode} for place {PlaceId}", statusCode, trimmedId);
+                if (statusCode == (int)HttpStatusCode.Forbidden || statusCode == (int)HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogInformation("Google Places Details rate-limit/quota restriction (HTTP {StatusCode}) for place {PlaceId}.", statusCode, trimmedId);
+                }
+                else
+                {
+                    _logger.LogWarning("Google Places Details API returned non-success HTTP status {StatusCode} for place {PlaceId}", statusCode, trimmedId);
+                }
                 return null;
             }
 

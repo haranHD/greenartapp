@@ -305,7 +305,7 @@ function GreenartMobileApp() {
       } finally {
         setIsSearchingHomeGeocode(false);
       }
-    }, 300);
+    }, 450);
 
     return () => clearTimeout(timer);
   }, [homeSearchQuery]);
@@ -329,7 +329,7 @@ function GreenartMobileApp() {
       } finally {
         setIsSearchingTabGeocode(false);
       }
-    }, 300);
+    }, 450);
 
     return () => clearTimeout(timer);
   }, [searchTabQuery]);

@@ -89,7 +89,7 @@ public class EstimationEngine : IEstimationEngine
                 else if (parcel != null && !string.IsNullOrWhiteSpace(parcel.VillageName))
                 {
                     // Step C: Fallback to village locality value distribution if specific survey is unrated / govt land
-                    var loc = await _landLensClient.GetLocalityValueContextAsync(parcel.VillageName, "Coimbatore", cancellationToken);
+                    var loc = await _landLensClient.GetLocalityValueContextAsync(parcel.VillageName, null, cancellationToken);
                     if (loc != null && loc.MedianRatePerSqFt > 0)
                     {
                         var centRate = Math.Round(loc.MedianRatePerSqFt * 435.6m, 2);

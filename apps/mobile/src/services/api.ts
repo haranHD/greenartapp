@@ -1,5 +1,5 @@
 // Centralized Typed API Client for Greenart Mobile Application
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 
 export interface PriceRangeDto {
   minRate: number;
@@ -129,6 +129,18 @@ const getApiBaseUrl = (): string => {
       return 'https://greenartapp-1.onrender.com/api/v1';
     }
     return `http://${host}:5039/api/v1`;
+  }
+  // Auto-detect host machine IP when running on physical device via Expo Go
+  try {
+    const scriptURL = (NativeModules as any)?.SourceCode?.scriptURL;
+    if (typeof scriptURL === 'string') {
+      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        return `http://${match[1]}:5039/api/v1`;
+      }
+    }
+  } catch {
+    // Fall back to emulator/default
   }
   // Android Emulator networking
   if (Platform.OS === 'android') {
