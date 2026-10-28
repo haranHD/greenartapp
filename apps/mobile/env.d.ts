@@ -41,6 +41,8 @@ declare module 'react/jsx-runtime' {
 declare module 'react-native' {
   export const StyleSheet: {
     create<T extends Record<string, any>>(styles: T): T;
+    absoluteFillObject?: any;
+    absoluteFill?: any;
   };
   export const Text: any;
   export const View: any;
@@ -53,6 +55,9 @@ declare module 'react-native' {
   export const FlatList: any;
   export const ActivityIndicator: any;
   export const Platform: any;
+  export const Modal: any;
+  export const Alert: any;
+  export const NativeModules: any;
   export const BackHandler: {
     addEventListener(eventName: string, handler: () => boolean | null | undefined): { remove: () => void };
     removeEventListener(eventName: string, handler: () => boolean | null | undefined): void;

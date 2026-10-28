@@ -12,6 +12,19 @@ import {
   ProviderSummary,
   HealthCheckResponse,
 } from './services/api';
+import { ListingModerationView } from './components/ListingModerationView';
+import { DocumentReviewQueueView } from './components/DocumentReviewQueueView';
+import { ProviderHealthView } from './components/ProviderHealthView';
+import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
+import {
+  MarketplaceListing,
+  ListingStatus,
+  DocumentSubmission,
+  DocumentStatus,
+  SellerType,
+  DocumentType,
+  LandUsageType,
+} from '@greenart/shared-types';
 
 // =========================================================================
 // Clean Professional SVG Line Icons (No emojis)
@@ -20,6 +33,30 @@ const Icons = {
   Dashboard: () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+    </svg>
+  ),
+  Marketplace: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  ),
+  Document: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </svg>
+  ),
+  Providers: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+      <line x1="6" y1="6" x2="6.01" y2="6" />
+      <line x1="6" y1="18" x2="6.01" y2="18" />
     </svg>
   ),
   Map: () => (
@@ -89,7 +126,16 @@ const Icons = {
   ),
 };
 
-type TabView = 'dashboard' | 'explorer' | 'records' | 'import' | 'statewide' | 'methodology';
+type TabView =
+  | 'dashboard'
+  | 'marketplace'
+  | 'documents'
+  | 'explorer'
+  | 'records'
+  | 'import'
+  | 'statewide'
+  | 'providers'
+  | 'methodology';
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<TabView>('dashboard');
@@ -97,6 +143,188 @@ export const App = () => {
   // Backend Health & Database Connectivity
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
   const [isApiConnected, setIsApiConnected] = useState<boolean>(false);
+
+  // Marketplace & Document Moderation State
+  const [adminListings, setAdminListings] = useState<MarketplaceListing[]>([
+    {
+      id: 'LIST-TN-CBE-001',
+      title: 'Gated Residential Plot — Saravanampatti IT Corridor',
+      description: 'Prime North-facing residential plot located 400m from Sathy Main Road. Clear title, DTCP approved.',
+      sellerId: 'USR-SEL-101',
+      sellerName: 'K. Balasubramanian',
+      sellerType: SellerType.IndividualOwner,
+      isSellerVerified: true,
+      state: 'Tamil Nadu',
+      district: 'Coimbatore',
+      taluk: 'Annur',
+      locality: 'Saravanampatti',
+      surveyNumber: '318/2B',
+      coordinates: { latitude: 11.0827, longitude: 77.0016 },
+      landUsage: LandUsageType.Residential,
+      extentCent: 5.5,
+      extentSqFt: 2396,
+      askingPriceTotal: 4950000,
+      askingRatePerCent: 900000,
+      askingRatePerSqFt: 2066,
+      guidelineRatePerCent: 650000,
+      guidelineRatePerSqFt: 1492,
+      status: ListingStatus.Active,
+      images: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800'],
+      documentsAvailable: [
+        { type: DocumentType.PattaChitta, verified: true, documentName: 'Patta_318_2B_verified.pdf' },
+        { type: DocumentType.RegisteredSaleDeed, verified: true, documentName: 'SaleDeed_Doc_4412_2021.pdf' },
+      ],
+      createdAt: '2026-09-15T10:30:00Z',
+      updatedAt: '2026-10-20T14:15:00Z',
+    },
+    {
+      id: 'LIST-TN-TPR-003',
+      title: 'Textile Hub Residential Land — Avinashi Road',
+      description: 'Corner plot with dual road access. Just 12 minutes to Tiruppur Old Bus Stand.',
+      sellerId: 'USR-SEL-103',
+      sellerName: 'M. Senthilkumar',
+      sellerType: SellerType.IndividualOwner,
+      isSellerVerified: false,
+      state: 'Tamil Nadu',
+      district: 'Tiruppur',
+      taluk: 'Avinashi',
+      locality: 'Avinashi',
+      surveyNumber: '219/3',
+      coordinates: { latitude: 11.1925, longitude: 77.2694 },
+      landUsage: LandUsageType.Residential,
+      extentCent: 4.2,
+      extentSqFt: 1829,
+      askingPriceTotal: 2520000,
+      askingRatePerCent: 600000,
+      askingRatePerSqFt: 1378,
+      guidelineRatePerCent: 410000,
+      guidelineRatePerSqFt: 941,
+      status: ListingStatus.PendingReview,
+      images: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800'],
+      documentsAvailable: [
+        { type: DocumentType.PattaChitta, verified: false, documentName: 'Pending_Patta_Copy.pdf' },
+      ],
+      createdAt: '2026-10-24T08:30:00Z',
+      updatedAt: '2026-10-24T08:30:00Z',
+    },
+    {
+      id: 'LIST-TN-ERD-002',
+      title: 'Industrial Commercial Frontage — Perundurai SIPCOT Phase II',
+      description: 'High-connectivity commercial frontage on NH-544 (Salem-Cochin Highway).',
+      sellerId: 'USR-SEL-102',
+      sellerName: 'V. Sundaram & Sons Promoters',
+      sellerType: SellerType.Promoter,
+      isSellerVerified: true,
+      state: 'Tamil Nadu',
+      district: 'Erode',
+      taluk: 'Perundurai',
+      locality: 'Perundurai',
+      surveyNumber: '104/1A',
+      coordinates: { latitude: 11.2783, longitude: 77.5852 },
+      landUsage: LandUsageType.Commercial,
+      extentCent: 24.0,
+      extentSqFt: 10454,
+      askingPriceTotal: 10800000,
+      askingRatePerCent: 450000,
+      askingRatePerSqFt: 1033,
+      guidelineRatePerCent: 320000,
+      guidelineRatePerSqFt: 735,
+      status: ListingStatus.Active,
+      images: ['https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800'],
+      documentsAvailable: [
+        { type: DocumentType.PattaChitta, verified: true, documentName: 'Patta_SIPCOT_104.pdf' },
+      ],
+      createdAt: '2026-10-02T08:00:00Z',
+      updatedAt: '2026-10-22T11:45:00Z',
+    },
+  ]);
+
+  const [adminDocuments, setAdminDocuments] = useState<DocumentSubmission[]>([
+    {
+      id: 'DOC-SUB-2026-001',
+      userId: 'USR-SEL-101',
+      uploaderName: 'K. Balasubramanian',
+      fileName: 'Patta_318_2B_Saravanampatti.pdf',
+      fileSizeBytes: 1420800,
+      fileChecksumSha256: '9f83a48e89547d7c95a0921a4fef7d8b5608b9c6f94a7374b5a26c48972e3891',
+      documentType: DocumentType.PattaChitta,
+      status: DocumentStatus.Verified,
+      surveyNumber: '318/2B',
+      locality: 'Saravanampatti',
+      district: 'Coimbatore',
+      extractedMetadata: {
+        pattaNumber: '1492',
+        surveyNumber: '318/2B',
+        ownerName: 'K. Balasubramanian',
+        extentCent: 5.5,
+        subDivision: '2B',
+      },
+      submittedAt: '2026-09-15T09:10:00Z',
+    },
+    {
+      id: 'DOC-SUB-2026-002',
+      userId: 'USR-SEL-103',
+      uploaderName: 'M. Senthilkumar',
+      fileName: 'SaleDeed_Avinashi_PendingReview.pdf',
+      fileSizeBytes: 3180400,
+      fileChecksumSha256: '3a47b1e8d99c438198f2c68e1a7b8e4f509c2d1b8e4a7d6e5c9b8a7f4e3d2c1b',
+      documentType: DocumentType.RegisteredSaleDeed,
+      status: DocumentStatus.Pending,
+      surveyNumber: '219/3',
+      locality: 'Avinashi',
+      district: 'Tiruppur',
+      extractedMetadata: {
+        surveyNumber: '219/3',
+        ownerName: 'M. Senthilkumar',
+        extentCent: 4.2,
+      },
+      submittedAt: '2026-10-24T08:30:00Z',
+    },
+  ]);
+
+  const handleApproveListing = (id: string) => {
+    setAdminListings((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Active, isSellerVerified: true } : l))
+    );
+  };
+
+  const handleRejectListing = (id: string, reason: string) => {
+    setAdminListings((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Rejected, rejectionReason: reason } : l))
+    );
+  };
+
+  const handleApproveDocument = (id: string, notes?: string) => {
+    setAdminDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+            ...d,
+            status: DocumentStatus.Verified,
+            reviewNotes: notes || 'Verified against revenue records',
+            reviewedBy: 'Admin_Audit_Lead',
+            reviewedAt: new Date().toISOString(),
+          }
+          : d
+      )
+    );
+  };
+
+  const handleRejectDocument = (id: string, reason: string) => {
+    setAdminDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+            ...d,
+            status: DocumentStatus.Rejected,
+            reviewNotes: reason,
+            reviewedBy: 'Admin_Audit_Lead',
+            reviewedAt: new Date().toISOString(),
+          }
+          : d
+      )
+    );
+  };
 
   // Target Location for Estimation & Explorer
   const [targetLat, setTargetLat] = useState<number>(11.0012);
@@ -743,6 +971,30 @@ export const App = () => {
           </button>
 
           <button
+            className={`nav-item ${activeTab === 'marketplace' ? 'active' : ''}`}
+            onClick={() => setActiveTab('marketplace')}
+          >
+            <span className="nav-icon"><Icons.Marketplace /></span>
+            <span>Listing Moderation</span>
+            <span className="nav-badge" style={{ background: '#FEF3C7', color: '#B45309' }}>
+              {adminListings.filter((l) => l.status === ListingStatus.PendingReview).length}
+            </span>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === 'documents' ? 'active' : ''}`}
+            onClick={() => setActiveTab('documents')}
+          >
+            <span className="nav-icon"><Icons.Document /></span>
+            <span>Document Review</span>
+            <span className="nav-badge" style={{ background: '#FEF3C7', color: '#B45309' }}>
+              {adminDocuments.filter((d) => d.status === DocumentStatus.Pending).length}
+            </span>
+          </button>
+
+          <div className="nav-divider"></div>
+
+          <button
             className={`nav-item ${activeTab === 'explorer' ? 'active' : ''}`}
             onClick={() => setActiveTab('explorer')}
           >
@@ -759,8 +1011,6 @@ export const App = () => {
             <span className="nav-badge">{records.length}</span>
           </button>
 
-          <div className="nav-divider"></div>
-
           <button
             className={`nav-item ${activeTab === 'import' ? 'active' : ''}`}
             onClick={() => setActiveTab('import')}
@@ -768,6 +1018,8 @@ export const App = () => {
             <span className="nav-icon"><Icons.Upload /></span>
             <span>CSV Import</span>
           </button>
+
+          <div className="nav-divider"></div>
 
           <button
             className={`nav-item ${activeTab === 'statewide' ? 'active' : ''}`}
@@ -778,11 +1030,19 @@ export const App = () => {
           </button>
 
           <button
+            className={`nav-item ${activeTab === 'providers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('providers')}
+          >
+            <span className="nav-icon"><Icons.Providers /></span>
+            <span>Provider Health</span>
+          </button>
+
+          <button
             className={`nav-item ${activeTab === 'methodology' ? 'active' : ''}`}
             onClick={() => setActiveTab('methodology')}
           >
             <span className="nav-icon"><Icons.Book /></span>
-            <span>Valuation Methodology</span>
+            <span>Valuation Rules</span>
           </button>
         </nav>
 
@@ -802,12 +1062,15 @@ export const App = () => {
         <header className="app-topbar">
           <div className="topbar-left">
             <span className="page-title">
-              {activeTab === 'dashboard' && 'Dashboard'}
-              {activeTab === 'explorer' && 'Land Price Explorer'}
+              {activeTab === 'dashboard' && 'Dashboard Overview & Executive KPI'}
+              {activeTab === 'marketplace' && 'Marketplace Listing Moderation Queue'}
+              {activeTab === 'documents' && 'Legal & Title Document Review Queue'}
+              {activeTab === 'explorer' && 'Land Price Explorer (Spatial PostGIS)'}
               {activeTab === 'records' && 'Land Records Registry'}
-              {activeTab === 'import' && 'Batch CSV Import'}
-              {activeTab === 'statewide' && 'Statewide Coverage'}
-              {activeTab === 'methodology' && 'Valuation Methodology'}
+              {activeTab === 'import' && 'Batch CSV Import & Ingestion'}
+              {activeTab === 'statewide' && 'Statewide Coverage & ML Readiness'}
+              {activeTab === 'providers' && 'Multi-Provider Health & Latency Monitor'}
+              {activeTab === 'methodology' && 'Valuation Methodology & Rules Sandbox'}
             </span>
           </div>
 
@@ -1163,6 +1426,28 @@ export const App = () => {
           )}
 
           {/* =====================================================================
+              VIEW: MARKETPLACE LISTING MODERATION
+              ===================================================================== */}
+          {activeTab === 'marketplace' && (
+            <ListingModerationView
+              listings={adminListings}
+              onApproveListing={handleApproveListing}
+              onRejectListing={handleRejectListing}
+            />
+          )}
+
+          {/* =====================================================================
+              VIEW: LEGAL DOCUMENT REVIEW QUEUE
+              ===================================================================== */}
+          {activeTab === 'documents' && (
+            <DocumentReviewQueueView
+              documents={adminDocuments}
+              onApproveDocument={handleApproveDocument}
+              onRejectDocument={handleRejectDocument}
+            />
+          )}
+
+          {/* =====================================================================
               VIEW 2: LAND PRICE EXPLORER
               ===================================================================== */}
           {activeTab === 'explorer' && (
@@ -1317,7 +1602,22 @@ export const App = () => {
                     </div>
                   </div>
 
-                  <div ref={mapContainerRef} className="leaflet-map-canvas"></div>
+                  <div className="leaflet-map-canvas" style={{ padding: 0, overflow: 'hidden' }}>
+                    <GoogleMapsExplorer
+                      targetLat={targetLat}
+                      targetLng={targetLng}
+                      selectedLocality={selectedLocality}
+                      radiusMeters={radiusMeters}
+                      records={records}
+                      onSelectLocation={(lat, lng) => {
+                        setTargetLat(lat);
+                        setTargetLng(lng);
+                        setSelectedLocality('Custom Pin');
+                        setLocationSearchQuery('');
+                        setShowLocationSuggestions(false);
+                      }}
+                    />
+                  </div>
 
                   <div className="map-legend-bar">
                     <span className="legend-label">Legend:</span>
@@ -2404,6 +2704,13 @@ export const App = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* =====================================================================
+              VIEW: PROVIDER HEALTH & INTEGRATIONS MONITORING
+              ===================================================================== */}
+          {activeTab === 'providers' && (
+            <ProviderHealthView />
           )}
 
           {/* =====================================================================

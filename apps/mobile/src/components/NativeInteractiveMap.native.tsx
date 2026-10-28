@@ -10,6 +10,7 @@ export interface NativeInteractiveMapProps {
   records: any[];
   onSelectLocation: (lat: number, lng: number) => void;
   style?: any;
+  apiKey?: string;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
@@ -20,12 +21,15 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   records,
   onSelectLocation,
   style,
+  apiKey,
 }) => {
   const webViewRef = useRef<any>(null);
   const WebViewComponent: any = WebView;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const isInternalUpdateRef = useRef(false);
+
+  const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
   // Sync coordinates into the WebView without reloading the page
   useEffect(() => {
@@ -91,126 +95,234 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
     .target-pin {
       background: #240046;
       color: #ffffff;
-      border: 2px solid #d4af37;
+      border: 2px solid #D4AF37;
       border-radius: 50%;
       width: 26px;
       height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
+      font-weight: 800;
       font-size: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      box-shadow: 0 2px 6px rgba(36,0,70,0.45);
     }
     .leaflet-control-attribution { font-size: 8px !important; }
+    .mode-bar {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 6px;
+      padding: 3px;
+      display: flex;
+      gap: 4px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .mode-btn {
+      border: none;
+      background: transparent;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #334155;
+    }
+    .mode-btn.active {
+      background: #240046;
+      color: #ffffff;
+    }
   </style>
+  ${effectiveKey ? `<script src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(effectiveKey)}&libraries=places,geometry"></script>` : ''}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <div id="map"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    var map, marker, bufferCircle, recordLayer;
+    var isGoogleActive = false;
+    var gMap, gMarker, gCircle, gRecordMarkers = [];
+    var lMap, lMarker, lCircle, lRecordLayer;
 
-    function initMap() {
-      try {
-        map = L.map('map', {
-          zoomControl: false,
-          attributionControl: true
-        }).setView([${targetLat}, ${targetLng}], ${mapZoom});
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap & Greenart',
-          maxZoom: 19
-        }).addTo(map);
-
-        var pinIcon = L.divIcon({
-          className: 'target-pin-wrap',
-          html: '<div class="target-pin">PIN</div>',
-          iconSize: [26, 26],
-          iconAnchor: [13, 13]
-        });
-
-        marker = L.marker([${targetLat}, ${targetLng}], { icon: pinIcon, draggable: true }).addTo(map);
-
-        marker.on('dragend', function(e) {
-          var pos = e.target.getLatLng();
-          var lat = Math.round(pos.lat * 10000) / 10000;
-          var lng = Math.round(pos.lng * 10000) / 10000;
-          if (bufferCircle) bufferCircle.setLatLng([lat, lng]);
-          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'LOCATION_SELECTED',
-              latitude: lat,
-              longitude: lng
-            }));
-          }
-        });
-
-        bufferCircle = L.circle([${targetLat}, ${targetLng}], {
-          radius: 1000,
-          color: '#d4af37',
-          fillColor: '#d4af37',
-          fillOpacity: 0.12,
-          weight: 2
-        }).addTo(map);
-
-        recordLayer = L.layerGroup().addTo(map);
-        window.updateRecords(${JSON.stringify(simplifiedInitialRecords)});
-
-        map.on('click', function(e) {
-          var lat = Math.round(e.latlng.lat * 10000) / 10000;
-          var lng = Math.round(e.latlng.lng * 10000) / 10000;
-          window.updatePosition(lat, lng, map.getZoom());
-
-          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'LOCATION_SELECTED',
-              latitude: lat,
-              longitude: lng
-            }));
-          }
-        });
-
-        setTimeout(function() { map.invalidateSize(); }, 200);
-      } catch (err) {
-        console.error('Map init error:', err);
+    function postLocation(lat, lng) {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'LOCATION_SELECTED',
+          latitude: lat,
+          longitude: lng
+        }));
       }
     }
 
-    window.updatePosition = function(lat, lng, zoom) {
-      if (marker) marker.setLatLng([lat, lng]);
-      if (bufferCircle) bufferCircle.setLatLng([lat, lng]);
-      if (map) {
-        map.setView([lat, lng], zoom || map.getZoom());
-      }
-    };
-
-    window.updateRecords = function(recs) {
-      if (!recordLayer) return;
-      recordLayer.clearLayers();
-      if (!recs || !recs.length) return;
-
-      recs.forEach(function(r) {
-        var dotColor = '#16a34a';
-        if (r.sourceCategory === 'GovernmentGuideline') dotColor = '#2563eb';
-        else if (r.sourceCategory === 'AdvertisedAskingPrice') dotColor = '#ea580c';
-        else if (r.sourceCategory === 'ClientResearch') dotColor = '#7e22ce';
-
-        var icon = L.divIcon({
-          className: 'rec-icon',
-          html: '<div style="background:' + dotColor + ';border:1.5px solid #ffffff;border-radius:50%;width:10px;height:10px;box-shadow:0 1px 3px rgba(0,0,0,0.25);"></div>',
-          iconSize: [10, 10],
-          iconAnchor: [5, 5]
+    // Try Google Maps first if script loaded
+    if (window.google && window.google.maps) {
+      try {
+        isGoogleActive = true;
+        var centerPos = { lat: ${targetLat}, lng: ${targetLng} };
+        gMap = new google.maps.Map(document.getElementById('map'), {
+          center: centerPos,
+          zoom: ${mapZoom},
+          mapTypeId: 'roadmap',
+          disableDefaultUI: false,
+          zoomControl: true,
+          streetViewControl: false,
+          mapTypeControl: true
         });
 
-        L.marker([r.latitude, r.longitude], { icon: icon }).addTo(recordLayer);
-      });
-    };
+        gMarker = new google.maps.Marker({
+          position: centerPos,
+          map: gMap,
+          draggable: true,
+          title: "Target: ${activeLocality}",
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 10,
+            fillColor: '#240046',
+            fillOpacity: 1,
+            strokeColor: '#D4AF37',
+            strokeWeight: 3
+          }
+        });
 
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      initMap();
-    } else {
-      document.addEventListener('DOMContentLoaded', initMap);
+        gCircle = new google.maps.Circle({
+          map: gMap,
+          center: centerPos,
+          radius: 1000,
+          fillColor: '#D4AF37',
+          fillOpacity: 0.12,
+          strokeColor: '#D4AF37',
+          strokeOpacity: 0.85,
+          strokeWeight: 2
+        });
+
+        gMarker.addListener('dragend', function(e) {
+          var lat = Math.round(e.latLng.lat() * 10000) / 10000;
+          var lng = Math.round(e.latLng.lng() * 10000) / 10000;
+          gCircle.setCenter({ lat: lat, lng: lng });
+          postLocation(lat, lng);
+        });
+
+        gMap.addListener('click', function(e) {
+          var lat = Math.round(e.latLng.lat() * 10000) / 10000;
+          var lng = Math.round(e.latLng.lng() * 10000) / 10000;
+          gMarker.setPosition({ lat: lat, lng: lng });
+          gCircle.setCenter({ lat: lat, lng: lng });
+          postLocation(lat, lng);
+        });
+
+        window.updatePosition = function(lat, lng, zoom) {
+          var p = { lat: lat, lng: lng };
+          if (gMarker) gMarker.setPosition(p);
+          if (gCircle) gCircle.setCenter(p);
+          if (gMap) gMap.setCenter(p);
+        };
+
+        window.updateRecords = function(recs) {
+          gRecordMarkers.forEach(function(m) { m.setMap(null); });
+          gRecordMarkers = [];
+          if (!recs) return;
+
+          recs.forEach(function(r) {
+            var dotColor = '#16a34a';
+            if (r.sourceCategory === 'GovernmentGuideline') dotColor = '#2563eb';
+            else if (r.sourceCategory === 'AdvertisedAskingPrice') dotColor = '#ea580c';
+
+            var m = new google.maps.Marker({
+              position: { lat: r.latitude, lng: r.longitude },
+              map: gMap,
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 5,
+                fillColor: dotColor,
+                fillOpacity: 0.9,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 1.5
+              }
+            });
+            gRecordMarkers.push(m);
+          });
+        };
+
+        window.updateRecords(${JSON.stringify(simplifiedInitialRecords)});
+      } catch (err) {
+        console.warn('Google Maps native init failed; falling back to Leaflet', err);
+        isGoogleActive = false;
+      }
+    }
+
+    // Leaflet Fallback
+    if (!isGoogleActive && window.L) {
+      lMap = L.map('map', {
+        zoomControl: false,
+        attributionControl: true
+      }).setView([${targetLat}, ${targetLng}], ${mapZoom});
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap & Greenart',
+        maxZoom: 19
+      }).addTo(lMap);
+
+      var pinIcon = L.divIcon({
+        className: 'target-pin-wrap',
+        html: '<div class="target-pin">PIN</div>',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+
+      lMarker = L.marker([${targetLat}, ${targetLng}], { icon: pinIcon, draggable: true }).addTo(lMap);
+
+      lMarker.on('dragend', function(e) {
+        var pos = e.target.getLatLng();
+        var lat = Math.round(pos.lat * 10000) / 10000;
+        var lng = Math.round(pos.lng * 10000) / 10000;
+        if (lCircle) lCircle.setLatLng([lat, lng]);
+        postLocation(lat, lng);
+      });
+
+      lCircle = L.circle([${targetLat}, ${targetLng}], {
+        radius: 1000,
+        color: '#D4AF37',
+        fillColor: '#D4AF37',
+        fillOpacity: 0.12,
+        weight: 2
+      }).addTo(lMap);
+
+      lRecordLayer = L.layerGroup().addTo(lMap);
+
+      lMap.on('click', function(e) {
+        var lat = Math.round(e.latlng.lat * 10000) / 10000;
+        var lng = Math.round(e.latlng.lng * 10000) / 10000;
+        window.updatePosition(lat, lng, lMap.getZoom());
+        postLocation(lat, lng);
+      });
+
+      window.updatePosition = function(lat, lng, zoom) {
+        if (lMarker) lMarker.setLatLng([lat, lng]);
+        if (lCircle) lCircle.setLatLng([lat, lng]);
+        if (lMap) lMap.setView([lat, lng], zoom || lMap.getZoom());
+      };
+
+      window.updateRecords = function(recs) {
+        if (!lRecordLayer) return;
+        lRecordLayer.clearLayers();
+        if (!recs) return;
+
+        recs.forEach(function(r) {
+          var dotColor = '#16a34a';
+          if (r.sourceCategory === 'GovernmentGuideline') dotColor = '#2563eb';
+          else if (r.sourceCategory === 'AdvertisedAskingPrice') dotColor = '#ea580c';
+
+          var icon = L.divIcon({
+            className: 'rec-icon',
+            html: '<div style="background:' + dotColor + ';border:1.5px solid #ffffff;border-radius:50%;width:10px;height:10px;box-shadow:0 1px 3px rgba(0,0,0,0.25);"></div>',
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+          });
+
+          L.marker([r.latitude, r.longitude], { icon: icon }).addTo(lRecordLayer);
+        });
+      };
+
+      window.updateRecords(${JSON.stringify(simplifiedInitialRecords)});
     }
   </script>
 </body>
@@ -238,25 +350,22 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           ref={webViewRef}
           originWhitelist={['*']}
           source={{ html: htmlContent }}
-          style={styles.webView}
           onMessage={handleMessage}
+          onLoadStart={() => setIsLoading(true)}
           onLoadEnd={() => setIsLoading(false)}
           onError={() => {
             setIsLoading(false);
             setHasError(true);
           }}
+          style={styles.webview}
           javaScriptEnabled={true}
           domStorageEnabled={true}
-          scrollEnabled={false}
-          bounces={false}
-          overScrollMode="never"
         />
       )}
-
-      {isLoading && !hasError && (
+      {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color="#240046" />
-          <Text style={styles.loadingText}>Loading Map...</Text>
+          <Text style={styles.loadingText}>Loading Map Engine...</Text>
         </View>
       )}
     </View>
@@ -265,55 +374,51 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 280,
     width: '100%',
-    backgroundColor: '#f1f5f9',
+    height: '100%',
+    backgroundColor: '#FAF5FF',
     position: 'relative',
     overflow: 'hidden',
   },
-  webView: {
+  webview: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#FAF5FF',
   },
   loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(248, 250, 252, 0.85)',
-    justifyContent: 'center',
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(250, 245, 255, 0.85)',
     alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
+    gap: 8,
   },
   loadingText: {
-    marginTop: 8,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
     color: '#240046',
+    fontWeight: '700',
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fef2f2',
+    gap: 12,
   },
   errorText: {
-    fontSize: 13,
-    color: '#991b1b',
-    fontWeight: '600',
-    marginBottom: 10,
+    fontSize: 12,
+    color: '#64748B',
     textAlign: 'center',
   },
   retryBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
     backgroundColor: '#240046',
-    borderRadius: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
   },
   retryBtnText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },

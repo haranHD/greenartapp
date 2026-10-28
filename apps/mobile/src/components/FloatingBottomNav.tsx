@@ -1,7 +1,16 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 
-export type MobileTab = 'home' | 'search' | 'estimate' | 'history' | 'profile' | 'records' | 'guideline';
+export type MobileTab =
+  | 'home'
+  | 'marketplace'
+  | 'estimate'
+  | 'sell'
+  | 'profile'
+  | 'search'
+  | 'history'
+  | 'records'
+  | 'guideline';
 
 export interface FloatingBottomNavProps {
   activeTab: MobileTab;
@@ -14,7 +23,7 @@ export interface FloatingBottomNavProps {
 // ---------------------------------------------------------------------------
 
 const TabIconHome = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#94A3B8';
+  const color = active ? '#240046' : '#64748B';
   return (
     <View style={iconStyles.box}>
       <View
@@ -31,8 +40,8 @@ const TabIconHome = ({ active }: { active: boolean }) => {
       />
       <View
         style={{
-          width: 12,
-          height: 8,
+          width: 13,
+          height: 9,
           borderWidth: 1.6,
           borderTopWidth: 0,
           borderColor: color,
@@ -40,38 +49,29 @@ const TabIconHome = ({ active }: { active: boolean }) => {
           justifyContent: 'flex-end',
         }}
       >
-        <View style={{ width: 4, height: 4, backgroundColor: color }} />
+        <View style={{ width: 4, height: 4, backgroundColor: active ? '#D4AF37' : color }} />
       </View>
     </View>
   );
 };
 
-const TabIconSearch = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#94A3B8';
+const TabIconMarketplace = ({ active }: { active: boolean }) => {
+  const color = active ? '#240046' : '#64748B';
   return (
     <View style={iconStyles.box}>
       <View
         style={{
-          width: 12,
-          height: 12,
-          borderRadius: 6,
-          borderWidth: 1.7,
+          width: 16,
+          height: 14,
+          borderRadius: 2,
+          borderWidth: 1.6,
           borderColor: color,
-          position: 'relative',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
       >
-        <View
-          style={{
-            position: 'absolute',
-            width: 5,
-            height: 1.7,
-            backgroundColor: color,
-            borderRadius: 1,
-            bottom: -3,
-            right: -3,
-            transform: [{ rotate: '45deg' }],
-          }}
-        />
+        <View style={{ width: 8, height: 1.6, backgroundColor: active ? '#D4AF37' : color, marginBottom: 2 }} />
+        <View style={{ width: 8, height: 1.6, backgroundColor: color }} />
       </View>
     </View>
   );
@@ -98,7 +98,7 @@ const TabIconEstimateCenter = ({ active }: { active: boolean }) => {
           style={{
             width: 2,
             height: 8,
-            backgroundColor: '#D4AF37',
+            backgroundColor: active ? '#D4AF37' : '#FDE047',
             borderRadius: 1,
             transform: [{ rotate: '-35deg' }],
           }}
@@ -117,42 +117,28 @@ const TabIconEstimateCenter = ({ active }: { active: boolean }) => {
   );
 };
 
-const TabIconHistory = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#94A3B8';
+const TabIconSell = ({ active }: { active: boolean }) => {
+  const color = active ? '#240046' : '#64748B';
   return (
     <View style={iconStyles.box}>
       <View
         style={{
           width: 15,
           height: 15,
-          borderRadius: 7.5,
+          borderRadius: 3,
           borderWidth: 1.6,
           borderColor: color,
-          position: 'relative',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        {/* Minute hand */}
+        <View style={{ width: 7, height: 1.6, backgroundColor: color }} />
         <View
           style={{
             position: 'absolute',
-            width: 1.5,
-            height: 4.5,
-            backgroundColor: color,
-            top: 2,
-            left: 5.2,
-            borderRadius: 1,
-          }}
-        />
-        {/* Hour hand */}
-        <View
-          style={{
-            position: 'absolute',
-            width: 3.5,
-            height: 1.5,
-            backgroundColor: color,
-            top: 5.2,
-            left: 5.2,
-            borderRadius: 1,
+            width: 1.6,
+            height: 7,
+            backgroundColor: active ? '#D4AF37' : color,
           }}
         />
       </View>
@@ -161,7 +147,7 @@ const TabIconHistory = ({ active }: { active: boolean }) => {
 };
 
 const TabIconProfile = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#94A3B8';
+  const color = active ? '#240046' : '#64748B';
   return (
     <View style={iconStyles.box}>
       <View
@@ -170,7 +156,7 @@ const TabIconProfile = ({ active }: { active: boolean }) => {
           height: 7,
           borderRadius: 3.5,
           borderWidth: 1.6,
-          borderColor: color,
+          borderColor: active ? '#D4AF37' : color,
           marginBottom: 1,
         }}
       />
@@ -191,7 +177,7 @@ const TabIconProfile = ({ active }: { active: boolean }) => {
 
 const iconStyles = StyleSheet.create({
   box: {
-    width: 22,
+    width: 24,
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
@@ -235,19 +221,24 @@ export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
           </Text>
         </TouchableOpacity>
 
-        {/* 2. Search */}
+        {/* 2. Buy Marketplace */}
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => onSelectTab('search')}
+          onPress={() => onSelectTab('marketplace')}
           activeOpacity={0.7}
         >
-          <TabIconSearch active={activeTab === 'search'} />
-          <Text style={[styles.navLabel, activeTab === 'search' && styles.navLabelActive]}>
-            Search
+          <TabIconMarketplace active={activeTab === 'marketplace' || activeTab === 'search'} />
+          <Text
+            style={[
+              styles.navLabel,
+              (activeTab === 'marketplace' || activeTab === 'search') && styles.navLabelActive,
+            ]}
+          >
+            Buy Plots
           </Text>
         </TouchableOpacity>
 
-        {/* 3. Center Elevated Action: Estimate */}
+        {/* 3. Center Elevated Action: Valuation Estimate */}
         <View style={styles.centerItemWrapper}>
           <TouchableOpacity
             style={[styles.elevatedBtn, isEstimateActive && styles.elevatedBtnActive]}
@@ -262,23 +253,23 @@ export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
               isEstimateActive && styles.elevatedBtnLabelActive,
             ]}
           >
-            Estimate
+            Valuation
           </Text>
         </View>
 
-        {/* 4. History */}
+        {/* 4. Sell Land Flow */}
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => onSelectTab('history')}
+          onPress={() => onSelectTab('sell')}
           activeOpacity={0.7}
         >
-          <TabIconHistory active={activeTab === 'history'} />
-          <Text style={[styles.navLabel, activeTab === 'history' && styles.navLabelActive]}>
-            History
+          <TabIconSell active={activeTab === 'sell'} />
+          <Text style={[styles.navLabel, activeTab === 'sell' && styles.navLabelActive]}>
+            Sell
           </Text>
         </TouchableOpacity>
 
-        {/* 5. Profile */}
+        {/* 5. Profile & Vault */}
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => onSelectTab('profile')}
@@ -313,11 +304,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    // High-end subtle ambient shadow
-    shadowColor: '#1A0033',
+    borderColor: '#E9D5FF',
+    // Subtle luxury ambient shadow
+    shadowColor: '#240046',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 14,
     elevation: 8,
   },
@@ -330,7 +321,7 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#64748B',
     marginTop: 1,
     letterSpacing: 0.2,
   },
@@ -353,7 +344,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -22,
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: '#D4AF37',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
@@ -361,9 +352,9 @@ const styles = StyleSheet.create({
     elevation: 9,
   },
   elevatedBtnActive: {
-    backgroundColor: '#1A0033',
-    borderColor: '#D4AF37',
-    shadowOpacity: 0.45,
+    backgroundColor: '#3B0764',
+    borderColor: '#FDE047',
+    shadowOpacity: 0.5,
   },
   elevatedBtnLabel: {
     fontSize: 10,
@@ -377,4 +368,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

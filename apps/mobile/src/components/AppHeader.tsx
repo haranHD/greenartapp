@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#F3E8FF',
     zIndex: 10,
   },
   logoContainer: {
@@ -74,14 +74,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusBadgeOnline: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#FEFCE8',
     borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderColor: '#FDE68A',
   },
   statusBadgeOffline: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#FAF5FF',
     borderWidth: 1,
-    borderColor: '#FEF3C7',
+    borderColor: '#E9D5FF',
   },
   statusDot: {
     width: 6,
@@ -90,10 +90,10 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   statusDotGreen: {
-    backgroundColor: '#16A34A',
+    backgroundColor: '#D4AF37',
   },
   statusDotAmber: {
-    backgroundColor: '#D97706',
+    backgroundColor: '#8B5CF6',
   },
   statusText: {
     fontSize: 10,
@@ -101,10 +101,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   statusTextGreen: {
-    color: '#15803D',
+    color: '#92400E',
   },
   statusTextAmber: {
-    color: '#B45309',
+    color: '#581C87',
   },
   profileAvatar: {
     width: 28,
