@@ -25,6 +25,10 @@ if (!string.IsNullOrWhiteSpace(renderPort))
 {
     builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
 }
+else if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+{
+    builder.WebHost.UseUrls("http://0.0.0.0:5039", "http://0.0.0.0:5000");
+}
 
 // Load .env configuration if present in project or solution root
 var envCandidatePaths = new[]

@@ -119,41 +119,65 @@ export interface HealthStatusResponse {
 }
 
 const getApiBaseUrl = (): string => {
-  if (typeof process !== 'undefined' && process.env && process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-  // Safe detection for Web browser
-  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-    const host = window.location.hostname;
-    if (host.includes('vercel.app')) {
-      return 'https://greenartapp-1.onrender.com/api/v1';
+  const envUrl = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_URL) ? process.env.EXPO_PUBLIC_API_URL : '';
+
+  // 1. Web browser runtime: use window.location
+  if (Platform.OS === 'web') {
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl;
     }
-    return `http://${host}:5039/api/v1`;
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const host = window.location.hostname;
+      if (host.includes('vercel.app')) {
+        return 'https://greenartapp-1.onrender.com/api/v1';
+      }
+      return `http://${host}:5039/api/v1`;
+    }
+    return envUrl || 'http://localhost:5039/api/v1';
   }
-  // Auto-detect host machine IP when running on physical device via Expo Go
+
+  // 2. Native runtime (Physical Device in Expo Go or Emulator):
+  // If explicitly configured with a non-localhost remote URL (Render, AWS, domain), use it
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1') && !envUrl.includes('10.0.2.2')) {
+    return envUrl;
+  }
+
+  // 3. Physical phone in Expo Go: auto-detect host computer IP from Metro bundle URL
   try {
     const scriptURL = (NativeModules as any)?.SourceCode?.scriptURL;
     if (typeof scriptURL === 'string') {
       const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
       if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
-        return `http://${match[1]}:5039/api/v1`;
+        const detectedUrl = `http://${match[1]}:5039/api/v1`;
+        return detectedUrl;
       }
     }
   } catch {
     // Fall back to emulator/default
   }
-  // Android Emulator networking
+
+  // 4. Android Emulator loopback
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5039/api/v1';
   }
-  return 'http://localhost:5039/api/v1';
+
+  return envUrl || 'http://localhost:5039/api/v1';
 };
 
 class MobileApiClient {
-  private baseUrl = getApiBaseUrl();
+  private cachedBaseUrl: string | null = null;
+
+  public getBaseUrl(): string {
+    // If not cached or previously fell back to localhost on native, re-evaluate
+    if (!this.cachedBaseUrl || (Platform.OS !== 'web' && this.cachedBaseUrl.includes('localhost'))) {
+      this.cachedBaseUrl = getApiBaseUrl();
+    }
+    return this.cachedBaseUrl;
+  }
 
   private async fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs?: number): Promise<Response> {
-    const isRender = this.baseUrl.includes('onrender.com');
+    const baseUrl = this.getBaseUrl();
+    const isRender = baseUrl.includes('onrender.com');
     const effectiveTimeout = timeoutMs ?? (isRender ? 35000 : 10000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
@@ -177,8 +201,9 @@ class MobileApiClient {
 
   async getHealth(): Promise<HealthStatusResponse> {
     try {
-      const isRender = this.baseUrl.includes('onrender.com');
-      const response = await this.fetchWithTimeout(`${this.baseUrl}/health`, {
+      const baseUrl = this.getBaseUrl();
+      const isRender = baseUrl.includes('onrender.com');
+      const response = await this.fetchWithTimeout(`${baseUrl}/health`, {
         headers: { Accept: 'application/json' },
       }, isRender ? 30000 : 4000);
       if (!response.ok) return { status: 'Degraded' };
@@ -194,7 +219,8 @@ class MobileApiClient {
     landUsage: number = 1,
     radiusMeters: number = 1000
   ): Promise<EstimateApiResponse> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/estimates/calculate`, {
+    const baseUrl = this.getBaseUrl();
+    const response = await this.fetchWithTimeout(`${baseUrl}/estimates/calculate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -224,7 +250,8 @@ class MobileApiClient {
   }
 
   async getLocalities(): Promise<LocalityReference[]> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/reference/localities`, {
+    const baseUrl = this.getBaseUrl();
+    const response = await this.fetchWithTimeout(`${baseUrl}/reference/localities`, {
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) {
@@ -239,13 +266,14 @@ class MobileApiClient {
     sourceCategory?: number;
     district?: string;
   }): Promise<LandRecordDto[]> {
+    const baseUrl = this.getBaseUrl();
     const query = new URLSearchParams();
     if (params?.locality) query.append('locality', params.locality);
     if (params?.landUsage !== undefined) query.append('landUsage', params.landUsage.toString());
     if (params?.sourceCategory !== undefined) query.append('sourceCategory', params.sourceCategory.toString());
     if (params?.district) query.append('district', params.district);
 
-    const url = `${this.baseUrl}/land-records${query.toString() ? `?${query.toString()}` : ''}`;
+    const url = `${baseUrl}/land-records${query.toString() ? `?${query.toString()}` : ''}`;
     const response = await this.fetchWithTimeout(url, {
       headers: { Accept: 'application/json' },
     });
@@ -261,6 +289,7 @@ class MobileApiClient {
     radiusMeters: number = 1000,
     landUsage?: number
   ): Promise<NearbyLandRecordDto[]> {
+    const baseUrl = this.getBaseUrl();
     const query = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),
@@ -270,7 +299,7 @@ class MobileApiClient {
       query.append('landUsage', landUsage.toString());
     }
 
-    const url = `${this.baseUrl}/land-records/nearby?${query.toString()}`;
+    const url = `${baseUrl}/land-records/nearby?${query.toString()}`;
     const response = await this.fetchWithTimeout(url, {
       headers: { Accept: 'application/json' },
     });
@@ -293,8 +322,9 @@ class MobileApiClient {
   async searchLocalities(query: string): Promise<LocalitySuggestionDto[]> {
     if (!query || query.trim().length < 2) return [];
     try {
+      const baseUrl = this.getBaseUrl();
       const response = await this.fetchWithTimeout(
-        `${this.baseUrl}/localities/search?q=${encodeURIComponent(query.trim())}`,
+        `${baseUrl}/localities/search?q=${encodeURIComponent(query.trim())}`,
         { headers: { Accept: 'application/json' } },
         10000
       );
@@ -312,8 +342,9 @@ class MobileApiClient {
   async getLocalityDetails(placeId: string): Promise<LocalityDetailsDto | null> {
     if (!placeId) return null;
     try {
+      const baseUrl = this.getBaseUrl();
       const response = await this.fetchWithTimeout(
-        `${this.baseUrl}/localities/details?placeId=${encodeURIComponent(placeId.trim())}`,
+        `${baseUrl}/localities/details?placeId=${encodeURIComponent(placeId.trim())}`,
         { headers: { Accept: 'application/json' } },
         10000
       );
