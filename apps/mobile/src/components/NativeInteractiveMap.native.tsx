@@ -165,7 +165,8 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           disableDefaultUI: false,
           zoomControl: true,
           streetViewControl: false,
-          mapTypeControl: true
+          mapTypeControl: true,
+          gestureHandling: 'cooperative'
         });
 
         gMarker = new google.maps.Marker({
@@ -360,6 +361,11 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           style={styles.webview}
           javaScriptEnabled={true}
           domStorageEnabled={true}
+          nestedScrollEnabled={true}
+          overScrollMode="never"
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
         />
       )}
       {isLoading && (
@@ -375,13 +381,14 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    height: '100%',
+    height: 280,
     backgroundColor: '#FAF5FF',
     position: 'relative',
     overflow: 'hidden',
   },
   webview: {
-    flex: 1,
+    width: '100%',
+    height: 280,
     backgroundColor: '#FAF5FF',
   },
   loadingOverlay: {

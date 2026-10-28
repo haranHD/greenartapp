@@ -26,9 +26,11 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled={true}
     >
       {/* Back Nav Bar */}
       <TouchableOpacity

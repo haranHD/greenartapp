@@ -43,8 +43,10 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
     >
       <View style={styles.screenHeaderBox}>
         <Text style={styles.viewTitle}>Client Portal & Vault</Text>

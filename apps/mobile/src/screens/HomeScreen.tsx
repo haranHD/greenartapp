@@ -57,9 +57,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled={true}
     >
       {/* Premium Hero Surface */}
       <View style={styles.homeHeroCard}>

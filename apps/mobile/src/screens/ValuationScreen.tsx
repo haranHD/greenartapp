@@ -75,9 +75,11 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled={true}
     >
       {/* Step Segment Control */}
       <View style={styles.stepTabsRow}>

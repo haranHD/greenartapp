@@ -36,8 +36,10 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
     >
       <View style={styles.screenHeaderBox}>
         <Text style={styles.viewTitle}>Valuation History</Text>

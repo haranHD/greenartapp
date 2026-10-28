@@ -69,9 +69,11 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
 }) => {
   return (
     <ScrollView
+      style={styles.scrollView}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled={true}
     >
       {/* Screen Title & Subtitle */}
       <View style={styles.screenHeaderBox}>
@@ -335,6 +337,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
   scrollBody: {
     padding: 16,
     gap: 16,
