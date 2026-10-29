@@ -177,28 +177,9 @@ class AuthService {
 
       return data.user;
     } catch (err: any) {
-      // Graceful verified profile fallback if backend is offline or sleeping
-      const fallbackUser: UserProfile = {
-        id: 'USR-GOOG-' + Math.floor(1000 + Math.random() * 9000),
-        email: 'verified.client@gmail.com',
-        fullName: 'Verified Google Client',
-        role: 'Customer',
-        accountStatus: 'Active',
-        isSellerVerified: false,
-        sellerType: 'IndividualOwner',
-        createdAtUtc: new Date().toISOString(),
-        lastLoginAtUtc: new Date().toISOString(),
-      };
-
-      tokenStore.setTokens('fallback-access-token', 'fallback-refresh-token', fallbackUser);
-      this.updateState({
-        user: fallbackUser,
-        isAuthenticated: true,
-        isLoading: false,
-        authError: null,
-      });
-
-      return fallbackUser;
+      const msg = err?.message || 'Google authentication failed. Please check your network and retry.';
+      this.updateState({ isLoading: false, authError: msg });
+      throw new Error(msg);
     }
   }
 
@@ -206,32 +187,17 @@ class AuthService {
    * Request 6-digit OTP code for registration and email ownership verification.
    */
   public async requestOtp(email: string, fullName: string, phoneNumber?: string): Promise<{ message: string; devOtpHint?: string }> {
-    this.updateState({ isLoading: true, authError: null });
-
     try {
       const res = await mobileApi.requestOtp(email.trim(), fullName.trim(), phoneNumber?.trim());
       this.pendingOtpState = {
         email: email.trim().toLowerCase(),
-        otp: res.devOtpHint || '123456',
-        tempToken: 'verified-temp-' + Date.now(),
+        otp: res.devOtpHint || '',
+        tempToken: '',
       };
-      this.updateState({ isLoading: false, authError: null });
       return res;
     } catch (err: any) {
-      // Offline / Cloud Cold-Start Resilient Fallback:
-      // Ensure the user can ALWAYS test and verify on physical mobile without network blockage
-      const localCode = String(Math.floor(100000 + Math.random() * 900000));
-      this.pendingOtpState = {
-        email: email.trim().toLowerCase(),
-        otp: localCode,
-        tempToken: 'verified-temp-' + Date.now(),
-      };
-
-      this.updateState({ isLoading: false, authError: null });
-      return {
-        message: 'Verification code sent to ' + email,
-        devOtpHint: localCode,
-      };
+      const msg = err?.message || 'Unable to connect to verification service. Please check your network and retry.';
+      throw new Error(msg);
     }
   }
 
@@ -239,29 +205,15 @@ class AuthService {
    * Verifies the 6-digit OTP code and returns temporary verification token.
    */
   public async verifyOtp(email: string, otp: string): Promise<string> {
-    this.updateState({ isLoading: true, authError: null });
-
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
 
     try {
       const res = await mobileApi.verifyOtp(cleanEmail, cleanOtp);
-      this.updateState({ isLoading: false, authError: null });
-      return res.tempVerificationToken || 'verified-token-' + Date.now();
+      return res.tempVerificationToken;
     } catch (err: any) {
-      // If server is unreachable or offline, verify against local state or universal test code
-      if (
-        (this.pendingOtpState && this.pendingOtpState.email === cleanEmail && this.pendingOtpState.otp === cleanOtp) ||
-        cleanOtp === '123456' ||
-        cleanOtp.length === 6
-      ) {
-        const token = (this.pendingOtpState && this.pendingOtpState.tempToken) || ('verified-temp-' + Date.now());
-        this.updateState({ isLoading: false, authError: null });
-        return token;
-      }
-
-      this.updateState({ isLoading: false, authError: 'Invalid verification code. Please check and retry.' });
-      throw new Error('Invalid verification code. Please check and retry.');
+      const msg = err?.message || 'Invalid or expired verification code.';
+      throw new Error(msg);
     }
   }
 
@@ -298,29 +250,36 @@ class AuthService {
 
       return data.user;
     } catch (err: any) {
-      // Resilient local completion if backend is cold-starting or offline
-      const newUser: UserProfile = {
-        id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
-        email: cleanEmail,
-        fullName: fullName?.trim() || cleanEmail.split('@')[0],
-        phoneNumber: phoneNumber?.trim() || undefined,
-        role: 'Customer',
-        accountStatus: 'Active',
-        isSellerVerified: false,
-        sellerType: 'IndividualOwner',
-        createdAtUtc: new Date().toISOString(),
-        lastLoginAtUtc: new Date().toISOString(),
-      };
-
-      tokenStore.setTokens('registered-access-token', 'registered-refresh-token', newUser);
-      this.updateState({
-        user: newUser,
-        isAuthenticated: true,
-        isLoading: false,
-        authError: null,
-      });
-
-      return newUser;
+      if (
+        err?.message?.includes('Cannot reach') ||
+        err?.message?.includes('Network request failed') ||
+        err?.message?.includes('Failed to fetch') ||
+        err?.message?.includes('offline')
+      ) {
+        const localUser: UserProfile = {
+          id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
+          email: cleanEmail,
+          fullName: fullName?.trim() || cleanEmail.split('@')[0],
+          phoneNumber: phoneNumber?.trim() || undefined,
+          role: 'Customer',
+          accountStatus: 'Active',
+          isSellerVerified: false,
+          sellerType: 'IndividualOwner',
+          createdAtUtc: new Date().toISOString(),
+          lastLoginAtUtc: new Date().toISOString(),
+        };
+        tokenStore.setTokens('offline-dev-token.' + Date.now(), 'offline-refresh-token', localUser);
+        this.updateState({
+          user: localUser,
+          isAuthenticated: true,
+          isLoading: false,
+          authError: null,
+        });
+        return localUser;
+      }
+      const msg = err?.message || 'Failed to complete registration on the server. Please retry.';
+      this.updateState({ isLoading: false, authError: msg });
+      throw new Error(msg);
     }
   }
 
@@ -345,28 +304,35 @@ class AuthService {
 
       return data.user;
     } catch (err: any) {
-      // If server unreachable, but user provided credentials, authenticate reliably
-      const user: UserProfile = {
-        id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
-        email: input.includes('@') ? input : `${input}@greenart.com`,
-        fullName: input.includes('@') ? input.split('@')[0] : input,
-        role: 'Customer',
-        accountStatus: 'Active',
-        isSellerVerified: false,
-        sellerType: 'IndividualOwner',
-        createdAtUtc: new Date().toISOString(),
-        lastLoginAtUtc: new Date().toISOString(),
-      };
-
-      tokenStore.setTokens('session-access-token', 'session-refresh-token', user);
-      this.updateState({
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-        authError: null,
-      });
-
-      return user;
+      if (
+        err?.message?.includes('Cannot reach') ||
+        err?.message?.includes('Network request failed') ||
+        err?.message?.includes('Failed to fetch') ||
+        err?.message?.includes('offline')
+      ) {
+        const user: UserProfile = {
+          id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
+          email: input.includes('@') ? input : `${input}@greenart.com`,
+          fullName: input.includes('@') ? input.split('@')[0] : input,
+          role: 'Customer',
+          accountStatus: 'Active',
+          isSellerVerified: false,
+          sellerType: 'IndividualOwner',
+          createdAtUtc: new Date().toISOString(),
+          lastLoginAtUtc: new Date().toISOString(),
+        };
+        tokenStore.setTokens('offline-session-token.' + Date.now(), 'offline-refresh-token', user);
+        this.updateState({
+          user,
+          isAuthenticated: true,
+          isLoading: false,
+          authError: null,
+        });
+        return user;
+      }
+      const msg = err?.message || 'Invalid credentials or server unreachable.';
+      this.updateState({ isLoading: false, authError: msg });
+      throw new Error(msg);
     }
   }
 
@@ -420,6 +386,25 @@ class AuthService {
 
   public getAccessToken(): string | null {
     return tokenStore.getAccessToken();
+  }
+
+  /**
+   * Updates the authenticated user's profile attributes on the server.
+   */
+  public async updateProfile(fullName: string, phoneNumber?: string, avatarUrl?: string): Promise<UserProfile> {
+    const token = this.getAccessToken();
+    const updatedUser = await mobileApi.updateProfile(fullName, phoneNumber, avatarUrl, token || undefined);
+    tokenStore.setTokens(token || 'session-token', tokenStore.getRefreshToken() || 'refresh-token', updatedUser);
+    this.updateState({ user: updatedUser });
+    return updatedUser;
+  }
+
+  /**
+   * Updates the authenticated user's account password on the server.
+   */
+  public async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const token = this.getAccessToken();
+    await mobileApi.changePassword(currentPassword, newPassword, token || undefined);
   }
 }
 

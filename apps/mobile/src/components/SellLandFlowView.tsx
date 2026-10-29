@@ -113,9 +113,6 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
     };
 
     onSaveListing(newListing);
-    alert(status === ListingStatus.PendingReview
-      ? 'Listing submitted for Administrative Title Review! Status: Pending Review.'
-      : 'Listing saved as private draft in your workspace.');
     setActiveSubTab('workspace');
   };
 

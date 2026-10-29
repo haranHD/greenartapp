@@ -227,5 +227,63 @@ public class AuthAndMarketplaceDomainTests
         Assert.Equal(3, (int)EnquiryStatus.Closed);
         Assert.Equal(4, (int)EnquiryStatus.Spam);
     }
+
+    [Fact]
+    public void MarketplaceListing_ApproveAndReject_ShouldUpdateModerationState()
+    {
+        var listing = new MarketplaceListing(
+            id: Guid.NewGuid(),
+            title: "Test Plot in Sulur",
+            description: "Clear title residential land",
+            sellerId: Guid.NewGuid(),
+            locality: "Sulur",
+            district: "Coimbatore",
+            state: "Tamil Nadu",
+            coordinates: new GeoCoordinate(11.02, 77.12),
+            landUsage: LandUsageType.Residential,
+            extentCent: 5.0m,
+            extentSqFt: 2178.0m,
+            askingPriceTotal: 2500000m,
+            askingRatePerCent: 500000m,
+            askingRatePerSqFt: 1147.84m
+        );
+
+        Assert.Equal(ListingStatus.PendingReview, listing.Status);
+
+        var reviewerId = Guid.NewGuid();
+        listing.Approve(reviewerId, "Title verified against TNREGINET records");
+
+        Assert.Equal(ListingStatus.Active, listing.Status);
+        Assert.Equal(reviewerId, listing.ReviewedByUserId);
+        Assert.Equal("Title verified against TNREGINET records", listing.ModerationNotes);
+        Assert.Null(listing.RejectionReason);
+
+        listing.Reject(reviewerId, "Survey number discrepancy", "Requires re-upload of Patta sketch");
+        Assert.Equal(ListingStatus.Rejected, listing.Status);
+        Assert.Equal("Survey number discrepancy", listing.RejectionReason);
+        Assert.Equal("Requires re-upload of Patta sketch", listing.ModerationNotes);
+    }
+
+    [Fact]
+    public void User_PasswordAndOtpState_ShouldMutateCorrectly()
+    {
+        var user = new User(Guid.NewGuid(), "client@example.com", "Client Name", "sub-123");
+        Assert.Null(user.PasswordHash);
+        Assert.False(user.IsEmailVerified);
+
+        user.SetPassword("HASH123", "SALT456");
+        Assert.Equal("HASH123", user.PasswordHash);
+        Assert.Equal("SALT456", user.PasswordSalt);
+
+        var expiry = DateTime.UtcNow.AddMinutes(15);
+        user.SetOtp("OTPHASH", expiry);
+        Assert.Equal("OTPHASH", user.OtpHash);
+        Assert.Equal(expiry, user.OtpExpiresAtUtc);
+
+        user.VerifyEmail();
+        Assert.True(user.IsEmailVerified);
+        Assert.Null(user.OtpHash);
+        Assert.Null(user.OtpExpiresAtUtc);
+    }
 }
 

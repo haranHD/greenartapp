@@ -499,6 +499,66 @@ public class AuthService : IAuthService
         );
     }
 
+    public async Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.FullName))
+            throw new ArgumentException("Full name is required.", nameof(request.FullName));
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+            throw new KeyNotFoundException("User not found.");
+
+        user.UpdateProfile(request.FullName.Trim(), request.PhoneNumber?.Trim(), request.AvatarUrl?.Trim());
+
+        _dbContext.AuditEvents.Add(new AuditEvent(
+            Guid.NewGuid(), "UserProfile", user.Id, "ProfileUpdated", user.Email, "User updated their profile information."));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new UserProfileDto(
+            user.Id,
+            user.Email,
+            user.FullName,
+            user.PhoneNumber,
+            user.AvatarUrl,
+            user.Role,
+            user.AccountStatus,
+            user.IsSellerVerified,
+            user.SellerType,
+            user.CreatedAtUtc,
+            user.LastLoginAtUtc
+        );
+    }
+
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
+            throw new ArgumentException("New password must be at least 6 characters long.", nameof(request.NewPassword));
+
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user == null)
+            throw new KeyNotFoundException("User not found.");
+
+        // If user already has a password, verify current password
+        if (!string.IsNullOrWhiteSpace(user.PasswordHash) && !string.IsNullOrWhiteSpace(user.PasswordSalt))
+        {
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+                throw new ArgumentException("Current password is required.", nameof(request.CurrentPassword));
+
+            var isCurrentValid = VerifyPassword(request.CurrentPassword, user.PasswordHash, user.PasswordSalt);
+            if (!isCurrentValid)
+                throw new UnauthorizedAccessException("Current password does not match.");
+        }
+
+        var (newHash, newSalt) = HashPassword(request.NewPassword);
+        user.SetPassword(newHash, newSalt);
+
+        _dbContext.AuditEvents.Add(new AuditEvent(
+            Guid.NewGuid(), "UserAuth", user.Id, "PasswordChanged", user.Email, "User successfully updated their password."));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<List<AdminUserDto>> GetAdminUsersListAsync(string? search = null, CancellationToken cancellationToken = default)
     {
         var query = _dbContext.Users.AsNoTracking().AsQueryable();

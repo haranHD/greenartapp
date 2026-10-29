@@ -895,6 +895,12 @@ namespace Greenart.Infrastructure.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("google_subject_id");
 
+                    b.Property<bool>("IsEmailVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_email_verified");
+
                     b.Property<bool>("IsSellerVerified")
                         .HasColumnType("boolean")
                         .HasColumnName("is_seller_verified");
@@ -902,6 +908,25 @@ namespace Greenart.Infrastructure.Migrations
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at_utc");
+
+                    b.Property<DateTime?>("OtpExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("otp_expires_at_utc");
+
+                    b.Property<string>("OtpHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("otp_hash");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<string>("PasswordSalt")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("password_salt");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(25)

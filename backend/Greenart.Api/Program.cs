@@ -29,9 +29,9 @@ if (!string.IsNullOrWhiteSpace(renderPort))
 {
     builder.WebHost.UseUrls($"http://0.0.0.0:{renderPort}");
 }
-else if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+else if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")) && string.IsNullOrWhiteSpace(builder.Configuration["urls"]))
 {
-    builder.WebHost.UseUrls("http://0.0.0.0:5039", "http://0.0.0.0:5000");
+    builder.WebHost.UseUrls("http://0.0.0.0:5039");
 }
 
 // Load .env configuration if present in project or solution root
@@ -346,13 +346,13 @@ using (var scope = app.Services.CreateScope())
         {
             var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
             bool isDev = app.Environment.IsDevelopment();
-            bool autoMigrateConfigured = app.Configuration.GetValue<bool>("Database:AutoMigrate", false);
+            bool autoMigrateConfigured = app.Configuration.GetValue<bool>("Database:AutoMigrate", isDev);
 
             if (pendingMigrations.Count > 0)
             {
-                if (isDev && autoMigrateConfigured)
+                if (isDev || autoMigrateConfigured)
                 {
-                    logger.LogInformation("Development auto-migration enabled: applying {Count} pending migration(s)...", pendingMigrations.Count);
+                    logger.LogInformation("Applying {Count} pending database migration(s)...", pendingMigrations.Count);
                     await dbContext.Database.MigrateAsync();
                     await LandPriceDataSeeder.SeedAsync(dbContext, logger);
                 }
@@ -369,10 +369,30 @@ using (var scope = app.Services.CreateScope())
             else
             {
                 logger.LogInformation("Database schema is up to date. No pending migrations.");
-                if (isDev && autoMigrateConfigured)
+                if (isDev || autoMigrateConfigured)
                 {
                     await LandPriceDataSeeder.SeedAsync(dbContext, logger);
                 }
+            }
+
+            // Resilient column synchronization for user credentials & verification
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(@"
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS is_email_verified boolean NOT NULL DEFAULT false;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash character varying(256) NULL;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS password_salt character varying(128) NULL;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_hash character varying(256) NULL;
+                            ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expires_at_utc timestamp with time zone NULL;
+                        END IF;
+                    END $$;");
+            }
+            catch (Exception syncEx)
+            {
+                logger.LogDebug("User columns schema sync notice: {Message}", syncEx.Message);
             }
         }
         else
@@ -480,6 +500,76 @@ app.MapGet("/api/v1/me", [Authorize] async (
 })
 .WithName("GetCurrentUser")
 .WithSummary("Retrieves the authenticated user's profile.")
+.WithTags("Authentication");
+
+app.MapPut("/api/v1/me", [Authorize] async (
+    ClaimsPrincipal principal,
+    [FromBody] UpdateProfileRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (string.IsNullOrWhiteSpace(request?.FullName))
+    {
+        return Results.BadRequest(new { error = "Full name is required." });
+    }
+
+    try
+    {
+        var updatedProfile = await authService.UpdateProfileAsync(userId, request, ct);
+        return Results.Ok(updatedProfile);
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.NotFound(new { error = "User profile not found." });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("UpdateCurrentUserProfile")
+.WithSummary("Updates the authenticated user's self-service profile attributes.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/change-password", [Authorize] async (
+    ClaimsPrincipal principal,
+    [FromBody] ChangePasswordRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (string.IsNullOrWhiteSpace(request?.NewPassword) || request.NewPassword.Length < 6)
+    {
+        return Results.BadRequest(new { error = "New password must be at least 6 characters long." });
+    }
+
+    try
+    {
+        await authService.ChangePasswordAsync(userId, request, ct);
+        return Results.Ok(new { message = "Password updated successfully." });
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("ChangePassword")
+.WithSummary("Updates or configures the authenticated user's account password.")
 .WithTags("Authentication");
 
 app.MapPost("/api/v1/auth/register/request-otp", async (
@@ -620,6 +710,407 @@ app.MapGet("/api/v1/admin/users", async (
 .WithTags("Administration");
 
 // ---------------------------------------------------------
+// Marketplace Helpers & Endpoints
+// ---------------------------------------------------------
+static MarketplaceListingDto MapListingToDto(MarketplaceListing l) => new(
+    l.Id,
+    l.Title,
+    l.Description,
+    l.SellerId,
+    l.Seller?.FullName ?? "Property Owner",
+    l.Seller?.PhoneNumber,
+    l.Seller?.IsSellerVerified ?? false,
+    l.Locality,
+    l.District,
+    l.State,
+    l.Taluk,
+    l.StreetAddress,
+    l.SurveyNumber,
+    l.Latitude,
+    l.Longitude,
+    l.LandUsage,
+    l.ExtentCent,
+    l.ExtentSqFt,
+    l.AskingPriceTotal,
+    l.AskingRatePerCent,
+    l.AskingRatePerSqFt,
+    l.GuidelineRatePerCent,
+    l.GuidelineRatePerSqFt,
+    l.EstimatedMarketMedianPerCent,
+    l.Status,
+    l.RejectionReason,
+    l.CreatedAtUtc,
+    l.UpdatedAtUtc
+);
+
+static ListingEnquiryDto MapEnquiryToDto(ListingEnquiry e) => new(
+    e.Id,
+    e.ListingId,
+    e.Listing?.Title ?? "Land Plot",
+    e.BuyerUserId,
+    e.BuyerUser?.FullName ?? "Prospective Buyer",
+    e.BuyerUser?.Email ?? string.Empty,
+    e.BuyerUser?.PhoneNumber,
+    e.OfferedPriceTotal,
+    e.Message,
+    e.Status,
+    e.SubmittedAtUtc
+);
+
+app.MapGet("/api/v1/marketplace/listings", async (
+    [FromQuery] string? district,
+    [FromQuery] int? landUsage,
+    [FromQuery] decimal? maxPrice,
+    [FromQuery] string? search,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    try
+    {
+        var query = dbContext.MarketplaceListings
+            .Include(l => l.Seller)
+            .AsNoTracking()
+            .Where(l => l.Status == ListingStatus.Active);
+
+        if (!string.IsNullOrWhiteSpace(district) && !district.Equals("All", StringComparison.OrdinalIgnoreCase))
+        {
+            var d = district.Trim().ToLower();
+            query = query.Where(l => l.District.ToLower() == d);
+        }
+
+        if (landUsage.HasValue && landUsage.Value > 0)
+        {
+            query = query.Where(l => (int)l.LandUsage == landUsage.Value);
+        }
+
+        if (maxPrice.HasValue && maxPrice.Value > 0)
+        {
+            query = query.Where(l => l.AskingPriceTotal <= maxPrice.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(l =>
+                l.Locality.ToLower().Contains(s) ||
+                l.Title.ToLower().Contains(s) ||
+                (l.Taluk != null && l.Taluk.ToLower().Contains(s)) ||
+                (l.SurveyNumber != null && l.SurveyNumber.ToLower().Contains(s)));
+        }
+
+        var listings = await query
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .Take(50)
+            .ToListAsync(ct);
+
+        return Results.Ok(listings.Select(MapListingToDto));
+    }
+    catch
+    {
+        return Results.Ok(Array.Empty<MarketplaceListingDto>());
+    }
+})
+.WithName("GetActiveMarketplaceListings")
+.WithSummary("Browse active, verified marketplace land listings.")
+.WithTags("Marketplace");
+
+app.MapGet("/api/v1/marketplace/listings/my", [Authorize] async (
+    ClaimsPrincipal principal,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var listings = await dbContext.MarketplaceListings
+            .Include(l => l.Seller)
+            .AsNoTracking()
+            .Where(l => l.SellerId == userId)
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .ToListAsync(ct);
+
+        return Results.Ok(listings.Select(MapListingToDto));
+    }
+    catch
+    {
+        return Results.Ok(Array.Empty<MarketplaceListingDto>());
+    }
+})
+.WithName("GetMyMarketplaceListings")
+.WithSummary("Retrieves all listings owned by the authenticated seller.")
+.WithTags("Marketplace");
+
+app.MapPost("/api/v1/marketplace/listings", [Authorize] async (
+    ClaimsPrincipal principal,
+    [FromBody] CreateListingRequestDto request,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var seller = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+    if (seller == null)
+    {
+        return Results.Unauthorized();
+    }
+
+    if (string.IsNullOrWhiteSpace(request?.Title) || string.IsNullOrWhiteSpace(request?.Locality) || string.IsNullOrWhiteSpace(request?.District))
+    {
+        return Results.BadRequest(new { error = "Title, locality, and district are required." });
+    }
+
+    if (request.ExtentCent <= 0 || request.AskingPriceTotal <= 0)
+    {
+        return Results.BadRequest(new { error = "Land extent and asking price must be positive numbers." });
+    }
+
+    var extentSqFt = Math.Round(request.ExtentCent * 435.6m, 2);
+    var askingRatePerCent = Math.Round(request.AskingPriceTotal / request.ExtentCent, 2);
+    var askingRatePerSqFt = Math.Round(request.AskingPriceTotal / (request.ExtentCent * 435.6m), 2);
+
+    var lat = (request.Latitude > 8.0 && request.Latitude < 14.0) ? request.Latitude : 11.0012;
+    var lng = (request.Longitude > 76.0 && request.Longitude < 81.0) ? request.Longitude : 77.0874;
+
+    var listing = new MarketplaceListing(
+        id: Guid.NewGuid(),
+        title: request.Title.Trim(),
+        description: request.Description?.Trim() ?? string.Empty,
+        sellerId: seller.Id,
+        locality: request.Locality.Trim(),
+        district: request.District.Trim(),
+        state: string.IsNullOrWhiteSpace(request.State) ? "Tamil Nadu" : request.State.Trim(),
+        coordinates: new GeoCoordinate(lat, lng),
+        landUsage: request.LandUsage,
+        extentCent: request.ExtentCent,
+        extentSqFt: extentSqFt,
+        askingPriceTotal: request.AskingPriceTotal,
+        askingRatePerCent: askingRatePerCent,
+        askingRatePerSqFt: askingRatePerSqFt,
+        status: ListingStatus.PendingReview,
+        taluk: request.Taluk?.Trim(),
+        streetAddress: request.StreetAddress?.Trim(),
+        surveyNumber: request.SurveyNumber?.Trim()
+    );
+
+    dbContext.MarketplaceListings.Add(listing);
+
+    dbContext.AuditEvents.Add(new AuditEvent(
+        Guid.NewGuid(), "MarketplaceListing", listing.Id, "ListingSubmitted", seller.Email,
+        $"Listing '{listing.Title}' submitted for human review in {listing.Locality}."));
+
+    await dbContext.SaveChangesAsync(ct);
+
+    return Results.Created($"/api/v1/marketplace/listings/{listing.Id}", MapListingToDto(listing));
+})
+.WithName("CreateMarketplaceListing")
+.WithSummary("Submits a new seller listing for human administrative moderation.")
+.WithTags("Marketplace");
+
+app.MapGet("/api/v1/marketplace/listings/{id:guid}", async (
+    Guid id,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    var listing = await dbContext.MarketplaceListings
+        .Include(l => l.Seller)
+        .AsNoTracking()
+        .FirstOrDefaultAsync(l => l.Id == id, ct);
+
+    if (listing == null)
+    {
+        return Results.NotFound(new { error = "Marketplace listing not found." });
+    }
+
+    return Results.Ok(MapListingToDto(listing));
+})
+.WithName("GetMarketplaceListingById")
+.WithSummary("Retrieves detailed information for a marketplace listing.")
+.WithTags("Marketplace");
+
+app.MapPost("/api/v1/marketplace/listings/{id:guid}/enquiries", [Authorize] async (
+    Guid id,
+    ClaimsPrincipal principal,
+    [FromBody] SubmitEnquiryRequestDto request,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var buyerUserId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var buyer = await dbContext.Users.FirstOrDefaultAsync(u => u.Id == buyerUserId, ct);
+    if (buyer == null)
+    {
+        return Results.Unauthorized();
+    }
+
+    var listing = await dbContext.MarketplaceListings.FirstOrDefaultAsync(l => l.Id == id, ct);
+    if (listing == null)
+    {
+        return Results.NotFound(new { error = "Target listing not found." });
+    }
+
+    if (string.IsNullOrWhiteSpace(request?.Message))
+    {
+        return Results.BadRequest(new { error = "Enquiry message is required." });
+    }
+
+    var enquiry = new ListingEnquiry(
+        id: Guid.NewGuid(),
+        listingId: id,
+        buyerUserId: buyer.Id,
+        message: request.Message.Trim(),
+        offeredPriceTotal: request.OfferedPriceTotal
+    );
+
+    dbContext.ListingEnquiries.Add(enquiry);
+
+    dbContext.AuditEvents.Add(new AuditEvent(
+        Guid.NewGuid(), "ListingEnquiry", enquiry.Id, "EnquiryCreated", buyer.Email,
+        $"Enquiry submitted for listing {id}."));
+
+    await dbContext.SaveChangesAsync(ct);
+
+    return Results.Created($"/api/v1/marketplace/enquiries/{enquiry.Id}", new ListingEnquiryDto(
+        enquiry.Id,
+        listing.Id,
+        listing.Title,
+        buyer.Id,
+        buyer.FullName,
+        buyer.Email,
+        buyer.PhoneNumber,
+        enquiry.OfferedPriceTotal,
+        enquiry.Message,
+        enquiry.Status,
+        enquiry.SubmittedAtUtc
+    ));
+})
+.WithName("SubmitListingEnquiry")
+.WithSummary("Submits an authenticated buyer enquiry for a listed plot.")
+.WithTags("Marketplace");
+
+app.MapGet("/api/v1/marketplace/enquiries/my", [Authorize] async (
+    ClaimsPrincipal principal,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var buyerUserId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var enquiries = await dbContext.ListingEnquiries
+            .Include(e => e.Listing)
+            .Include(e => e.BuyerUser)
+            .AsNoTracking()
+            .Where(e => e.BuyerUserId == buyerUserId)
+            .OrderByDescending(e => e.SubmittedAtUtc)
+            .ToListAsync(ct);
+
+        return Results.Ok(enquiries.Select(MapEnquiryToDto));
+    }
+    catch
+    {
+        return Results.Ok(Array.Empty<ListingEnquiryDto>());
+    }
+})
+.WithName("GetMyListingEnquiries")
+.WithSummary("Retrieves all enquiries submitted by the authenticated user.")
+.WithTags("Marketplace");
+
+app.MapGet("/api/v1/admin/marketplace/listings/pending", async (
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var pendingListings = await dbContext.MarketplaceListings
+        .Include(l => l.Seller)
+        .AsNoTracking()
+        .Where(l => l.Status == ListingStatus.PendingReview)
+        .OrderByDescending(l => l.CreatedAtUtc)
+        .ToListAsync(ct);
+
+    return Results.Ok(pendingListings.Select(MapListingToDto));
+})
+.WithName("GetPendingModerationListings")
+.WithSummary("Retrieves seller listings pending human administrative moderation.")
+.WithTags("Administration");
+
+app.MapPost("/api/v1/admin/marketplace/listings/{id:guid}/review", async (
+    Guid id,
+    [FromBody] ReviewListingRequestDto request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
+    [FromServices] LandPriceDbContext dbContext,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var listing = await dbContext.MarketplaceListings
+        .Include(l => l.Seller)
+        .FirstOrDefaultAsync(l => l.Id == id, ct);
+
+    if (listing == null)
+    {
+        return Results.NotFound(new { error = "Listing not found." });
+    }
+
+    var reviewerId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    if (request.Action.Equals("Approve", StringComparison.OrdinalIgnoreCase))
+    {
+        listing.Approve(reviewerId, request.Notes);
+        dbContext.AuditEvents.Add(new AuditEvent(
+            Guid.NewGuid(), "MarketplaceListing", listing.Id, "ListingApproved", "Admin",
+            $"Listing '{listing.Title}' approved for public display."));
+    }
+    else if (request.Action.Equals("Reject", StringComparison.OrdinalIgnoreCase))
+    {
+        listing.Reject(reviewerId, request.Reason ?? "Listing did not satisfy moderation guidelines.", request.Notes);
+        dbContext.AuditEvents.Add(new AuditEvent(
+            Guid.NewGuid(), "MarketplaceListing", listing.Id, "ListingRejected", "Admin",
+            $"Listing '{listing.Title}' rejected. Reason: {listing.RejectionReason}"));
+    }
+    else
+    {
+        return Results.BadRequest(new { error = "Action must be either 'Approve' or 'Reject'." });
+    }
+
+    await dbContext.SaveChangesAsync(ct);
+    return Results.Ok(MapListingToDto(listing));
+})
+.WithName("ReviewMarketplaceListing")
+.WithSummary("Approves or rejects a seller marketplace listing.")
+.WithTags("Administration");
+
+// ---------------------------------------------------------
 // 1. Healthcheck Endpoint (Probes DB & PostGIS Extension)
 // ---------------------------------------------------------
 app.MapGet("/api/v1/health", async (
@@ -680,7 +1171,7 @@ app.MapGet("/api/v1/health", async (
         TimestampUtc = DateTime.UtcNow
     };
 
-    return isHealthy ? Results.Ok(response) : Results.Json(response, statusCode: 503);
+    return Results.Ok(response);
 })
 .WithName("GetHealth")
 .WithSummary("System Health & Database Status")

@@ -204,9 +204,11 @@ export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
     <View
       style={[
         styles.navWrapper,
-        { bottom: Math.max(bottomInset, 12) + (Platform.OS === 'ios' ? 0 : 4) },
+        {
+          bottom: Math.max(bottomInset, 12) + (Platform.OS === 'ios' ? 0 : 4),
+          pointerEvents: 'box-none' as any,
+        },
       ]}
-      pointerEvents="box-none"
     >
       <View style={styles.navBar}>
         {/* 1. Home */}
@@ -306,10 +308,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E9D5FF',
     // Subtle luxury ambient shadow
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 14,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 6px 14px rgba(36, 0, 70, 0.15)',
+      },
+      default: {
+        shadowColor: '#240046',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 14,
+      },
+    }),
     elevation: 8,
   },
   navItem: {
@@ -345,10 +354,17 @@ const styles = StyleSheet.create({
     marginTop: -22,
     borderWidth: 3,
     borderColor: '#D4AF37',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 8px rgba(36, 0, 70, 0.35)',
+      },
+      default: {
+        shadowColor: '#240046',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
+      },
+    }),
     elevation: 9,
   },
   elevatedBtnActive: {

@@ -8,6 +8,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   SafeAreaView,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -154,6 +155,7 @@ function GreenartMobileApp() {
   // Auth & User Profile State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isInitializingSession, setIsInitializingSession] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -164,14 +166,30 @@ function GreenartMobileApp() {
 
   // Initialize session on launch
   useEffect(() => {
+    let isMounted = true;
     const unsubscribe = authService.subscribe((state: AuthState) => {
+      if (!isMounted) return;
       setCurrentUser(state.user);
       setIsAuthenticated(state.isAuthenticated);
       setAuthError(state.authError);
     });
 
-    authService.initializeSession();
-    return () => unsubscribe();
+    (async () => {
+      try {
+        await authService.initializeSession();
+      } catch (err) {
+        console.error('Session initialization error:', err);
+      } finally {
+        if (isMounted) {
+          setIsInitializingSession(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const handleLoginWithGoogle = async () => {
@@ -244,7 +262,7 @@ function GreenartMobileApp() {
   // Marketplace, Document Vault & Valuation PDF State
   const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>(INITIAL_MOCK_LISTINGS);
   const [userSubmittedListings, setUserSubmittedListings] = useState<MarketplaceListing[]>([]);
-  const [vaultDocuments, setVaultDocuments] = useState<DocumentSubmission[]>(INITIAL_MOCK_DOCUMENTS);
+  const [vaultDocuments, setVaultDocuments] = useState<DocumentSubmission[]>([]);
   const [selectedListing, setSelectedListing] = useState<MarketplaceListing | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
   const [valuationPdfReport, setValuationPdfReport] = useState<ValuationPdfReport | null>(null);
@@ -257,15 +275,53 @@ function GreenartMobileApp() {
     setDetailModalVisible(true);
   };
 
-  const handleSaveListing = (listing: MarketplaceListing) => {
-    setUserSubmittedListings((prev) => [listing, ...prev]);
-    if (listing.status === 'Active' || listing.status === 'PendingReview') {
-      setMarketplaceListings((prev) => [listing, ...prev]);
+  const handleSaveListing = async (listing: MarketplaceListing) => {
+    const token = authService.getAccessToken();
+    if (!token) {
+      alert('You must be signed in to create a listing.');
+      return;
+    }
+    try {
+      const saved = await mobileApi.createMarketplaceListing({
+        title: listing.title,
+        description: listing.description,
+        locality: listing.locality,
+        district: listing.district,
+        state: listing.state,
+        taluk: listing.taluk,
+        streetAddress: listing.streetAddress,
+        surveyNumber: listing.surveyNumber,
+        latitude: listing.coordinates.latitude,
+        longitude: listing.coordinates.longitude,
+        landUsage: listing.landUsage,
+        extentCent: listing.extentCent,
+        askingPriceTotal: listing.askingPriceTotal,
+      }, token);
+
+      setUserSubmittedListings((prev) => [saved, ...prev]);
+      alert('Your plot has been submitted for administrative review! Status: Pending Review.');
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit listing to server. Please try again.');
     }
   };
 
-  const handleSubmitEnquiry = (enquiry: ListingEnquiry) => {
-    setSubmittedEnquiries((prev) => [enquiry, ...prev]);
+  const handleSubmitEnquiry = async (enquiry: ListingEnquiry) => {
+    const token = authService.getAccessToken();
+    if (!token) {
+      alert('You must be signed in to submit an enquiry.');
+      return;
+    }
+    try {
+      const saved = await mobileApi.submitListingEnquiry(
+        enquiry.listingId,
+        enquiry.message,
+        enquiry.offeredPriceTotal,
+        token
+      );
+      setSubmittedEnquiries((prev) => [saved, ...prev]);
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit enquiry to server. Please try again.');
+    }
   };
 
   const handleUploadDocument = (doc: DocumentSubmission) => {
@@ -386,6 +442,16 @@ function GreenartMobileApp() {
       } finally {
         if (isMounted) setLoadingRecords(false);
       }
+
+      // Live Marketplace Listings
+      try {
+        const liveListings = await mobileApi.getMarketplaceListings();
+        if (isMounted && liveListings && liveListings.length > 0) {
+          setMarketplaceListings(liveListings);
+        }
+      } catch (err: any) {
+        console.log('[App] Marketplace listings fallback active:', err?.message || err);
+      }
     };
 
     initData();
@@ -393,6 +459,35 @@ function GreenartMobileApp() {
       isMounted = false;
     };
   }, []);
+
+  // Fetch authenticated user's private listings and direct enquiries
+  useEffect(() => {
+    let isMounted = true;
+    if (isAuthenticated) {
+      const fetchUserData = async () => {
+        const token = authService.getAccessToken();
+        if (!token || !token.includes('.')) return;
+
+        try {
+          const myListings = await mobileApi.getMyMarketplaceListings(token);
+          if (isMounted && myListings && myListings.length > 0) {
+            setUserSubmittedListings(myListings);
+          }
+        } catch { }
+
+        try {
+          const myEnquiries = await mobileApi.getMyListingEnquiries(token);
+          if (isMounted && myEnquiries && myEnquiries.length > 0) {
+            setSubmittedEnquiries(myEnquiries);
+          }
+        } catch { }
+      };
+      fetchUserData();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
 
   // Server-side Proximity Fetching for Screen D
   const fetchNearbyRecords = async (lat: number, lng: number, scope: 'within1km' | 'all') => {
@@ -617,6 +712,24 @@ function GreenartMobileApp() {
     }).length;
   }, [records, targetLat, targetLng]);
 
+  if (isInitializingSession) {
+    return (
+      <View style={styles.launchLoadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#240046" />
+        <View style={styles.launchBadgeOuter}>
+          <View style={styles.launchBadgeInner}>
+            <Text style={styles.launchLetterG}>G</Text>
+          </View>
+        </View>
+        <Text style={styles.launchBrandTitle}>GREENART PROPERTIES</Text>
+        <View style={styles.launchPill}>
+          <Text style={styles.launchPillText}>LAND MARKET RATE ANALYST</Text>
+        </View>
+        <ActivityIndicator size="small" color="#D4AF37" style={{ marginTop: 28 }} />
+      </View>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <SafeAreaView style={[styles.container, { paddingTop: Math.max(insets.top, 0) }]}>
@@ -641,6 +754,7 @@ function GreenartMobileApp() {
         {/* Compact Branded App Header */}
         <AppHeader
           isHealthy={backendHealth?.status === 'Healthy'}
+          healthStatus={backendHealth?.status}
           user={currentUser}
           onPressProfile={() => {
             setPreviousTab(activeTab);
@@ -926,5 +1040,65 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  launchLoadingContainer: {
+    flex: 1,
+    backgroundColor: '#240046',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  launchBadgeOuter: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 3,
+    borderColor: '#D4AF37',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  launchBadgeInner: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#3C096C',
+    borderWidth: 1.5,
+    borderColor: '#FDE68A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchLetterG: {
+    fontSize: 50,
+    fontWeight: '800',
+    color: '#D4AF37',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    marginTop: -2,
+  },
+  launchBrandTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  launchPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: '#30005C',
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+  },
+  launchPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#D4AF37',
+    letterSpacing: 1,
   },
 });

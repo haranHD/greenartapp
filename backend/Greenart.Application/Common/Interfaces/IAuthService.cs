@@ -12,6 +12,8 @@ public interface IAuthService
     Task<TokenRefreshResultDto> RefreshTokenAsync(string rawRefreshToken, CancellationToken cancellationToken = default);
     Task RevokeTokenAsync(string rawRefreshToken, CancellationToken cancellationToken = default);
     Task<UserProfileDto> GetCurrentUserProfileAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<UserProfileDto> UpdateProfileAsync(Guid userId, UpdateProfileRequestDto request, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(Guid userId, ChangePasswordRequestDto request, CancellationToken cancellationToken = default);
     Task<List<AdminUserDto>> GetAdminUsersListAsync(string? search = null, CancellationToken cancellationToken = default);
 }
 

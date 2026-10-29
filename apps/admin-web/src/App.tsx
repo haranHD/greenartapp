@@ -292,16 +292,26 @@ export const App = () => {
     },
   ]);
 
-  const handleApproveListing = (id: string) => {
-    setAdminListings((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Active, isSellerVerified: true } : l))
-    );
+  const handleApproveListing = async (id: string) => {
+    try {
+      await api.reviewMarketplaceListing(id, 'Approve', undefined, 'Approved by Administrative Reviewer');
+      setAdminListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Active, isSellerVerified: true } : l))
+      );
+    } catch (err: any) {
+      alert(err?.message || 'Failed to approve listing on server.');
+    }
   };
 
-  const handleRejectListing = (id: string, reason: string) => {
-    setAdminListings((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Rejected, rejectionReason: reason } : l))
-    );
+  const handleRejectListing = async (id: string, reason: string) => {
+    try {
+      await api.reviewMarketplaceListing(id, 'Reject', reason, 'Discrepancy detected during revenue audit');
+      setAdminListings((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Rejected, rejectionReason: reason } : l))
+      );
+    } catch (err: any) {
+      alert(err?.message || 'Failed to reject listing on server.');
+    }
   };
 
   const handleApproveDocument = (id: string, notes?: string) => {

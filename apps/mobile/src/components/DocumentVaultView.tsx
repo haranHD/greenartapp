@@ -152,72 +152,82 @@ export const DocumentVaultView: React.FC<DocumentVaultViewProps> = ({
 
       {/* Document List */}
       <ScrollView contentContainerStyle={styles.docList}>
-        {documents.map((doc) => {
-          const isVerified = doc.status === DocumentStatus.Verified;
-          const isPending = doc.status === DocumentStatus.Pending;
-          const isRejected = doc.status === DocumentStatus.Rejected;
+        {documents.length === 0 ? (
+          <View style={{ paddingVertical: 36, alignItems: 'center', paddingHorizontal: 20 }}>
+            <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#475569' }}>
+              No title documents in vault
+            </Text>
+            <Text style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 4, textAlign: 'center', lineHeight: 17 }}>
+              Submit your Patta, Chitta, Registered Sale Deed, or FMB sketch to initiate administrative verification.
+            </Text>
+          </View>
+        ) : (
+          documents.map((doc) => {
+            const isVerified = doc.status === DocumentStatus.Verified;
+            const isPending = doc.status === DocumentStatus.Pending;
+            const isRejected = doc.status === DocumentStatus.Rejected;
 
-          return (
-            <View key={doc.id} style={styles.docCard}>
-              <View style={styles.docCardTop}>
-                <View style={styles.docTypeBadge}>
-                  <Text style={styles.docTypeBadgeText}>{doc.documentType}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusPill,
-                    isVerified && styles.statusVerified,
-                    isPending && styles.statusPending,
-                    isRejected && styles.statusRejected,
-                  ]}
-                >
-                  <Text
+            return (
+              <View key={doc.id} style={styles.docCard}>
+                <View style={styles.docCardTop}>
+                  <View style={styles.docTypeBadge}>
+                    <Text style={styles.docTypeBadgeText}>{doc.documentType}</Text>
+                  </View>
+                  <View
                     style={[
-                      styles.statusPillText,
-                      isVerified && styles.textGreen,
-                      isPending && styles.textAmber,
-                      isRejected && styles.textRed,
+                      styles.statusPill,
+                      isVerified && styles.statusVerified,
+                      isPending && styles.statusPending,
+                      isRejected && styles.statusRejected,
                     ]}
                   >
-                    {doc.status.toUpperCase()}
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        isVerified && styles.textGreen,
+                        isPending && styles.textAmber,
+                        isRejected && styles.textRed,
+                      ]}
+                    >
+                      {doc.status.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.docFileName}>{doc.fileName}</Text>
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaText}>
+                    Survey No: <Text style={styles.metaHighlight}>{doc.surveyNumber || 'Not specified'}</Text>
+                  </Text>
+                  <Text style={styles.metaText}>
+                    Size: {(doc.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
+                  </Text>
+                </View>
+
+                {doc.reviewNotes && (
+                  <View style={[styles.notesBox, isRejected ? styles.notesBoxRed : styles.notesBoxGreen]}>
+                    <Text style={[styles.notesTitle, isRejected ? styles.textRed : styles.textGreen]}>
+                      {isRejected ? 'Action Required / Rejection Reason:' : 'Auditor Verification Note:'}
+                    </Text>
+                    <Text style={styles.notesBody}>{doc.reviewNotes}</Text>
+                    {doc.reviewedBy && (
+                      <Text style={styles.reviewedByText}>Reviewed by: {doc.reviewedBy}</Text>
+                    )}
+                  </View>
+                )}
+
+                <View style={styles.docCardFooter}>
+                  <Text style={styles.checksumText}>
+                    SHA-256: {doc.fileChecksumSha256.slice(0, 16)}...
+                  </Text>
+                  <Text style={styles.dateText}>
+                    {new Date(doc.submittedAt).toLocaleDateString()}
                   </Text>
                 </View>
               </View>
-
-              <Text style={styles.docFileName}>{doc.fileName}</Text>
-
-              <View style={styles.metaRow}>
-                <Text style={styles.metaText}>
-                  Survey No: <Text style={styles.metaHighlight}>{doc.surveyNumber || 'Not specified'}</Text>
-                </Text>
-                <Text style={styles.metaText}>
-                  Size: {(doc.fileSizeBytes / 1024 / 1024).toFixed(2)} MB
-                </Text>
-              </View>
-
-              {doc.reviewNotes && (
-                <View style={[styles.notesBox, isRejected ? styles.notesBoxRed : styles.notesBoxGreen]}>
-                  <Text style={[styles.notesTitle, isRejected ? styles.textRed : styles.textGreen]}>
-                    {isRejected ? 'Action Required / Rejection Reason:' : 'Auditor Verification Note:'}
-                  </Text>
-                  <Text style={styles.notesBody}>{doc.reviewNotes}</Text>
-                  {doc.reviewedBy && (
-                    <Text style={styles.reviewedByText}>Reviewed by: {doc.reviewedBy}</Text>
-                  )}
-                </View>
-              )}
-
-              <View style={styles.docCardFooter}>
-                <Text style={styles.checksumText}>
-                  SHA-256: {doc.fileChecksumSha256.slice(0, 16)}...
-                </Text>
-                <Text style={styles.dateText}>
-                  {new Date(doc.submittedAt).toLocaleDateString()}
-                </Text>
-              </View>
-            </View>
-          );
-        })}
+            );
+          }))}
       </ScrollView>
     </View>
   );

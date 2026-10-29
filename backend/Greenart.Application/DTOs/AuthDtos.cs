@@ -67,6 +67,15 @@ public record PasswordLoginRequestDto(
     string EmailOrUsername,
     string Password);
 
+public record UpdateProfileRequestDto(
+    string FullName,
+    string? PhoneNumber = null,
+    string? AvatarUrl = null);
+
+public record ChangePasswordRequestDto(
+    string CurrentPassword,
+    string NewPassword);
+
 // Admin User Accounts DTO
 public record AdminUserDto(
     Guid Id,

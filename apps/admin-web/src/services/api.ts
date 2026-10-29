@@ -1,4 +1,5 @@
 // Centralized Typed API Client for Greenart Properties Admin Console
+import { MarketplaceListing } from '@greenart/shared-types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
   (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
@@ -477,6 +478,28 @@ class ApiClient {
     const query = search ? `?search=${encodeURIComponent(search)}` : '';
     return this.request<AdminUserRecord[]>(`/admin/users${query}`, {
       headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+    });
+  }
+
+  // 15. Marketplace Moderation
+  async getPendingMarketplaceListings(): Promise<MarketplaceListing[]> {
+    const adminKey = this.getAdminKey();
+    return this.request<MarketplaceListing[]>('/admin/marketplace/listings/pending', {
+      headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+    });
+  }
+
+  async reviewMarketplaceListing(
+    id: string,
+    action: 'Approve' | 'Reject',
+    reason?: string,
+    notes?: string
+  ): Promise<MarketplaceListing> {
+    const adminKey = this.getAdminKey();
+    return this.request<MarketplaceListing>(`/admin/marketplace/listings/${id}/review`, {
+      method: 'POST',
+      headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+      body: JSON.stringify({ action, reason, notes }),
     });
   }
 }

@@ -3,14 +3,24 @@ import { View, Image, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 export interface AppHeaderProps {
   isHealthy: boolean;
+  healthStatus?: string;
   onPressProfile?: () => void;
   user?: { fullName?: string; email?: string } | null;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, onPressProfile, user = null }) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, onPressProfile, user = null }) => {
   const avatarInitials = user?.fullName
     ? user.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
     : 'GA';
+
+  const badgeText = isHealthy
+    ? 'Live Data'
+    : healthStatus === 'Degraded'
+      ? 'Pilot Mode'
+      : 'Connecting';
+
+  const isOnlineOrPilot = isHealthy || healthStatus === 'Degraded';
+
   return (
     <View style={styles.header}>
       {/* Client Logo */}
@@ -25,9 +35,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, onPressProfile,
       {/* Right Controls: Live status & Profile Avatar */}
       <View style={styles.rightGroup}>
         <View style={[styles.statusBadge, isHealthy ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-          <View style={[styles.statusDot, isHealthy ? styles.statusDotGreen : styles.statusDotAmber]} />
+          <View style={[styles.statusDot, isHealthy ? styles.statusDotGreen : (healthStatus === 'Degraded' ? styles.statusDotAmber : styles.statusDotAmber)]} />
           <Text style={[styles.statusText, isHealthy ? styles.statusTextGreen : styles.statusTextAmber]}>
-            {isHealthy ? 'Live Data' : 'Connecting'}
+            {badgeText}
           </Text>
         </View>
 

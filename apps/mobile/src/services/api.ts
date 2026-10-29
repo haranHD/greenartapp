@@ -1,5 +1,6 @@
 // Centralized Typed API Client for Greenart Mobile Application
 import { Platform, NativeModules } from 'react-native';
+import Constants from 'expo-constants';
 
 export interface PriceRangeDto {
   minRate: number;
@@ -350,7 +351,25 @@ const getApiBaseUrl = (): string => {
     return envUrl;
   }
 
-  // 3. Physical phone in Expo Go: auto-detect host computer IP from Metro bundle URL
+  // 3. Physical phone in Expo Go: auto-detect host computer IP from Metro bundle URL or Expo Constants
+  try {
+    const hostUri =
+      Constants.expoConfig?.hostUri ||
+      (Constants as any)?.manifest2?.extra?.expoGo?.debuggerHost ||
+      (Constants as any)?.manifest?.debuggerHost ||
+      (Constants as any)?.linkingUri;
+
+    if (hostUri && typeof hostUri === 'string') {
+      const match = hostUri.match(/(?:exp:\/\/|https?:\/\/)?([^:/]+)/);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        const detectedUrl = `http://${match[1]}:5039/api/v1`;
+        return detectedUrl;
+      }
+    }
+  } catch {
+    // Continue
+  }
+
   try {
     const scriptURL = (NativeModules as any)?.SourceCode?.scriptURL;
     if (typeof scriptURL === 'string') {
@@ -385,8 +404,46 @@ class MobileApiClient {
 
   public getBaseUrl(): string {
     if (this.activeBaseUrl) return this.activeBaseUrl;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.sessionStorage) {
+      const saved = window.sessionStorage.getItem('greenart_custom_api_url');
+      if (saved) {
+        this.activeBaseUrl = saved;
+        return saved;
+      }
+    }
     this.activeBaseUrl = getApiBaseUrl();
     return this.activeBaseUrl;
+  }
+
+  public setBaseUrl(url: string): void {
+    let clean = url.trim();
+    if (clean.endsWith('/')) clean = clean.slice(0, -1);
+    if (!clean.endsWith('/api/v1') && !clean.includes('/api/')) {
+      clean = `${clean}/api/v1`;
+    }
+    this.activeBaseUrl = clean;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.sessionStorage) {
+      try { window.sessionStorage.setItem('greenart_custom_api_url', clean); } catch { }
+    }
+  }
+
+  public async testUrl(url: string): Promise<{ success: boolean; message: string }> {
+    let clean = url.trim();
+    if (clean.endsWith('/')) clean = clean.slice(0, -1);
+    if (!clean.endsWith('/api/v1') && !clean.includes('/api/')) {
+      clean = `${clean}/api/v1`;
+    }
+    const startTime = Date.now();
+    try {
+      const resp = await this.doFetch(`${clean}/health`, { headers: { Accept: 'application/json' } }, 6000);
+      const elapsed = Date.now() - startTime;
+      if (resp.ok || resp.status === 200 || resp.status === 503) {
+        return { success: true, message: `Connected! Response received in ${elapsed}ms.` };
+      }
+      return { success: false, message: `Server replied with HTTP ${resp.status}.` };
+    } catch (err: any) {
+      return { success: false, message: `Connection failed: ${err?.message || 'Host unreachable'}` };
+    }
   }
 
   private async doFetch(url: string, options: RequestInit = {}, timeoutMs: number): Promise<Response> {
@@ -411,7 +468,7 @@ class MobileApiClient {
     const primaryUrl = isFullUrl
       ? urlPathOrFull
       : `${primaryBase}${urlPathOrFull.startsWith('/') ? '' : '/'}${urlPathOrFull}`;
-    const effectiveTimeout = timeoutMs ?? (primaryBase.includes('onrender.com') ? 35000 : 4500);
+    const effectiveTimeout = timeoutMs ?? (primaryBase.includes('onrender.com') ? 35000 : 5000);
 
     try {
       return await this.doFetch(primaryUrl, options, effectiveTimeout);
@@ -424,8 +481,8 @@ class MobileApiClient {
           const fallbackUrl = isFullUrl
             ? primaryUrl.replace(primaryBase, cloudBase)
             : `${cloudBase}${urlPathOrFull.startsWith('/') ? '' : '/'}${urlPathOrFull}`;
-          const cloudResp = await this.doFetch(fallbackUrl, options, 8000);
-          if (cloudResp.ok) {
+          const cloudResp = await this.doFetch(fallbackUrl, options, 10000);
+          if (cloudResp.ok || cloudResp.status === 200 || (urlPathOrFull.includes('/health') && cloudResp.status === 503)) {
             this.activeBaseUrl = cloudBase;
             return cloudResp;
           }
@@ -433,6 +490,15 @@ class MobileApiClient {
           // Cloud also timed out or device is offline
         }
       }
+
+      const isNetFailed = primaryErr?.message?.includes('Network request failed') ||
+        primaryErr?.message?.includes('Failed to fetch') ||
+        primaryErr?.name === 'TypeError';
+
+      if (isNetFailed) {
+        throw new Error(`Cannot reach API at ${primaryBase}. Check that backend is running and phone is on the same network.`);
+      }
+
       throw primaryErr;
     }
   }
@@ -704,7 +770,7 @@ class MobileApiClient {
       try {
         const errJson = await response.json();
         errMsg = errJson.error || errJson.message || errMsg;
-      } catch {}
+      } catch { }
       throw new Error(errMsg);
     }
     return await response.json();
@@ -725,7 +791,7 @@ class MobileApiClient {
       try {
         const errJson = await response.json();
         errMsg = errJson.error || errJson.message || errMsg;
-      } catch {}
+      } catch { }
       throw new Error(errMsg);
     }
     return await response.json();
@@ -746,7 +812,7 @@ class MobileApiClient {
       try {
         const errJson = await response.json();
         errMsg = errJson.error || errJson.message || errMsg;
-      } catch {}
+      } catch { }
       throw new Error(errMsg);
     }
     return await response.json();
@@ -773,7 +839,7 @@ class MobileApiClient {
       try {
         const errJson = await response.json();
         errMsg = errJson.error || errJson.message || errMsg;
-      } catch {}
+      } catch { }
       throw new Error(errMsg);
     }
     return await response.json();
@@ -794,7 +860,7 @@ class MobileApiClient {
       try {
         const errJson = await response.json();
         errMsg = errJson.error || errJson.message || errMsg;
-      } catch {}
+      } catch { }
       throw new Error(errMsg);
     }
     return await response.json();
@@ -825,7 +891,7 @@ class MobileApiClient {
         },
         5000
       );
-    } catch {}
+    } catch { }
   }
 
   public async getCurrentUser(accessToken: string): Promise<any> {
@@ -842,6 +908,188 @@ class MobileApiClient {
     );
     if (!response.ok) return null;
     return await response.json();
+  }
+
+  public async updateProfile(
+    fullName: string,
+    phoneNumber?: string,
+    avatarUrl?: string,
+    accessToken?: string
+  ): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/me',
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ fullName, phoneNumber, avatarUrl }),
+      },
+      10000
+    );
+
+    if (!response.ok) {
+      let errMsg = 'Failed to update profile.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch { }
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    accessToken?: string
+  ): Promise<void> {
+    const response = await this.fetchWithTimeout(
+      '/auth/change-password',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      },
+      10000
+    );
+
+    if (!response.ok) {
+      let errMsg = 'Failed to update password.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch { }
+      throw new Error(errMsg);
+    }
+  }
+
+  public async getMarketplaceListings(
+    district?: string,
+    landUsage?: number,
+    maxPrice?: number,
+    search?: string
+  ): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (district && district !== 'All') params.append('district', district);
+    if (landUsage && landUsage > 0) params.append('landUsage', landUsage.toString());
+    if (maxPrice && maxPrice > 0) params.append('maxPrice', maxPrice.toString());
+    if (search && search.trim()) params.append('search', search.trim());
+
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.fetchWithTimeout(
+      `/marketplace/listings${qs}`,
+      { headers: { Accept: 'application/json' } },
+      8000
+    );
+
+    if (!response.ok) return [];
+    return await response.json();
+  }
+
+  public async getMyMarketplaceListings(accessToken?: string): Promise<any[]> {
+    if (!accessToken || !accessToken.includes('.')) return [];
+    try {
+      const response = await this.fetchWithTimeout(
+        '/marketplace/listings/my',
+        {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+        8000
+      );
+
+      if (!response.ok) return [];
+      return await response.json();
+    } catch {
+      return [];
+    }
+  }
+
+  public async createMarketplaceListing(data: any, accessToken?: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/marketplace/listings',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify(data),
+      },
+      12000
+    );
+
+    if (!response.ok) {
+      let errMsg = 'Failed to submit marketplace listing.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch { }
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async submitListingEnquiry(
+    listingId: string,
+    message: string,
+    offeredPriceTotal?: number,
+    accessToken?: string
+  ): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      `/marketplace/listings/${listingId}/enquiries`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ message, offeredPriceTotal }),
+      },
+      10000
+    );
+
+    if (!response.ok) {
+      let errMsg = 'Failed to submit enquiry.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch { }
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async getMyListingEnquiries(accessToken?: string): Promise<any[]> {
+    if (!accessToken || !accessToken.includes('.')) return [];
+    try {
+      const response = await this.fetchWithTimeout(
+        '/marketplace/enquiries/my',
+        {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+        8000
+      );
+
+      if (!response.ok) return [];
+      return await response.json();
+    } catch {
+      return [];
+    }
   }
 }
 

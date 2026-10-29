@@ -23,6 +23,11 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#240046"
       },
+      "splash": {
+        "image": "./assets/splash.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#240046"
+      },
       "package": "group.greenart.mobile"
     },
     "web": {
