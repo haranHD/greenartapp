@@ -11,6 +11,7 @@ export interface NativeInteractiveMapProps {
   onSelectLocation: (lat: number, lng: number) => void;
   style?: any;
   apiKey?: string;
+  userLocation?: { latitude: number; longitude: number } | null;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
@@ -22,11 +23,13 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   onSelectLocation,
   style,
   apiKey,
+  userLocation,
 }) => {
   const webViewRef = useRef<any>(null);
   const WebViewComponent: any = WebView;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [isMapInteractive, setIsMapInteractive] = useState(false);
   const isInternalUpdateRef = useRef(false);
 
   const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -347,27 +350,62 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           </TouchableOpacity>
         </View>
       ) : (
-        <WebViewComponent
-          ref={webViewRef}
-          originWhitelist={['*']}
-          source={{ html: htmlContent }}
-          onMessage={handleMessage}
-          onLoadStart={() => setIsLoading(true)}
-          onLoadEnd={() => setIsLoading(false)}
-          onError={() => {
-            setIsLoading(false);
-            setHasError(true);
-          }}
-          style={styles.webview}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          nestedScrollEnabled={true}
-          overScrollMode="never"
-          scrollEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-        />
+        <View
+          style={styles.webviewWrapper}
+          pointerEvents={isMapInteractive ? 'auto' : 'none'}
+        >
+          <WebViewComponent
+            ref={webViewRef}
+            originWhitelist={['*']}
+            source={{ html: htmlContent }}
+            onMessage={handleMessage}
+            onLoadStart={() => setIsLoading(true)}
+            onLoadEnd={() => setIsLoading(false)}
+            onError={() => {
+              setIsLoading(false);
+              setHasError(true);
+            }}
+            style={styles.webview}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            nestedScrollEnabled={true}
+            overScrollMode="never"
+            scrollEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
       )}
+
+      {/* Floating Mode Pill: Tap to pan/zoom map vs scroll screen */}
+      {!isLoading && !hasError && (
+        <View style={styles.interactionBar} pointerEvents="box-none">
+          <TouchableOpacity
+            style={[
+              styles.interactionBtn,
+              isMapInteractive ? styles.interactionBtnActive : styles.interactionBtnInactive,
+            ]}
+            onPress={() => setIsMapInteractive(!isMapInteractive)}
+            activeOpacity={0.85}
+          >
+            <View
+              style={[
+                styles.interactionDot,
+                { backgroundColor: isMapInteractive ? '#10B981' : '#D4AF37' },
+              ]}
+            />
+            <Text
+              style={[
+                styles.interactionBtnText,
+                isMapInteractive ? styles.interactionBtnTextActive : styles.interactionBtnTextInactive,
+              ]}
+            >
+              {isMapInteractive ? '🔒 Lock Map to Scroll' : '🗺️ Tap to Pan/Zoom Map'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {isLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color="#240046" />
@@ -386,10 +424,58 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
+  webviewWrapper: {
+    width: '100%',
+    height: 280,
+  },
   webview: {
     width: '100%',
     height: 280,
     backgroundColor: '#FAF5FF',
+  },
+  interactionBar: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 20,
+  },
+  interactionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  interactionBtnInactive: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+  },
+  interactionBtnActive: {
+    backgroundColor: '#240046',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+  },
+  interactionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  interactionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  interactionBtnTextInactive: {
+    color: '#240046',
+  },
+  interactionBtnTextActive: {
+    color: '#FFFFFF',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

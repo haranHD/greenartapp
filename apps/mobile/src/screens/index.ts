@@ -5,4 +5,5 @@ export * from './HistoryScreen';
 export * from './ClientPortalScreen';
 export * from './NearbyRecordsSubScreen';
 export * from './GuidelineSubScreen';
+export * from './AuthGatewayScreen';
 

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Security.Claims;
+using Greenart.Api.Authentication;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Application.DTOs;
 using Greenart.Application.Estimation;
@@ -12,6 +14,8 @@ using Greenart.Infrastructure.Providers;
 using Greenart.Infrastructure.Repositories;
 using Greenart.Infrastructure.Services;
 using Greenart.Infrastructure.Configuration;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
@@ -130,6 +134,22 @@ builder.Services.AddScoped<ILandPriceDataProvider, CommercialPropTechDataProvide
 builder.Services.AddScoped<IDataProviderRegistry, DataProviderRegistry>();
 builder.Services.AddScoped<IMlReadinessService, MlReadinessService>();
 
+// Register Authentication & Token Services
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Configure Bearer Authentication & Authorization Policies
+builder.Services.AddAuthentication("Bearer")
+    .AddScheme<AuthenticationSchemeOptions, JwtAuthenticationHandler>("Bearer", options => { });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("CustomerPolicy", policy => policy.RequireRole(UserRole.Customer.ToString(), UserRole.Reviewer.ToString(), UserRole.Administrator.ToString()));
+    options.AddPolicy("ReviewerPolicy", policy => policy.RequireRole(UserRole.Reviewer.ToString(), UserRole.Administrator.ToString()));
+    options.AddPolicy("AdministratorPolicy", policy => policy.RequireRole(UserRole.Administrator.ToString()));
+});
+
 // Register Geocoding and Locality Search Proxy
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient<IGeocodingService, GooglePlacesGeocodingService>();
@@ -166,6 +186,30 @@ builder.Services.AddSwaggerGen(c =>
         Title = "Greenart Properties — Land Market Rate Analyst API",
         Version = "v1",
         Description = "API for spatial land price estimation, comparable record retrieval, and Coimbatore pilot reference data."
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer {token}'",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
@@ -215,6 +259,9 @@ app.Use(async (context, next) =>
 });
 
 app.UseCors();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // Enable Swagger in all environments (Development, Staging, and Production) for client demo & API documentation
 app.Use(async (context, next) =>
@@ -338,6 +385,239 @@ using (var scope = app.Services.CreateScope())
         logger.LogError(ex, "Notice: Database startup diagnostic encountered an exception: {Message}", ex.Message);
     }
 }
+
+// ---------------------------------------------------------
+// Authentication & User Identity Endpoints
+// ---------------------------------------------------------
+
+app.MapPost("/api/v1/auth/google", async (
+    [FromBody] GoogleLoginRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.IdToken))
+    {
+        return Results.BadRequest(new { error = "Google ID token must be provided." });
+    }
+
+    try
+    {
+        var result = await authService.GoogleLoginAsync(request.IdToken, ct);
+        return Results.Ok(result);
+    }
+    catch (Greenart.Infrastructure.Services.SecurityException)
+    {
+        return Results.Unauthorized();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+})
+.WithName("GoogleLogin")
+.WithSummary("Authenticates a user via Google OAuth2 ID token, provisioning or retrieving their account.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/refresh", async (
+    [FromBody] RefreshTokenRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.RefreshToken))
+    {
+        return Results.BadRequest(new { error = "Refresh token must be provided." });
+    }
+
+    try
+    {
+        var result = await authService.RefreshTokenAsync(request.RefreshToken, ct);
+        return Results.Ok(result);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Unauthorized();
+    }
+})
+.WithName("RefreshToken")
+.WithSummary("Rotates an active refresh token and returns a new access token and refresh token.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/revoke", async (
+    [FromBody] RevokeTokenRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (!string.IsNullOrWhiteSpace(request?.RefreshToken))
+    {
+        await authService.RevokeTokenAsync(request.RefreshToken, ct);
+    }
+    return Results.Ok(new RevokeTokenResponseDto("Session revoked successfully."));
+})
+.WithName("RevokeToken")
+.WithSummary("Revokes an active refresh token session.")
+.WithTags("Authentication");
+
+app.MapGet("/api/v1/me", [Authorize] async (
+    ClaimsPrincipal principal,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    var userIdStr = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrWhiteSpace(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var profile = await authService.GetCurrentUserProfileAsync(userId, ct);
+        return Results.Ok(profile);
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.NotFound(new { error = "User profile not found." });
+    }
+})
+.WithName("GetCurrentUser")
+.WithSummary("Retrieves the authenticated user's profile.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/register/request-otp", async (
+    [FromBody] RequestOtpRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.Email) || string.IsNullOrWhiteSpace(request?.FullName))
+    {
+        return Results.BadRequest(new { error = "Email and full name are required." });
+    }
+
+    try
+    {
+        var result = await authService.RequestOtpAsync(request, ct);
+        return Results.Ok(result);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("RequestOtp")
+.WithSummary("Requests a 6-digit verification OTP sent to the user's email address.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/register/verify-otp", async (
+    [FromBody] VerifyOtpRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.Email) || string.IsNullOrWhiteSpace(request?.Otp))
+    {
+        return Results.BadRequest(new { error = "Email and OTP code are required." });
+    }
+
+    try
+    {
+        var result = await authService.VerifyOtpAsync(request, ct);
+        return Results.Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("VerifyOtp")
+.WithSummary("Verifies the 6-digit OTP code sent to the user's email.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/register/complete", async (
+    [FromBody] CompleteRegistrationRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.Email) || string.IsNullOrWhiteSpace(request?.Password))
+    {
+        return Results.BadRequest(new { error = "Email and password are required." });
+    }
+
+    try
+    {
+        var result = await authService.CompleteRegistrationAsync(request, ct);
+        return Results.Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("CompleteRegistration")
+.WithSummary("Completes registration with verified email and password setup, issuing auth tokens.")
+.WithTags("Authentication");
+
+app.MapPost("/api/v1/auth/login", async (
+    [FromBody] PasswordLoginRequestDto request,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(request?.EmailOrUsername) || string.IsNullOrWhiteSpace(request?.Password))
+    {
+        return Results.BadRequest(new { error = "Email/Username and password are required." });
+    }
+
+    try
+    {
+        var result = await authService.PasswordLoginAsync(request, ct);
+        return Results.Ok(result);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Json(new { error = "Invalid email or password." }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+})
+.WithName("PasswordLogin")
+.WithSummary("Authenticates a user using their email/username and password.")
+.WithTags("Authentication");
+
+app.MapGet("/api/v1/admin/users", async (
+    [FromQuery] string? search,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
+    IAuthService authService,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config))
+    {
+        return Results.Json(
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var users = await authService.GetAdminUsersListAsync(search, ct);
+    return Results.Ok(users);
+})
+.WithName("GetAdminUsers")
+.WithSummary("Retrieves all registered application users for the admin management panel.")
+.WithTags("Administration");
 
 // ---------------------------------------------------------
 // 1. Healthcheck Endpoint (Probes DB & PostGIS Extension)

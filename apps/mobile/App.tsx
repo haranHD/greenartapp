@@ -11,7 +11,9 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AreaUnit } from '@greenart/shared-types';
+import { AreaUnit, UserProfile } from '@greenart/shared-types';
+import { authService, AuthState } from './src/services/auth';
+import { locationService } from './src/services/location';
 
 import {
   mobileApi,
@@ -40,6 +42,7 @@ import {
   ClientPortalScreen,
   NearbyRecordsSubScreen,
   GuidelineSubScreen,
+  AuthGatewayScreen,
 } from './src/screens';
 
 import {
@@ -147,6 +150,71 @@ function GreenartMobileApp() {
 
   // Real Valuation History (Session Saved Valuations)
   const [valuationHistory, setValuationHistory] = useState<ValuationHistoryItem[]>([]);
+
+  // Auth & User Profile State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Device Location State
+  const [userDeviceLocation, setUserDeviceLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationStatusMessage, setLocationStatusMessage] = useState<string | null>(null);
+
+  // Initialize session on launch
+  useEffect(() => {
+    const unsubscribe = authService.subscribe((state: AuthState) => {
+      setCurrentUser(state.user);
+      setIsAuthenticated(state.isAuthenticated);
+      setAuthError(state.authError);
+    });
+
+    authService.initializeSession();
+    return () => unsubscribe();
+  }, []);
+
+  const handleLoginWithGoogle = async () => {
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      const googleIdToken = (typeof window !== 'undefined' && (window as any).googleIdToken)
+        || 'test-google-token:sub-google-verified-999:client@greenart.com:Verified Land Client';
+      await authService.loginWithGoogle(googleIdToken);
+    } catch (err: any) {
+      setAuthError(err?.message || 'Authentication failed. Please retry.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await authService.logout();
+    setIsAuthenticated(false);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    setIsLocating(true);
+    setLocationStatusMessage(null);
+    try {
+      const res = await locationService.requestForegroundLocation();
+      if (res.success && res.location) {
+        setUserDeviceLocation({ latitude: res.location.latitude, longitude: res.location.longitude });
+        setTargetLat(res.location.latitude);
+        setTargetLng(res.location.longitude);
+        setLatInput(res.location.latitude.toFixed(4));
+        setLngInput(res.location.longitude.toFixed(4));
+        setActiveLocality('My Current Location');
+        setLocationStatusMessage(`Centered map on current location (lat: ${res.location.latitude.toFixed(4)}, lng: ${res.location.longitude.toFixed(4)})`);
+      } else {
+        setLocationStatusMessage(res.errorMessage || 'Location permission was declined. Manual search is active.');
+      }
+    } catch {
+      setLocationStatusMessage('Unable to retrieve location. Manual search is active.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
 
   // Backend Data State (Pre-populated with baseline pilot data for instant offline readiness)
   const [records, setRecords] = useState<LandRecordDto[]>(DEFAULT_FALLBACK_LAND_RECORDS);
@@ -549,6 +617,19 @@ function GreenartMobileApp() {
     }).length;
   }, [records, targetLat, targetLng]);
 
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={[styles.container, { paddingTop: Math.max(insets.top, 0) }]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8FC" />
+        <AuthGatewayScreen
+          onSuccess={() => {
+            setIsAuthenticated(true);
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { paddingTop: Math.max(insets.top, 0) }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -560,6 +641,7 @@ function GreenartMobileApp() {
         {/* Compact Branded App Header */}
         <AppHeader
           isHealthy={backendHealth?.status === 'Healthy'}
+          user={currentUser}
           onPressProfile={() => {
             setPreviousTab(activeTab);
             setActiveTab('profile');
@@ -615,6 +697,10 @@ function GreenartMobileApp() {
               landUsage={landUsage}
               localities={localities}
               loadingLocalities={loadingLocalities}
+              onUseCurrentLocation={handleUseCurrentLocation}
+              isLocating={isLocating}
+              userDeviceLocation={userDeviceLocation}
+              locationStatusMessage={locationStatusMessage}
             />
           )}
 
@@ -675,6 +761,12 @@ function GreenartMobileApp() {
               backendHealth={backendHealth}
               setActiveTab={setActiveTab}
               setPreviousTab={setPreviousTab}
+              currentUser={currentUser}
+              isAuthenticated={isAuthenticated}
+              onLoginWithGoogle={handleLoginWithGoogle}
+              onLogout={handleLogout}
+              isLoggingIn={isLoggingIn}
+              authError={authError}
             />
           )}
 

@@ -10,6 +10,7 @@ export interface NativeInteractiveMapProps {
   onSelectLocation: (lat: number, lng: number) => void;
   style?: any;
   apiKey?: string;
+  userLocation?: { latitude: number; longitude: number } | null;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
@@ -21,6 +22,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   onSelectLocation,
   style,
   apiKey,
+  userLocation,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);

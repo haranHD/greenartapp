@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { Colors } from '../theme/colors';
@@ -15,6 +16,7 @@ import {
   MarketplaceListing,
   HealthStatusResponse,
 } from '../types';
+import { UserProfile } from '@greenart/shared-types';
 
 export interface ClientPortalScreenProps {
   bottomInset: number;
@@ -27,6 +29,12 @@ export interface ClientPortalScreenProps {
   backendHealth: HealthStatusResponse | null;
   setActiveTab: (tab: MobileTab) => void;
   setPreviousTab: (tab: MobileTab) => void;
+  currentUser?: UserProfile | null;
+  isAuthenticated?: boolean;
+  onLoginWithGoogle?: () => void;
+  onLogout?: () => void;
+  isLoggingIn?: boolean;
+  authError?: string | null;
 }
 
 export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
@@ -40,6 +48,12 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   backendHealth,
   setActiveTab,
   setPreviousTab,
+  currentUser = null,
+  isAuthenticated = false,
+  onLoginWithGoogle,
+  onLogout,
+  isLoggingIn = false,
+  authError = null,
 }) => {
   return (
     <ScrollView
@@ -166,48 +180,132 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
         </View>
       ) : (
         <>
-          {/* Profile Card */}
-          <View style={styles.card}>
-            <View style={styles.profileHeroRow}>
-              <View style={[styles.profileHeroAvatar, { backgroundColor: '#240046', borderWidth: 2, borderColor: '#D4AF37' }]}>
-                <Text style={styles.profileHeroAvatarText}>GA</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.profileOrgName}>Greenart Properties Client</Text>
-                <Text style={styles.profileRoleTitle}>Verified Land Buyer & Seller</Text>
-                <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                  <View
-                    style={{
-                      backgroundColor: '#FEFCE8',
-                      borderWidth: 1,
-                      borderColor: '#FDE68A',
-                      paddingHorizontal: 6,
-                      paddingVertical: 2,
-                      borderRadius: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>
-                      ✓ KYC Level 2 Verified
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      backgroundColor: '#FAF5FF',
-                      borderWidth: 1,
-                      borderColor: '#E9D5FF',
-                      paddingHorizontal: 6,
-                      paddingVertical: 2,
-                      borderRadius: 4,
-                    }}
-                  >
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: '#240046' }}>
-                      Tamil Nadu Regional Desk
-                    </Text>
+          {/* Profile & Google Auth Card */}
+          {isAuthenticated && currentUser ? (
+            <View style={styles.card}>
+              <View style={styles.profileHeroRow}>
+                <View style={[styles.profileHeroAvatar, { backgroundColor: '#240046', borderWidth: 2, borderColor: '#D4AF37' }]}>
+                  <Text style={styles.profileHeroAvatarText}>
+                    {currentUser.fullName
+                      ? currentUser.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+                      : 'GA'}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.profileOrgName}>{currentUser.fullName}</Text>
+                  <Text style={styles.profileRoleTitle}>{currentUser.email}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <View
+                      style={{
+                        backgroundColor: '#FEFCE8',
+                        borderWidth: 1,
+                        borderColor: '#FDE68A',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#B45309' }}>
+                        {currentUser.role}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        backgroundColor: currentUser.isSellerVerified ? '#ECFDF5' : '#F1F5F9',
+                        borderWidth: 1,
+                        borderColor: currentUser.isSellerVerified ? '#A7F3D0' : '#CBD5E1',
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: currentUser.isSellerVerified ? '#047857' : '#475569' }}>
+                        {currentUser.isSellerVerified ? '✓ Verified Seller' : 'Standard Buyer'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
+
+              {/* Sign Out Button */}
+              <TouchableOpacity
+                style={{
+                  marginTop: 14,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  backgroundColor: '#F8FAFC',
+                  alignItems: 'center',
+                }}
+                onPress={onLogout}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748B' }}>
+                  Sign Out of Account
+                </Text>
+              </TouchableOpacity>
             </View>
-          </View>
+          ) : (
+            <View style={[styles.card, { borderColor: '#E9D5FF', backgroundColor: '#FFFFFF' }]}>
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#240046' }}>
+                  Sign In to Client Portal
+                </Text>
+                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 3, lineHeight: 17 }}>
+                  Sign in with your Google account to unlock institutional property vault access, manage listings, and submit direct enquiries.
+                </Text>
+              </View>
+
+              {authError && (
+                <View style={{ marginBottom: 12, padding: 8, backgroundColor: '#FEE2E2', borderRadius: 6, borderWidth: 1, borderColor: '#FCA5A5' }}>
+                  <Text style={{ fontSize: 11, color: '#991B1B' }}>
+                    {authError}
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryActionBtn,
+                  { flexDirection: 'row', gap: 8, justifyContent: 'center' },
+                ]}
+                onPress={onLoginWithGoogle}
+                disabled={isLoggingIn}
+                activeOpacity={0.85}
+              >
+                {isLoggingIn ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#240046' }}>G</Text>
+                  </View>
+                )}
+                <Text style={styles.primaryActionBtnText}>
+                  {isLoggingIn ? 'Verifying with Google...' : 'Continue with Google'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  marginTop: 10,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                  backgroundColor: '#FAF5FF',
+                  borderWidth: 1.2,
+                  borderColor: '#D4AF37',
+                  alignItems: 'center',
+                }}
+                onPress={onLogout}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#240046' }}>
+                  🔑 Sign In with Password or Register via OTP →
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Seller Workspace Shortcut */}
           <TouchableOpacity

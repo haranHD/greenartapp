@@ -4,9 +4,13 @@ import { View, Image, Text, TouchableOpacity, StyleSheet } from 'react-native';
 export interface AppHeaderProps {
   isHealthy: boolean;
   onPressProfile?: () => void;
+  user?: { fullName?: string; email?: string } | null;
 }
 
-export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, onPressProfile }) => {
+export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, onPressProfile, user = null }) => {
+  const avatarInitials = user?.fullName
+    ? user.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
+    : 'GA';
   return (
     <View style={styles.header}>
       {/* Client Logo */}
@@ -29,12 +33,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, onPressProfile 
 
         {onPressProfile && (
           <TouchableOpacity
-            style={styles.profileAvatar}
+            style={[styles.profileAvatar, user ? { borderColor: '#D4AF37', backgroundColor: '#240046' } : null]}
             onPress={onPressProfile}
             activeOpacity={0.75}
             accessibilityLabel="View Analyst Profile"
           >
-            <Text style={styles.profileAvatarText}>GA</Text>
+            <Text style={styles.profileAvatarText}>{avatarInitials}</Text>
           </TouchableOpacity>
         )}
       </View>

@@ -364,12 +364,20 @@ const getApiBaseUrl = (): string => {
     // Fall back to emulator/default
   }
 
-  // 4. Android Emulator loopback
+  // 4. Android runtime (Emulator vs Physical Device):
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5039/api/v1';
+    const isEmulator = (Platform.constants as any)?.Brand === 'google' ||
+      ((Platform.constants as any)?.Model && String((Platform.constants as any)?.Model).toLowerCase().includes('emulator')) ||
+      ((Platform.constants as any)?.Model && String((Platform.constants as any)?.Model).toLowerCase().includes('sdk'));
+
+    if (isEmulator) {
+      return 'http://10.0.2.2:5039/api/v1';
+    }
+    // Physical Android device in Expo Go (cellular 4G or external WiFi): connect to live cloud backend
+    return 'https://greenartapp-1.onrender.com/api/v1';
   }
 
-  return envUrl || 'http://localhost:5039/api/v1';
+  return envUrl || 'https://greenartapp-1.onrender.com/api/v1';
 };
 
 class MobileApiClient {
@@ -679,6 +687,161 @@ class MobileApiClient {
     } catch {
       return null;
     }
+  }
+
+  public async loginWithGoogle(idToken: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/google',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ idToken }),
+      },
+      12000
+    );
+    if (!response.ok) {
+      let errMsg = 'Google sign-in failed.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async requestOtp(email: string, fullName: string, phoneNumber?: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/register/request-otp',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email, fullName, phoneNumber }),
+      },
+      12000
+    );
+    if (!response.ok) {
+      let errMsg = 'Failed to request verification code.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async verifyOtp(email: string, otp: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/register/verify-otp',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      },
+      10000
+    );
+    if (!response.ok) {
+      let errMsg = 'Verification code is invalid or expired.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async completeRegistration(
+    email: string,
+    password: string,
+    tempVerificationToken: string,
+    fullName?: string,
+    phoneNumber?: string
+  ): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/register/complete',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email, password, tempVerificationToken, fullName, phoneNumber }),
+      },
+      12000
+    );
+    if (!response.ok) {
+      let errMsg = 'Failed to complete registration.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async loginWithPassword(emailOrUsername: string, password: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/login',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ emailOrUsername, password }),
+      },
+      12000
+    );
+    if (!response.ok) {
+      let errMsg = 'Invalid email/username or password.';
+      try {
+        const errJson = await response.json();
+        errMsg = errJson.error || errJson.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+    return await response.json();
+  }
+
+  public async refreshTokens(refreshToken: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/auth/refresh',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      },
+      8000
+    );
+    if (!response.ok) return null;
+    return await response.json();
+  }
+
+  public async revokeToken(refreshToken: string): Promise<void> {
+    try {
+      await this.fetchWithTimeout(
+        '/auth/revoke',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        },
+        5000
+      );
+    } catch {}
+  }
+
+  public async getCurrentUser(accessToken: string): Promise<any> {
+    const response = await this.fetchWithTimeout(
+      '/me',
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/json',
+        },
+      },
+      8000
+    );
+    if (!response.ok) return null;
+    return await response.json();
   }
 }
 

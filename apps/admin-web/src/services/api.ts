@@ -470,6 +470,32 @@ class ApiClient {
   async getMlReadiness(): Promise<MlReadinessAuditReport> {
     return this.request<MlReadinessAuditReport>('/ml/readiness');
   }
+
+  // 14. Registered User Accounts
+  async getUsers(search?: string): Promise<AdminUserRecord[]> {
+    const adminKey = this.getAdminKey();
+    const query = search ? `?search=${encodeURIComponent(search)}` : '';
+    return this.request<AdminUserRecord[]>(`/admin/users${query}`, {
+      headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+    });
+  }
+}
+
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  fullName: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+  role: 'Customer' | 'Reviewer' | 'Administrator';
+  accountStatus: 'Active' | 'Suspended' | 'Deactivated';
+  isEmailVerified: boolean;
+  isSellerVerified: boolean;
+  sellerType: 'IndividualOwner' | 'Promoter' | 'LicensedAgent';
+  createdAtUtc: string;
+  lastLoginAtUtc?: string;
+  hasPassword: boolean;
+  hasGoogleAuth: boolean;
 }
 
 export const api = new ApiClient();

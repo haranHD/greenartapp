@@ -16,6 +16,7 @@ import { ListingModerationView } from './components/ListingModerationView';
 import { DocumentReviewQueueView } from './components/DocumentReviewQueueView';
 import { ProviderHealthView } from './components/ProviderHealthView';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
+import { UserAccountsView } from './components/UserAccountsView';
 import {
   MarketplaceListing,
   ListingStatus,
@@ -124,10 +125,19 @@ const Icons = {
       <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
     </svg>
   ),
+  Users: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
 };
 
 type TabView =
   | 'dashboard'
+  | 'users'
   | 'marketplace'
   | 'documents'
   | 'explorer'
@@ -992,6 +1002,14 @@ export const App = () => {
             </span>
           </button>
 
+          <button
+            className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            <span className="nav-icon"><Icons.Users /></span>
+            <span>User Accounts</span>
+          </button>
+
           <div className="nav-divider"></div>
 
           <button
@@ -1063,6 +1081,7 @@ export const App = () => {
           <div className="topbar-left">
             <span className="page-title">
               {activeTab === 'dashboard' && 'Dashboard Overview & Executive KPI'}
+              {activeTab === 'users' && 'Application User Accounts Directory'}
               {activeTab === 'marketplace' && 'Marketplace Listing Moderation Queue'}
               {activeTab === 'documents' && 'Legal & Title Document Review Queue'}
               {activeTab === 'explorer' && 'Land Price Explorer (Spatial PostGIS)'}
@@ -1424,6 +1443,11 @@ export const App = () => {
               </div>
             </div>
           )}
+
+          {/* =====================================================================
+              VIEW: APPLICATION USER ACCOUNTS DIRECTORY
+              ===================================================================== */}
+          {activeTab === 'users' && <UserAccountsView />}
 
           {/* =====================================================================
               VIEW: MARKETPLACE LISTING MODERATION

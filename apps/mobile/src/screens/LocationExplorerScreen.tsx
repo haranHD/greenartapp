@@ -40,6 +40,10 @@ export interface LocationExplorerScreenProps {
   landUsage: number;
   localities: LocalityReference[];
   loadingLocalities: boolean;
+  onUseCurrentLocation?: () => void;
+  isLocating?: boolean;
+  userDeviceLocation?: { latitude: number; longitude: number } | null;
+  locationStatusMessage?: string | null;
 }
 
 export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
@@ -66,12 +70,16 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   landUsage,
   localities,
   loadingLocalities,
+  onUseCurrentLocation,
+  isLocating = false,
+  userDeviceLocation = null,
+  locationStatusMessage = null,
 }) => {
   return (
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
-      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset, flexGrow: 1 }]}
+      showsVerticalScrollIndicator={true}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
@@ -99,6 +107,55 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             </TouchableOpacity>
           ) : null}
         </View>
+
+        {/* Use My Current Location Action Button */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: '#FAF5FF',
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#E9D5FF',
+              gap: 6,
+            }}
+            onPress={onUseCurrentLocation}
+            disabled={isLocating}
+            activeOpacity={0.75}
+          >
+            {isLocating ? (
+              <ActivityIndicator size="small" color="#240046" />
+            ) : (
+              <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#240046', alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D4AF37' }} />
+              </View>
+            )}
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#240046' }}>
+              {isLocating ? 'Acquiring GPS Location...' : 'Use My Current Location'}
+            </Text>
+          </TouchableOpacity>
+
+          {userDeviceLocation && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#047857' }}>
+                GPS Active
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Location Status Notice */}
+        {locationStatusMessage && (
+          <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FEF3C7', borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' }}>
+            <Text style={{ fontSize: 11, color: '#92400E', lineHeight: 15 }}>
+              {locationStatusMessage}
+            </Text>
+          </View>
+        )}
 
         {searchTabQuery.trim() !== '' && (
           <View style={styles.suggestionsContainer}>
@@ -227,6 +284,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
           mapZoom={mapZoom}
           activeLocality={activeLocality}
           records={records}
+          userLocation={userDeviceLocation}
           onSelectLocation={(lat, lng) => handleSelectCoordinates(lat, lng, 'Map Pin')}
         />
 

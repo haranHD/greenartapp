@@ -517,6 +517,224 @@ namespace Greenart.Infrastructure.Migrations
                     b.ToTable("land_price_records", (string)null);
                 });
 
+            modelBuilder.Entity("Greenart.Domain.Entities.ListingEnquiry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BuyerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("buyer_user_id");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("listing_id");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("message");
+
+                    b.Property<decimal?>("OfferedPriceTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("offered_price_total");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at_utc");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BuyerUserId")
+                        .HasDatabaseName("idx_listing_enquiries_buyer_user_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("idx_listing_enquiries_status");
+
+                    b.HasIndex("ListingId", "SubmittedAtUtc")
+                        .HasDatabaseName("idx_listing_enquiries_listing_submitted");
+
+                    b.ToTable("listing_enquiries", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.MarketplaceListing", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AskingPriceTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("asking_price_total");
+
+                    b.Property<decimal>("AskingRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("asking_rate_per_cent");
+
+                    b.Property<decimal>("AskingRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("asking_rate_per_sqft");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("district");
+
+                    b.Property<decimal?>("EstimatedMarketMedianPerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("estimated_market_median_per_cent");
+
+                    b.Property<decimal>("ExtentCent")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("extent_cent");
+
+                    b.Property<decimal>("ExtentSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("extent_sqft");
+
+                    b.Property<decimal?>("GuidelineRatePerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("guideline_rate_per_cent");
+
+                    b.Property<decimal?>("GuidelineRatePerSqFt")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("guideline_rate_per_sqft");
+
+                    b.Property<string>("LandUsage")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("land_usage");
+
+                    b.Property<string>("Locality")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("locality");
+
+                    b.Property<Point>("Location")
+                        .IsRequired()
+                        .HasColumnType("geography(Point, 4326)")
+                        .HasColumnName("location");
+
+                    b.Property<string>("ModerationNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("moderation_notes");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<Guid>("SellerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("seller_id");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("state");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StreetAddress")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)")
+                        .HasColumnName("street_address");
+
+                    b.Property<string>("SurveyNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("survey_number");
+
+                    b.Property<string>("Taluk")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("taluk");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.ComplexProperty<Dictionary<string, object>>("Coordinates", "Greenart.Domain.Entities.MarketplaceListing.Coordinates#GeoCoordinate", b1 =>
+                        {
+                            b1.Property<double>("Latitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("double precision")
+                                .HasColumnName("latitude");
+
+                            b1.Property<double>("Longitude")
+                                .HasPrecision(9, 6)
+                                .HasColumnType("double precision")
+                                .HasColumnName("longitude");
+                        });
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Location")
+                        .HasDatabaseName("idx_marketplace_listings_location");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Location"), "GIST");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("SellerId")
+                        .HasDatabaseName("idx_marketplace_listings_seller_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("idx_marketplace_listings_status");
+
+                    b.HasIndex("Locality", "Status")
+                        .HasDatabaseName("idx_marketplace_listings_locality_status");
+
+                    b.ToTable("marketplace_listings", (string)null);
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.SourceDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -637,6 +855,124 @@ namespace Greenart.Infrastructure.Migrations
                     b.ToTable("source_documents", (string)null);
                 });
 
+            modelBuilder.Entity("Greenart.Domain.Entities.User", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("account_status");
+
+                    b.Property<string>("AvatarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("avatar_url");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("GoogleSubjectId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("google_subject_id");
+
+                    b.Property<bool>("IsSellerVerified")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_seller_verified");
+
+                    b.Property<DateTime?>("LastLoginAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_login_at_utc");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)")
+                        .HasColumnName("phone_number");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("SellerType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("seller_type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasDatabaseName("idx_users_email_unique");
+
+                    b.HasIndex("GoogleSubjectId")
+                        .IsUnique()
+                        .HasDatabaseName("idx_users_google_subject_id_unique");
+
+                    b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.UserRefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at_utc");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at_utc");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .HasDatabaseName("idx_user_refresh_tokens_token_hash");
+
+                    b.HasIndex("UserId", "ExpiresAtUtc")
+                        .HasDatabaseName("idx_user_refresh_tokens_user_expiry");
+
+                    b.ToTable("user_refresh_tokens", (string)null);
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimateObservation", b =>
                 {
                     b.HasOne("Greenart.Domain.Entities.HistoricalEstimate", "HistoricalEstimate")
@@ -666,14 +1002,76 @@ namespace Greenart.Infrastructure.Migrations
                     b.Navigation("SourceDocument");
                 });
 
+            modelBuilder.Entity("Greenart.Domain.Entities.ListingEnquiry", b =>
+                {
+                    b.HasOne("Greenart.Domain.Entities.User", "BuyerUser")
+                        .WithMany("Enquiries")
+                        .HasForeignKey("BuyerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Greenart.Domain.Entities.MarketplaceListing", "Listing")
+                        .WithMany("Enquiries")
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("BuyerUser");
+
+                    b.Navigation("Listing");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.MarketplaceListing", b =>
+                {
+                    b.HasOne("Greenart.Domain.Entities.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Greenart.Domain.Entities.User", "Seller")
+                        .WithMany("Listings")
+                        .HasForeignKey("SellerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ReviewedByUser");
+
+                    b.Navigation("Seller");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.UserRefreshToken", b =>
+                {
+                    b.HasOne("Greenart.Domain.Entities.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimate", b =>
                 {
                     b.Navigation("SupportingObservations");
                 });
 
+            modelBuilder.Entity("Greenart.Domain.Entities.MarketplaceListing", b =>
+                {
+                    b.Navigation("Enquiries");
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.SourceDocument", b =>
                 {
                     b.Navigation("LandPriceRecords");
+                });
+
+            modelBuilder.Entity("Greenart.Domain.Entities.User", b =>
+                {
+                    b.Navigation("Enquiries");
+
+                    b.Navigation("Listings");
+
+                    b.Navigation("RefreshTokens");
                 });
 #pragma warning restore 612, 618
         }
