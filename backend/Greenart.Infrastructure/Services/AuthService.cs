@@ -15,17 +15,20 @@ public class AuthService : IAuthService
     private readonly LandPriceDbContext _dbContext;
     private readonly IGoogleTokenValidator _googleTokenValidator;
     private readonly ITokenService _tokenService;
+    private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
         LandPriceDbContext dbContext,
         IGoogleTokenValidator googleTokenValidator,
         ITokenService tokenService,
+        IEmailService emailService,
         ILogger<AuthService> logger)
     {
         _dbContext = dbContext;
         _googleTokenValidator = googleTokenValidator;
         _tokenService = tokenService;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -290,12 +293,30 @@ public class AuthService : IAuthService
         _dbContext.AuditEvents.Add(audit);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Security OTP dispatched for {Email} [Development Code: {Code}]", normalizedEmail, randomCode);
+
+        // Dispatch OTP via SMTP email service
+        var emailDispatched = await _emailService.SendOtpEmailAsync(
+            normalizedEmail,
+            request.FullName.Trim(),
+            randomCode,
+            expirationMinutes: 10,
+            cancellationToken: cancellationToken);
+
+        _logger.LogInformation("Security OTP processed for {Email} [Development Code: {Code}]. Real email dispatched via SMTP: {Dispatched}",
+            normalizedEmail, randomCode, emailDispatched);
+
+        var responseMessage = emailDispatched
+            ? $"A 6-digit verification code has been dispatched to {normalizedEmail}. Please check your inbox or spam folder."
+            : "Verification code generated. (SMTP email dispatch pending or development mode).";
+
+        // In production when email is sent, DevOtpHint is suppressed.
+        // If email failed or in development without SMTP, expose hint for ergonomic testing.
+        var devHint = emailDispatched ? null : randomCode;
 
         return new RequestOtpResponseDto(
-            "Verification code sent to your email address.",
+            responseMessage,
             normalizedEmail,
-            randomCode
+            devHint
         );
     }
 

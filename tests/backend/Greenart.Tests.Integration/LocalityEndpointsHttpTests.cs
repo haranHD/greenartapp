@@ -46,6 +46,25 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
             }
             return Task.FromResult<LocalityDetailsDto?>(null);
         }
+
+        public Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)
+        {
+            if (address.Contains("bhavani", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult<LocalityDetailsDto?>(new LocalityDetailsDto(
+                    "place_bhavani_1",
+                    "Bhavani",
+                    "Bhavani, Tamil Nadu, India",
+                    11.4471,
+                    77.6840,
+                    "Bhavani",
+                    "Erode",
+                    "Tamil Nadu",
+                    "India"
+                ));
+            }
+            return Task.FromResult<LocalityDetailsDto?>(null);
+        }
     }
 
     private readonly WebApplicationFactory<Program> _factory;

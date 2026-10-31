@@ -16,5 +16,10 @@ public interface IGeocodingService
     /// Retrieves resolved coordinates and address components for a specific place identifier.
     /// </summary>
     Task<LocalityDetailsDto?> GetPlaceDetailsAsync(string placeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Directly geocodes an address or location name into geographic coordinates.
+    /// </summary>
+    Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default);
 }
 

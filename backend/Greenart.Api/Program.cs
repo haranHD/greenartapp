@@ -137,6 +137,7 @@ builder.Services.AddScoped<IMlReadinessService, MlReadinessService>();
 // Register Authentication & Token Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Configure Bearer Authentication & Authorization Policies
@@ -1714,6 +1715,34 @@ app.MapGet("/api/v1/localities/details", async (
 .WithName("GetLocalityDetails")
 .WithSummary("Get Place Details & Geographic Coordinates")
 .WithDescription("Resolves coordinates, formatted address, and administrative hierarchy for a place identifier with 24-hour caching.")
+.WithOpenApi();
+
+app.MapGet("/api/v1/localities/geocode", async (
+    [FromQuery] string? address,
+    [FromServices] IGeocodingService geocodingService,
+    CancellationToken ct) =>
+{
+    if (string.IsNullOrWhiteSpace(address))
+    {
+        return Results.BadRequest(new { Error = "address query parameter is required." });
+    }
+
+    if (address.Length > 250)
+    {
+        return Results.BadRequest(new { Error = "address length cannot exceed 250 characters." });
+    }
+
+    var details = await geocodingService.GeocodeAddressAsync(address.Trim(), ct);
+    if (details == null)
+    {
+        return Results.NotFound(new { Error = $"Could not resolve coordinates for address: '{address}'" });
+    }
+
+    return Results.Ok(details);
+})
+.WithName("GeocodeAddress")
+.WithSummary("Geocode Street Address or Locality")
+.WithDescription("Resolves real-time geographic coordinates and place details for any street address, landmark, or village text.")
 .WithOpenApi();
 
 // ---------------------------------------------------------

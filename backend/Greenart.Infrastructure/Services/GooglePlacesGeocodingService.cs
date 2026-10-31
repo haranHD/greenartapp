@@ -293,7 +293,162 @@ public class GooglePlacesGeocodingService : IGeocodingService
         }
     }
 
+    public async Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return null;
+        }
+
+        var trimmed = address.Trim();
+        var cacheKey = $"geocode_address_{trimmed.ToLowerInvariant()}_{_options.DefaultRegion}";
+
+        if (_cache.TryGetValue(cacheKey, out LocalityDetailsDto? cached) && cached != null)
+        {
+            return cached;
+        }
+
+        // 1. Check if user entered raw numeric coordinates: e.g. "11.0012, 77.0874"
+        var coordMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$");
+        if (coordMatch.Success &&
+            double.TryParse(coordMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rawLat) &&
+            double.TryParse(coordMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rawLng))
+        {
+            if (rawLat >= 6.0 && rawLat <= 38.0 && rawLng >= 68.0 && rawLng <= 98.0)
+            {
+                var coordDto = new LocalityDetailsDto(
+                    $"coord_{rawLat:F4}_{rawLng:F4}",
+                    "Custom Pin Location",
+                    trimmed,
+                    rawLat,
+                    rawLng,
+                    "Custom Pin Location",
+                    "Tamil Nadu",
+                    "Tamil Nadu",
+                    "India"
+                );
+                return coordDto;
+            }
+        }
+
+        // 2. Try Google Places Text Search (New)
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            try
+            {
+                var requestUri = $"{_options.BaseUrl.TrimEnd('/')}/places:searchText";
+                var requestBody = new
+                {
+                    textQuery = trimmed,
+                    regionCode = _options.DefaultRegion
+                };
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                request.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
+                request.Headers.Add("X-Goog-FieldMask", "places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents");
+                request.Content = JsonContent.Create(requestBody, options: JsonOpts);
+
+                using var response = await _httpClient.SendAsync(request, ct);
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync(ct);
+                    var textSearchResult = JsonSerializer.Deserialize<GoogleTextSearchResponse>(content, JsonOpts);
+
+                    if (textSearchResult?.Places != null && textSearchResult.Places.Count > 0)
+                    {
+                        var place = textSearchResult.Places[0];
+                        if (place.Location != null)
+                        {
+                            var lat = place.Location.Latitude;
+                            var lng = place.Location.Longitude;
+                            var name = place.DisplayName?.Text ?? place.FormattedAddress ?? trimmed;
+                            var formatted = place.FormattedAddress ?? name;
+
+                            var locality = string.Empty;
+                            var district = string.Empty;
+                            var state = string.Empty;
+                            var country = string.Empty;
+
+                            if (place.AddressComponents != null)
+                            {
+                                foreach (var comp in place.AddressComponents)
+                                {
+                                    if (comp.Types == null) continue;
+                                    if (comp.Types.Contains("locality") || comp.Types.Contains("sublocality"))
+                                    {
+                                        if (string.IsNullOrEmpty(locality)) locality = comp.LongText ?? comp.ShortText ?? string.Empty;
+                                    }
+                                    if (comp.Types.Contains("administrative_area_level_3") || comp.Types.Contains("administrative_area_level_2"))
+                                    {
+                                        if (string.IsNullOrEmpty(district)) district = comp.LongText ?? comp.ShortText ?? string.Empty;
+                                    }
+                                    if (comp.Types.Contains("administrative_area_level_1"))
+                                    {
+                                        if (string.IsNullOrEmpty(state)) state = comp.LongText ?? comp.ShortText ?? string.Empty;
+                                    }
+                                    if (comp.Types.Contains("country"))
+                                    {
+                                        if (string.IsNullOrEmpty(country)) country = comp.LongText ?? comp.ShortText ?? string.Empty;
+                                    }
+                                }
+                            }
+
+                            if (string.IsNullOrEmpty(locality)) locality = name;
+                            if (string.IsNullOrEmpty(district)) district = "Coimbatore";
+                            if (string.IsNullOrEmpty(state)) state = "Tamil Nadu";
+                            if (string.IsNullOrEmpty(country)) country = "India";
+
+                            var dto = new LocalityDetailsDto(
+                                place.Id ?? $"place_{Guid.NewGuid():N}",
+                                name,
+                                formatted,
+                                lat,
+                                lng,
+                                locality,
+                                district,
+                                state,
+                                country
+                            );
+
+                            _cache.Set(cacheKey, dto, TimeSpan.FromHours(24));
+                            return dto;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Google Places Text Search failed for address {Address}", trimmed);
+            }
+        }
+
+        // 3. Fallback: Search Autocomplete to see if any place matches
+        try
+        {
+            var suggestions = await SearchLocalitiesAsync(trimmed, ct);
+            if (suggestions.Count > 0 && !string.IsNullOrWhiteSpace(suggestions[0].PlaceId))
+            {
+                var details = await GetPlaceDetailsAsync(suggestions[0].PlaceId, ct);
+                if (details != null)
+                {
+                    _cache.Set(cacheKey, details, TimeSpan.FromHours(24));
+                    return details;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Fallback autocomplete geocoding failed for {Address}", trimmed);
+        }
+
+        return null;
+    }
+
     #region Google API JSON Contract Models
+    private sealed class GoogleTextSearchResponse
+    {
+        public List<GooglePlaceDetailsResponse>? Places { get; set; }
+    }
     private sealed class GoogleAutocompleteResponse
     {
         public List<GoogleSuggestionItem>? Suggestions { get; set; }

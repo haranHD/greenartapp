@@ -44,6 +44,9 @@ export interface LocationExplorerScreenProps {
   isLocating?: boolean;
   userDeviceLocation?: { latitude: number; longitude: number } | null;
   locationStatusMessage?: string | null;
+  onLocateAddress?: (address: string) => Promise<void>;
+  isLocatingAddress?: boolean;
+  addressLocateStatus?: string | null;
 }
 
 export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
@@ -74,6 +77,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   isLocating = false,
   userDeviceLocation = null,
   locationStatusMessage = null,
+  onLocateAddress,
+  isLocatingAddress = false,
+  addressLocateStatus = null,
 }) => {
   return (
     <ScrollView
@@ -96,17 +102,38 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
         <View style={styles.searchBarBox}>
           <TextInput
             style={styles.searchBarInput}
-            placeholder="Search locality or enter coords..."
+            placeholder="Enter address, locality, or coords..."
             placeholderTextColor="#94A3B8"
             value={searchTabQuery}
             onChangeText={setSearchTabQuery}
+            onSubmitEditing={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+            returnKeyType="search"
           />
           {searchTabQuery ? (
             <TouchableOpacity onPress={() => setSearchTabQuery('')} style={{ padding: 6 }}>
               <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '700' }}>✕</Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity
+            style={[styles.locateBtn, (!searchTabQuery.trim() || isLocatingAddress) && styles.locateBtnDisabled]}
+            onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+            disabled={!searchTabQuery.trim() || isLocatingAddress}
+            activeOpacity={0.8}
+          >
+            {isLocatingAddress ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.locateBtnText}>Move Pin 📍</Text>
+            )}
+          </TouchableOpacity>
         </View>
+
+        {/* Address Geocoding Status Banner */}
+        {addressLocateStatus && (
+          <View style={styles.addressStatusBanner}>
+            <Text style={styles.addressStatusText}>{addressLocateStatus}</Text>
+          </View>
+        )}
 
         {/* Use My Current Location Action Button */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
@@ -159,6 +186,26 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
 
         {searchTabQuery.trim() !== '' && (
           <View style={styles.suggestionsContainer}>
+            {/* Direct Address Geocode & Pin Mover Row */}
+            <TouchableOpacity
+              style={styles.directLocateRow}
+              onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.directLocateIconBox}>
+                <Text style={{ fontSize: 13 }}>📍</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.directLocateTitle} numberOfLines={1}>
+                  Move Pin to "{searchTabQuery}"
+                </Text>
+                <Text style={styles.directLocateSub}>
+                  Geocode address and center Google Map here
+                </Text>
+              </View>
+              <Text style={styles.directLocateArrow}>→</Text>
+            </TouchableOpacity>
+
             {isSearchingTabGeocode && searchTabGeocodingSuggestions.length === 0 && (
               <View style={styles.searchingRow}>
                 <ActivityIndicator size="small" color={Colors.primary} />
@@ -218,7 +265,24 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             {!isSearchingTabGeocode &&
               searchTabGeocodingSuggestions.length === 0 &&
               searchTabFilteredSuggestions.length === 0 && (
-                <Text style={styles.noSuggestionsText}>No matching localities found.</Text>
+                <TouchableOpacity
+                  style={styles.fallbackLocateRow}
+                  onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 15 }}>📍</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fallbackLocateTitle} numberOfLines={1}>
+                      Place Pin at "{searchTabQuery}"
+                    </Text>
+                    <Text style={styles.fallbackLocateSub}>
+                      Tap to geocode exact address and move Google Map pin
+                    </Text>
+                  </View>
+                  <View style={styles.fallbackLocateBadge}>
+                    <Text style={styles.fallbackLocateBadgeText}>Find Pin →</Text>
+                  </View>
+                </TouchableOpacity>
               )}
           </View>
         )}
@@ -444,6 +508,109 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#1E1B4B',
     paddingVertical: 8,
+  },
+  locateBtn: {
+    backgroundColor: '#240046',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locateBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+    borderColor: '#E2E8F0',
+    opacity: 0.6,
+  },
+  locateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  addressStatusBanner: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: '#FAF5FF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+  },
+  addressStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#240046',
+    lineHeight: 16,
+  },
+  directLocateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#FEFCE8',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#FDE68A',
+    gap: 10,
+  },
+  directLocateIconBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FAF5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+  },
+  directLocateTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#240046',
+  },
+  directLocateSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 1,
+  },
+  directLocateArrow: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#240046',
+    marginLeft: 6,
+  },
+  fallbackLocateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#FAF5FF',
+    gap: 10,
+  },
+  fallbackLocateTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#240046',
+  },
+  fallbackLocateSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  fallbackLocateBadge: {
+    backgroundColor: '#240046',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+  },
+  fallbackLocateBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   suggestionsContainer: {
     backgroundColor: '#FFFFFF',

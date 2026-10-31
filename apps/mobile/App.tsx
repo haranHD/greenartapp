@@ -56,6 +56,7 @@ import {
 } from './src/types';
 import { LAND_USAGES } from './src/utils/formatters';
 import { INITIAL_MOCK_LISTINGS, INITIAL_MOCK_DOCUMENTS } from './src/data/mockListings';
+import { geocodingService } from './src/services/geocoding';
 
 // Safe insets hook for web and native
 const useSafeInsets = () => {
@@ -598,6 +599,33 @@ function GreenartMobileApp() {
     setSearchTabQuery(localityName === 'Map Pin' || localityName === 'Custom Coordinates' ? '' : localityName);
   };
 
+  const [isLocatingAddress, setIsLocatingAddress] = useState<boolean>(false);
+  const [addressLocateStatus, setAddressLocateStatus] = useState<string | null>(null);
+
+  const handleLocateAddress = async (rawAddress: string) => {
+    if (!rawAddress || !rawAddress.trim()) return;
+    setIsLocatingAddress(true);
+    setAddressLocateStatus('Locating address on Google Map...');
+
+    try {
+      const resolved = await geocodingService.geocodeAddress(rawAddress.trim());
+      if (resolved) {
+        handleSelectCoordinates(resolved.latitude, resolved.longitude, resolved.name);
+        setMapZoom(16); // Focus directly on the resolved address
+        setAddressLocateStatus(`📍 Pin placed at: ${resolved.name} (${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)})`);
+        setSearchTabGeocodingSuggestions([]);
+        setHomeGeocodingSuggestions([]);
+      } else {
+        setAddressLocateStatus(`Could not resolve "${rawAddress}". Try entering the nearby town or landmark.`);
+      }
+    } catch (err: any) {
+      setAddressLocateStatus('Geocoding request failed. Please check network connection.');
+    } finally {
+      setIsLocatingAddress(false);
+      setTimeout(() => setAddressLocateStatus(null), 6000);
+    }
+  };
+
   const handleSelectLocalityRef = (loc: LocalityReference) => {
     handleSelectCoordinates(loc.latitude, loc.longitude, loc.name);
   };
@@ -815,6 +843,9 @@ function GreenartMobileApp() {
               isLocating={isLocating}
               userDeviceLocation={userDeviceLocation}
               locationStatusMessage={locationStatusMessage}
+              onLocateAddress={handleLocateAddress}
+              isLocatingAddress={isLocatingAddress}
+              addressLocateStatus={addressLocateStatus}
             />
           )}
 

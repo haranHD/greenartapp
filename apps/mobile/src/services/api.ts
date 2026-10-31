@@ -755,6 +755,23 @@ class MobileApiClient {
     }
   }
 
+  async geocodeAddress(address: string): Promise<LocalityDetailsDto | null> {
+    if (!address || !address.trim()) return null;
+    try {
+      const response = await this.fetchWithTimeout(
+        `/localities/geocode?address=${encodeURIComponent(address.trim())}`,
+        { headers: { Accept: 'application/json' } },
+        8000
+      );
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as LocalityDetailsDto;
+    } catch {
+      return null;
+    }
+  }
+
   public async loginWithGoogle(idToken: string): Promise<any> {
     const response = await this.fetchWithTimeout(
       '/auth/google',

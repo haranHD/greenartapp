@@ -222,5 +222,55 @@ public class GeocodingServiceTests
 
         Assert.Null(result);
     }
+
+    [Fact]
+    public async Task GeocodeAddressAsync_WhenRawCoordinates_ParsesDirectlyWithoutApi()
+    {
+        var (service, handler) = CreateService(HttpStatusCode.OK, "{}");
+
+        var result = await service.GeocodeAddressAsync("11.0012, 77.0874");
+
+        Assert.NotNull(result);
+        Assert.Equal(11.0012, result.Latitude, 4);
+        Assert.Equal(77.0874, result.Longitude, 4);
+        Assert.Equal(0, handler.CallCount); // zero network requests made for raw coords!
+    }
+
+    [Fact]
+    public async Task GeocodeAddressAsync_WhenTextSearchReturnsPlace_ReturnsDetails()
+    {
+        var jsonResponse = """
+        {
+            "places": [
+                {
+                    "id": "places/ChIJtest123",
+                    "formattedAddress": "Vinayaga Nagar, Kurumbapalayam, Coimbatore, Tamil Nadu 641107",
+                    "displayName": { "text": "Vinayaga Nagar" },
+                    "location": {
+                        "latitude": 11.0789,
+                        "longitude": 77.0123
+                    },
+                    "addressComponents": [
+                        { "longText": "Kurumbapalayam", "types": ["locality"] },
+                        { "longText": "Coimbatore", "types": ["administrative_area_level_2"] },
+                        { "longText": "Tamil Nadu", "types": ["administrative_area_level_1"] },
+                        { "longText": "India", "types": ["country"] }
+                    ]
+                }
+            ]
+        }
+        """;
+
+        var (service, _) = CreateService(HttpStatusCode.OK, jsonResponse);
+
+        var result = await service.GeocodeAddressAsync("Vinayaga nagar, Kurumbapalayam");
+
+        Assert.NotNull(result);
+        Assert.Equal("Vinayaga Nagar", result.Name);
+        Assert.Equal(11.0789, result.Latitude, 4);
+        Assert.Equal(77.0123, result.Longitude, 4);
+        Assert.Equal("Kurumbapalayam", result.Locality);
+        Assert.Equal("Coimbatore", result.District);
+    }
 }
 
