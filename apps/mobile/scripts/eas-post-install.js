@@ -15,3 +15,4 @@ if (fs.existsSync(mobileRN) && !fs.existsSync(rootRN)) {
     console.warn('[EAS Build] Note: could not link react-native:', err.message);
   }
 }
+
