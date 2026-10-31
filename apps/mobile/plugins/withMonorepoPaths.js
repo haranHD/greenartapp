@@ -20,3 +20,4 @@ project.ext.REACT_NATIVE_NODE_MODULES_DIR = file("\${rootProject.projectDir}/../
     return modConfig;
   });
 };
+
