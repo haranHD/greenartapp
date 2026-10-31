@@ -33,6 +33,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "./plugins/withMonorepoPaths"
+    ],
     "extra": {
       "eas": {
         "projectId": "7d2023a9-994b-4449-87bc-7d5b99deec02"
