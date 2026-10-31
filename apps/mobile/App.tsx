@@ -34,6 +34,7 @@ import { PlotMarketplaceView } from './src/components/PlotMarketplaceView';
 import { PlotDetailModal } from './src/components/PlotDetailModal';
 import { SellLandFlowView } from './src/components/SellLandFlowView';
 import { ValuationPdfModal } from './src/components/ValuationPdfModal';
+import { AnimatedMapLandingScreen } from './src/components/AnimatedMapLandingScreen';
 
 import {
   HomeScreen,
@@ -157,6 +158,7 @@ function GreenartMobileApp() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isInitializingSession, setIsInitializingSession] = useState<boolean>(true);
+  const [landingAnimDone, setLandingAnimDone] = useState<boolean>(false);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -740,21 +742,13 @@ function GreenartMobileApp() {
     }).length;
   }, [records, targetLat, targetLng]);
 
-  if (isInitializingSession) {
+  if (!landingAnimDone) {
     return (
-      <View style={styles.launchLoadingContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#240046" />
-        <View style={styles.launchBadgeOuter}>
-          <View style={styles.launchBadgeInner}>
-            <Text style={styles.launchLetterG}>G</Text>
-          </View>
-        </View>
-        <Text style={styles.launchBrandTitle}>GREENART PROPERTIES</Text>
-        <View style={styles.launchPill}>
-          <Text style={styles.launchPillText}>LAND MARKET RATE ANALYST</Text>
-        </View>
-        <ActivityIndicator size="small" color="#D4AF37" style={{ marginTop: 28 }} />
-      </View>
+      <AnimatedMapLandingScreen
+        onAnimationComplete={() => setLandingAnimDone(true)}
+        minDurationMs={2400}
+        isReady={!isInitializingSession}
+      />
     );
   }
 

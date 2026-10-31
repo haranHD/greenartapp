@@ -64,6 +64,13 @@ declare module 'react-native' {
     exitApp(): void;
   };
   export const KeyboardAvoidingView: any;
+  export const Animated: any;
+  export const Easing: any;
+  export const Dimensions: {
+    get(dim: 'window' | 'screen'): { width: number; height: number; scale: number; fontScale: number };
+    addEventListener?: any;
+    removeEventListener?: any;
+  };
 }
 
 declare module 'react-native-safe-area-context' {

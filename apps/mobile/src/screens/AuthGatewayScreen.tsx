@@ -269,20 +269,20 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Brand Hero Header */}
+      {/* Hero Visual Header (Strictly Zero Brand Name) */}
       <View style={styles.heroSection}>
-        <View style={styles.logoBadgeContainer}>
-          <View style={styles.brandLogoCircle}>
-            <Text style={styles.brandLogoInitial}>G</Text>
-          </View>
+        <View style={styles.heroIconWrapper}>
+          <Image
+            source={require('../../assets/folded-map-routes.png')}
+            style={styles.heroMapImage}
+            resizeMode="contain"
+          />
+          <Image
+            source={require('../../assets/location-pin-blue.png')}
+            style={styles.heroPinImage}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.brandTitle}>GREENART PROPERTIES</Text>
-        <View style={styles.taglineBadge}>
-          <Text style={styles.taglineText}>LAND MARKET RATE ANALYST</Text>
-        </View>
-        <Text style={styles.heroSubtitle}>
-          Tamil Nadu's premier institutional land price intelligence & verified marketplace platform
-        </Text>
       </View>
 
       {/* Main Authentication Card */}
@@ -359,7 +359,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
               <Text style={styles.fieldLabel}>Email or Username</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g. analyst@greenart.com"
+                placeholder="e.g. yourname@example.com"
                 placeholderTextColor="#94A3B8"
                 value={loginIdentifier}
                 onChangeText={setLoginIdentifier}
@@ -396,7 +396,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.primaryBtnText}>Sign In to Greenart</Text>
+                <Text style={styles.primaryBtnText}>Sign In</Text>
               )}
             </TouchableOpacity>
 
@@ -647,31 +647,6 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
         )}
       </View>
 
-      {/* Institutional Compliance Badges */}
-      <View style={styles.complianceBox}>
-        <Text style={styles.complianceItem}>🔒 Bank-Grade 256-Bit Cryptographic Security</Text>
-        <Text style={styles.complianceItem}>🏛️ TNREGINET Statutory Benchmark Integration</Text>
-        <Text style={styles.complianceItem}>🛡️ Immutable Audit Logging for All Account Mutations</Text>
-      </View>
-
-      {/* Backend Server Connection Status & Configuration */}
-      <TouchableOpacity
-        style={styles.serverPillBtn}
-        onPress={() => {
-          setServerInputUrl(mobileApi.getBaseUrl());
-          setTestConnResult(null);
-          setShowServerModal(true);
-        }}
-        activeOpacity={0.8}
-      >
-        <View style={styles.serverPillDot} />
-        <Text style={styles.serverPillLabel}>API:</Text>
-        <Text style={styles.serverPillHost} numberOfLines={1}>
-          {mobileApi.getBaseUrl().replace('http://', '').replace('https://', '')}
-        </Text>
-        <Text style={styles.serverPillAction}>⚙️ Change</Text>
-      </TouchableOpacity>
-
       {/* API Server Configuration Modal */}
       <Modal
         visible={showServerModal}
@@ -782,68 +757,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAF8FC',
   },
   scrollContent: {
+    flexGrow: 1,
     padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 50 : 36,
-    paddingBottom: 40,
+    paddingTop: Platform.OS === 'ios' ? 40 : 20,
+    paddingBottom: 24,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  logoBadgeContainer: {
-    marginBottom: 10,
-  },
-  brandLogoCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#240046',
-    borderWidth: 2.5,
-    borderColor: '#D4AF37',
+  heroIconWrapper: {
+    width: 84,
+    height: 84,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    position: 'relative',
   },
-  brandLogoInitial: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#D4AF37',
-    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  heroMapImage: {
+    width: 84,
+    height: 84,
   },
-  brandTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#240046',
-    letterSpacing: 1.2,
-    marginTop: 4,
-  },
-  taglineBadge: {
-    backgroundColor: '#FAF5FF',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    marginTop: 6,
-  },
-  taglineText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#581C87',
-    letterSpacing: 0.8,
-  },
-  heroSubtitle: {
-    fontSize: 12,
-    color: '#64748B',
-    textAlign: 'center',
-    marginTop: 8,
-    maxWidth: 320,
-    lineHeight: 18,
+  heroPinImage: {
+    position: 'absolute',
+    top: 14,
+    left: 28,
+    width: 28,
+    height: 28,
   },
   authCard: {
     width: '100%',

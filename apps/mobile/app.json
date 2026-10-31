@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#240046"
+      "backgroundColor": "#0E0B1F"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -21,12 +21,12 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#240046"
+        "backgroundColor": "#0E0B1F"
       },
       "splash": {
         "image": "./assets/splash.png",
         "resizeMode": "contain",
-        "backgroundColor": "#240046"
+        "backgroundColor": "#0E0B1F"
       },
       "package": "group.greenart.mobile"
     },

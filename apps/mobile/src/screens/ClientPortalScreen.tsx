@@ -134,9 +134,9 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
 
   const formattedJoinDate = currentUser?.createdAtUtc
     ? new Date(currentUser.createdAtUtc).toLocaleDateString('en-IN', {
-        year: 'numeric',
-        month: 'long',
-      })
+      year: 'numeric',
+      month: 'long',
+    })
     : 'October 2026';
 
   return (
@@ -147,10 +147,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
       nestedScrollEnabled={true}
     >
       <View style={styles.screenHeaderBox}>
-        <Text style={styles.viewTitle}>Client Account & Vault</Text>
-        <Text style={styles.viewSubtitle}>
-          Verified institutional land intelligence, property title vault, and personal settings.
-        </Text>
+        <Text style={styles.viewTitle}>Account & Settings</Text>
       </View>
 
       {/* Sub-navigation Pills */}
@@ -284,9 +281,6 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   <Text style={styles.profileOrgName}>{currentUser.fullName}</Text>
                   <Text style={styles.profileRoleTitle}>{currentUser.email}</Text>
                   <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-                    <View style={styles.rolePill}>
-                      <Text style={styles.rolePillText}>{currentUser.role}</Text>
-                    </View>
                     <View style={styles.statusPill}>
                       <Text style={styles.statusPillText}>✓ Verified Client</Text>
                     </View>
@@ -389,9 +383,6 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
           {isAuthenticated && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Account Security</Text>
-              <Text style={styles.cardSubtitle}>
-                Manage your credentials and authentication access:
-              </Text>
 
               {passwordSuccessMsg && (
                 <View style={[styles.alertBanner, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
@@ -468,7 +459,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={[styles.secondaryActionBtn, { marginTop: 4 }]}
+                  style={[styles.secondaryActionBtn, { marginTop: 8 }]}
                   onPress={() => {
                     setPasswordErrorMsg(null);
                     setPasswordSuccessMsg(null);
@@ -488,67 +479,46 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
             onPress={() => setActiveTab('sell')}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 14, fontWeight: '800', color: '#240046' }}>
-              Land Owner & Seller Workspace →
-            </Text>
-            <Text style={{ fontSize: 11.5, color: '#6B7280', marginTop: 3 }}>
-              Manage your plot listings, track human legal review status, or post a new plot for sale.
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#240046' }}>
+                Land Owner & Seller Workspace
+              </Text>
+              <Text style={{ fontSize: 14, color: '#D4AF37', fontWeight: '800' }}>→</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 16 }}>
+              Manage your plot listings and property documents, or post a new plot for sale.
             </Text>
           </TouchableOpacity>
 
-          {/* Privacy & Location Permissions Disclosure */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Privacy & Device Location</Text>
-            <Text style={styles.cardSubtitle}>
-              Institutional data governance and location ethics:
-            </Text>
-
-            <Text style={styles.profileNoticeText}>
-              • Device GPS coordinates are accessed solely when you explicitly tap "Use Current Location" to center the land valuation map.
-            </Text>
-            <Text style={[styles.profileNoticeText, { marginTop: 4 }]}>
-              • No background tracking is performed, and location histories are never logged or commercialized.
-            </Text>
-            <Text style={[styles.profileNoticeText, { marginTop: 4 }]}>
-              • All account records are stored securely in PostgreSQL with encrypted credential hashes.
-            </Text>
-          </View>
-
-          {/* Statutory Framework */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Statutory Benchmark Compliance</Text>
-            <Text style={styles.cardSubtitle}>
-              Tamil Nadu Registration Department (TNREGINET)
-            </Text>
-            <Text style={styles.profileNoticeText}>
-              All market rates are derived strictly from open-market verified transactions.
-              Government guideline rates are maintained purely as statutory reference points for
-              stamp duty benchmarks.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.secondaryActionBtn, { marginTop: 12 }]}
-              onPress={() => {
-                setPreviousTab('profile');
-                setActiveTab('guideline');
-              }}
-            >
-              <Text style={styles.secondaryActionBtnText}>Read Full Methodology</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Methodology & Statutory Benchmark Quick Link */}
+          <TouchableOpacity
+            style={[styles.card, { paddingVertical: 14 }]}
+            onPress={() => {
+              setPreviousTab('profile');
+              setActiveTab('guideline');
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#1E293B' }}>
+                Methodology & Statutory Benchmarks
+              </Text>
+              <Text style={{ fontSize: 14, color: '#94A3B8', fontWeight: '700' }}>→</Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Sign Out Button */}
           {isAuthenticated && (
             <TouchableOpacity
               style={[
                 styles.secondaryActionBtn,
-                { backgroundColor: '#FFFFFF', borderColor: '#CBD5E1', marginBottom: 20 },
+                { backgroundColor: '#FFFFFF', borderColor: '#FCA5A5', marginTop: 4, marginBottom: 20 },
               ]}
               onPress={onLogout}
               activeOpacity={0.75}
             >
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B' }}>
-                Sign Out of Account
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#DC2626' }}>
+                Sign Out
               </Text>
             </TouchableOpacity>
           )}
