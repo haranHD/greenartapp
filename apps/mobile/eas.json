@@ -6,21 +6,33 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules"
+      }
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "preview~": {
       "distribution": "internal",
+      "env": {
+        "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "env": {
+        "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules"
+      },
       "android": {
         "buildType": "apk"
       }
