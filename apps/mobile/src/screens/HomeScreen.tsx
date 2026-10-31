@@ -206,106 +206,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
       </View>
 
-      {/* Feature Navigation Cards (3 destinations) */}
-      <View style={styles.featureGrid}>
-        {/* 1. Market Estimate */}
+      {/* Quick Access Shortcuts (Clean, 3-column modern layout) */}
+      <View style={styles.quickAccessRow}>
         <TouchableOpacity
-          style={styles.featureCard}
+          style={styles.quickAccessCard}
           onPress={() => {
             setActiveTab('estimate');
             setEstimateStep('selection');
           }}
           activeOpacity={0.8}
         >
-          <View style={[styles.featureIconBadge, { backgroundColor: '#F3E8FF' }]}>
-            <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#581C87' }} />
+          <View style={[styles.quickIconCircle, { backgroundColor: '#F3E8FF' }]}>
+            <Text style={styles.quickIconText}>📊</Text>
           </View>
-          <Text style={styles.featureCardTitle}>Market Estimate</Text>
-          <Text style={styles.featureCardDesc}>
-            Statistical 1,000m radius median land valuation.
-          </Text>
-          <Text style={styles.featureCardLink}>Explore Valuation →</Text>
+          <Text style={styles.quickAccessTitle}>Valuation</Text>
+          <Text style={styles.quickAccessSub}>Market Rates</Text>
         </TouchableOpacity>
 
-        {/* 2. Nearby Land Records */}
         <TouchableOpacity
-          style={styles.featureCard}
+          style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
             setActiveTab('records');
           }}
           activeOpacity={0.8}
         >
-          <View style={[styles.featureIconBadge, { backgroundColor: '#FEF3C7' }]}>
-            <View style={{ width: 12, height: 8, borderWidth: 1.5, borderColor: '#D97706', borderRadius: 2 }} />
+          <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
+            <Text style={styles.quickIconText}>📍</Text>
           </View>
-          <Text style={styles.featureCardTitle}>Nearby Records</Text>
-          <Text style={styles.featureCardDesc}>
-            PostGIS spatial proximity deeds and asking prices.
-          </Text>
-          <Text style={[styles.featureCardLink, { color: '#B45309' }]}>View Comparables →</Text>
+          <Text style={styles.quickAccessTitle}>Nearby</Text>
+          <Text style={styles.quickAccessSub}>Comparables</Text>
         </TouchableOpacity>
 
-        {/* 3. Government Guideline Rate */}
         <TouchableOpacity
-          style={styles.featureCard}
+          style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
             setActiveTab('guideline');
           }}
           activeOpacity={0.8}
         >
-          <View style={[styles.featureIconBadge, { backgroundColor: '#DBEAFE' }]}>
-            <View style={{ width: 12, height: 12, borderTopWidth: 2, borderBottomWidth: 2, borderColor: '#1D4ED8' }} />
+          <View style={[styles.quickIconCircle, { backgroundColor: '#DBEAFE' }]}>
+            <Text style={styles.quickIconText}>🏛️</Text>
           </View>
-          <Text style={styles.featureCardTitle}>Guideline Rate</Text>
-          <Text style={styles.featureCardDesc}>
-            Official TNREGINET statutory stamp duty rates.
-          </Text>
-          <Text style={[styles.featureCardLink, { color: '#1D4ED8' }]}>Statutory Rates →</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Transparent Valuation Trust Statement */}
-      <View style={styles.trustCard}>
-        <View style={styles.trustHeaderRow}>
-          <View style={styles.shieldIconRing}>
-            <View style={styles.shieldInner} />
-          </View>
-          <Text style={styles.trustTitle}>Transparent Valuation</Text>
-        </View>
-        <Text style={styles.trustDesc}>
-          Estimates depend strictly on registered comparable transactions within 1,000 metres. If
-          evidence is insufficient, our statistical engine requires field verification rather than
-          generating speculative pricing.
-        </Text>
-        <View style={styles.trustPillsRow}>
-          <View style={styles.trustPillItem}>
-            <Text style={styles.trustPillItemText}>1,000m Geodesic Radius</Text>
-          </View>
-          <View style={styles.trustPillItem}>
-            <Text style={styles.trustPillItemText}>Zero Synthetic Rates</Text>
-          </View>
-          <View style={styles.trustPillItem}>
-            <Text style={styles.trustPillItemText}>Statutory Separation</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Methodology & Coverage Shortcut Bar */}
-      <View style={styles.homeFootLinksRow}>
-        <TouchableOpacity
-          style={styles.footLinkBtn}
-          onPress={() => {
-            setPreviousTab('home');
-            setActiveTab('guideline');
-          }}
-        >
-          <Text style={styles.footLinkText}>Valuation Methodology</Text>
-        </TouchableOpacity>
-        <Text style={styles.footLinkSep}>•</Text>
-        <TouchableOpacity style={styles.footLinkBtn} onPress={() => setActiveTab('search')}>
-          <Text style={styles.footLinkText}>Pilot Coverage Map</Text>
+          <Text style={styles.quickAccessTitle}>Guideline</Text>
+          <Text style={styles.quickAccessSub}>Statutory</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -555,123 +500,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  featureGrid: {
+  quickAccessRow: {
+    flexDirection: 'row',
     gap: 10,
   },
-  featureCard: {
+  quickAccessCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E9D5FF',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
-    shadowRadius: 5,
+    shadowRadius: 4,
     elevation: 2,
   },
-  featureIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  quickIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
-  featureCardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1E1B4B',
-    marginBottom: 4,
+  quickIconText: {
+    fontSize: 18,
   },
-  featureCardDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    lineHeight: 16,
-    marginBottom: 8,
-  },
-  featureCardLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#240046',
-  },
-  trustCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  trustHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  shieldIconRing: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FAF5FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#240046',
-  },
-  shieldInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#D4AF37',
-  },
-  trustTitle: {
+  quickAccessTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: '#1E1B4B',
+    marginBottom: 2,
   },
-  trustDesc: {
-    fontSize: 11.5,
-    color: '#64748B',
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  trustPillsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  trustPillItem: {
-    backgroundColor: '#FAF5FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  trustPillItemText: {
+  quickAccessSub: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#581C87',
-  },
-  homeFootLinksRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 8,
-  },
-  footLinkBtn: {
-    paddingVertical: 4,
-  },
-  footLinkText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#240046',
-    textDecorationLine: 'underline',
-  },
-  footLinkSep: {
-    fontSize: 12,
-    color: '#94A3B8',
+    color: '#64748B',
+    fontWeight: '500',
   },
 });
 

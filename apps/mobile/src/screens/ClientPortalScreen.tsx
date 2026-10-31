@@ -299,6 +299,16 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>⚠️ {profileErrorMsg}</Text>
                 </View>
               )}
+              {passwordSuccessMsg && (
+                <View style={[styles.alertBanner, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                  <Text style={{ color: '#065F46', fontSize: 12, fontWeight: '600' }}>✓ {passwordSuccessMsg}</Text>
+                </View>
+              )}
+              {passwordErrorMsg && (
+                <View style={[styles.alertBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>⚠️ {passwordErrorMsg}</Text>
+                </View>
+              )}
 
               {/* Editable Profile Section */}
               {isEditingProfile ? (
@@ -352,51 +362,10 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     </TouchableOpacity>
                   </View>
                 </View>
-              ) : (
-                <View style={styles.detailsList}>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailKey}>Phone Number</Text>
-                    <Text style={styles.detailVal}>{currentUser.phoneNumber || 'Not provided'}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailKey}>Account Status</Text>
-                    <Text style={[styles.detailVal, { color: '#16A34A' }]}>{currentUser.accountStatus}</Text>
-                  </View>
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailKey}>Member Since</Text>
-                    <Text style={styles.detailVal}>{formattedJoinDate}</Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.secondaryActionBtn, { marginTop: 12 }]}
-                    onPress={handleStartEdit}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.secondaryActionBtnText}>Edit Profile Information</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {/* Security & Password Card */}
-          {isAuthenticated && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Account Security</Text>
-
-              {passwordSuccessMsg && (
-                <View style={[styles.alertBanner, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
-                  <Text style={{ color: '#065F46', fontSize: 12, fontWeight: '600' }}>✓ {passwordSuccessMsg}</Text>
-                </View>
-              )}
-              {passwordErrorMsg && (
-                <View style={[styles.alertBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
-                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>⚠️ {passwordErrorMsg}</Text>
-                </View>
-              )}
-
-              {isChangingPassword ? (
+              ) : isChangingPassword ? (
                 <View style={styles.editSection}>
+                  <Text style={styles.sectionHeader}>Change Account Password</Text>
+
                   <View style={styles.fieldWrap}>
                     <Text style={styles.inputLabel}>Current Password (if set)</Text>
                     <TextInput
@@ -458,54 +427,77 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   </View>
                 </View>
               ) : (
-                <TouchableOpacity
-                  style={[styles.secondaryActionBtn, { marginTop: 8 }]}
-                  onPress={() => {
-                    setPasswordErrorMsg(null);
-                    setPasswordSuccessMsg(null);
-                    setIsChangingPassword(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.secondaryActionBtnText}>Change Password</Text>
-                </TouchableOpacity>
+                <View style={styles.detailsList}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailKey}>Phone Number</Text>
+                    <Text style={styles.detailVal}>{currentUser.phoneNumber || 'Not provided'}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailKey}>Account Status</Text>
+                    <Text style={[styles.detailVal, { color: '#16A34A' }]}>{currentUser.accountStatus}</Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailKey}>Member Since</Text>
+                    <Text style={styles.detailVal}>{formattedJoinDate}</Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                    <TouchableOpacity
+                      style={[styles.secondaryActionBtn, { flex: 1 }]}
+                      onPress={handleStartEdit}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.secondaryActionBtnText}>Edit Profile</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.secondaryActionBtn, { flex: 1 }]}
+                      onPress={() => {
+                        setPasswordErrorMsg(null);
+                        setPasswordSuccessMsg(null);
+                        setIsChangingPassword(true);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.secondaryActionBtnText}>Change Password</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               )}
             </View>
-          )}
+          ) : null}
 
-          {/* Seller Workspace Shortcut */}
-          <TouchableOpacity
-            style={[styles.card, { borderColor: '#D4AF37', backgroundColor: '#FAF5FF' }]}
-            onPress={() => setActiveTab('sell')}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#240046' }}>
-                Land Owner & Seller Workspace
-              </Text>
-              <Text style={{ fontSize: 14, color: '#D4AF37', fontWeight: '800' }}>→</Text>
-            </View>
-            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 4, lineHeight: 16 }}>
-              Manage your plot listings and property documents, or post a new plot for sale.
-            </Text>
-          </TouchableOpacity>
+          {/* Quick Services & Tools */}
+          <View style={styles.card}>
+            <TouchableOpacity
+              style={styles.navRowItem}
+              onPress={() => setActiveTab('sell')}
+              activeOpacity={0.75}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.navRowTitle}>Land Owner & Seller Workspace</Text>
+                <Text style={styles.navRowSub}>Manage plot listings, title documents, or list a property</Text>
+              </View>
+              <Text style={styles.navRowChevron}>→</Text>
+            </TouchableOpacity>
 
-          {/* Methodology & Statutory Benchmark Quick Link */}
-          <TouchableOpacity
-            style={[styles.card, { paddingVertical: 14 }]}
-            onPress={() => {
-              setPreviousTab('profile');
-              setActiveTab('guideline');
-            }}
-            activeOpacity={0.8}
-          >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#1E293B' }}>
-                Methodology & Statutory Benchmarks
-              </Text>
-              <Text style={{ fontSize: 14, color: '#94A3B8', fontWeight: '700' }}>→</Text>
-            </View>
-          </TouchableOpacity>
+            <View style={styles.navRowDivider} />
+
+            <TouchableOpacity
+              style={styles.navRowItem}
+              onPress={() => {
+                setPreviousTab('profile');
+                setActiveTab('guideline');
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.navRowTitle}>Methodology & Statutory Benchmarks</Text>
+                <Text style={styles.navRowSub}>TNREGINET guideline rate principles and 1km spatial engine</Text>
+              </View>
+              <Text style={styles.navRowChevron}>→</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Sign Out Button */}
           {isAuthenticated && (
@@ -580,6 +572,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+  },
+  navRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  navRowTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  navRowSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  navRowChevron: {
+    fontSize: 14,
+    color: '#D4AF37',
+    fontWeight: '800',
+    marginLeft: 10,
+  },
+  navRowDivider: {
+    height: 1,
+    backgroundColor: '#FAF5FF',
+    marginVertical: 4,
   },
   cardTitle: {
     fontSize: 15,

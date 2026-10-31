@@ -117,139 +117,141 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
 
       {/* STEP 1: SELECTION */}
       {estimateStep === 'selection' && (
-        <>
-          {/* Selected Target Card */}
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <View>
-                <Text style={styles.cardTitle}>{activeLocality}</Text>
-                <Text style={styles.cardSubtitle}>
-                  {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • Coimbatore
-                </Text>
-              </View>
+        <View style={styles.card}>
+          {/* Target Location Header */}
+          <View style={styles.cardHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardSectionLabel}>TARGET LOCATION</Text>
+              <Text style={styles.cardTitle}>{activeLocality}</Text>
+              <Text style={styles.cardSubtitle}>
+                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • Coimbatore
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.changeLocBtn}
+              onPress={() => setActiveTab('search')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.changeLocBtnText}>Change on Map 📍</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cardDivider} />
+
+          {/* Zoning Classification */}
+          <Text style={styles.cardSectionLabel}>LAND ZONING</Text>
+          <Text style={styles.cardSubtitle}>Select classification to match valuation rules:</Text>
+
+          <View style={styles.usageGrid}>
+            {LAND_USAGES.map((u) => {
+              const isSelected = landUsage === u.id;
+              return (
+                <TouchableOpacity
+                  key={u.id}
+                  style={[styles.usageChipBtn, isSelected && styles.usageChipBtnActive]}
+                  onPress={() => setLandUsage(u.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.usageChipBtnText,
+                      isSelected && styles.usageChipBtnTextActive,
+                    ]}
+                  >
+                    {u.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={styles.cardDivider} />
+
+          {/* Unit Toggle */}
+          <View style={styles.unitToggleRow}>
+            <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
+            <View style={styles.unitPillBox}>
               <TouchableOpacity
-                style={styles.changeLocBtn}
-                onPress={() => setActiveTab('search')}
+                style={[styles.unitPill, displayUnit === 'Cent' && styles.unitPillActive]}
+                onPress={() => setDisplayUnit('Cent')}
               >
-                <Text style={styles.changeLocBtnText}>Change on Map</Text>
+                <Text
+                  style={[
+                    styles.unitPillText,
+                    displayUnit === 'Cent' && styles.unitPillTextActive,
+                  ]}
+                >
+                  Per Cent
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.unitPill, displayUnit === 'SqFt' && styles.unitPillActive]}
+                onPress={() => setDisplayUnit('SqFt')}
+              >
+                <Text
+                  style={[
+                    styles.unitPillText,
+                    displayUnit === 'SqFt' && styles.unitPillTextActive,
+                  ]}
+                >
+                  Per Sq.Ft
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Zoning Classification Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Zoning Classification</Text>
-            <Text style={styles.cardSubtitle}>Select land usage classification:</Text>
+          {/* Collapsible Advanced Coordinates Drawer */}
+          <TouchableOpacity
+            style={styles.advancedDrawerToggle}
+            onPress={() => setShowAdvancedCoords(!showAdvancedCoords)}
+          >
+            <Text style={styles.advancedDrawerText}>
+              {showAdvancedCoords ? '▲ Hide Coordinate Inputs' : '▼ Manual Coordinate Override'}
+            </Text>
+          </TouchableOpacity>
 
-            <View style={styles.usageGrid}>
-              {LAND_USAGES.map((u) => {
-                const isSelected = landUsage === u.id;
-                return (
-                  <TouchableOpacity
-                    key={u.id}
-                    style={[styles.usageChipBtn, isSelected && styles.usageChipBtnActive]}
-                    onPress={() => setLandUsage(u.id)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.usageChipBtnText,
-                        isSelected && styles.usageChipBtnTextActive,
-                      ]}
-                    >
-                      {u.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Unit Toggle */}
-            <View style={styles.unitToggleRow}>
-              <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
-              <View style={styles.unitPillBox}>
-                <TouchableOpacity
-                  style={[styles.unitPill, displayUnit === 'Cent' && styles.unitPillActive]}
-                  onPress={() => setDisplayUnit('Cent')}
-                >
-                  <Text
-                    style={[
-                      styles.unitPillText,
-                      displayUnit === 'Cent' && styles.unitPillTextActive,
-                    ]}
-                  >
-                    Per Cent
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.unitPill, displayUnit === 'SqFt' && styles.unitPillActive]}
-                  onPress={() => setDisplayUnit('SqFt')}
-                >
-                  <Text
-                    style={[
-                      styles.unitPillText,
-                      displayUnit === 'SqFt' && styles.unitPillTextActive,
-                    ]}
-                  >
-                    Per Sq.Ft
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Collapsible Advanced Coordinates Drawer */}
-            <TouchableOpacity
-              style={styles.advancedDrawerToggle}
-              onPress={() => setShowAdvancedCoords(!showAdvancedCoords)}
-            >
-              <Text style={styles.advancedDrawerText}>
-                {showAdvancedCoords ? '▲ Hide Coordinate Inputs' : '▼ Manual Coordinate Override'}
-              </Text>
-            </TouchableOpacity>
-
-            {showAdvancedCoords && (
-              <View style={styles.advancedDrawerContent}>
-                <View style={styles.coordInputsRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputMiniLabel}>Latitude</Text>
-                    <TextInput
-                      style={styles.coordTextInput}
-                      value={latInput}
-                      onChangeText={setLatInput}
-                      keyboardType="numeric"
-                      placeholder="11.0012"
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.inputMiniLabel}>Longitude</Text>
-                    <TextInput
-                      style={styles.coordTextInput}
-                      value={lngInput}
-                      onChangeText={setLngInput}
-                      keyboardType="numeric"
-                      placeholder="77.0874"
-                    />
-                  </View>
+          {showAdvancedCoords && (
+            <View style={styles.advancedDrawerContent}>
+              <View style={styles.coordInputsRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputMiniLabel}>Latitude</Text>
+                  <TextInput
+                    style={styles.coordTextInput}
+                    value={latInput}
+                    onChangeText={setLatInput}
+                    keyboardType="numeric"
+                    placeholder="11.0012"
+                  />
                 </View>
-                <TouchableOpacity
-                  style={styles.applyCoordBtn}
-                  onPress={handleManualCoordSubmit}
-                >
-                  <Text style={styles.applyCoordBtnText}>Apply Coordinates</Text>
-                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputMiniLabel}>Longitude</Text>
+                  <TextInput
+                    style={styles.coordTextInput}
+                    value={lngInput}
+                    onChangeText={setLngInput}
+                    keyboardType="numeric"
+                    placeholder="77.0874"
+                  />
+                </View>
               </View>
-            )}
-          </View>
+              <TouchableOpacity
+                style={styles.applyCoordBtn}
+                onPress={handleManualCoordSubmit}
+              >
+                <Text style={styles.applyCoordBtnText}>Apply Coordinates</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Primary Calculate Valuation CTA */}
           <TouchableOpacity
-            style={styles.primaryActionBtn}
+            style={[styles.primaryActionBtn, { marginTop: 16 }]}
             onPress={() => executeCalculation(targetLat, targetLng, landUsage)}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryActionBtnText}>Calculate Land Valuation</Text>
+            <Text style={styles.primaryActionBtnText}>Calculate Land Valuation →</Text>
           </TouchableOpacity>
-        </>
+        </View>
       )}
 
       {/* STEP 2: VALUATION RESULTS */}
@@ -500,21 +502,16 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                     </View>
                   ) : null}
 
-                  {/* Card #2: Insufficient Market Evidence Notice (NEXT TO PRICE CARD) */}
-                  <View style={[styles.insufficientDataCard, guideline ? { marginTop: 14 } : null]}>
-                    <View style={styles.insufficientBadge}>
-                      <Text style={styles.insufficientBadgeText}>Evidence Notice</Text>
+                  {/* Evidence Notice (Compact & Clean) */}
+                  <View style={[styles.insufficientDataCard, guideline ? { marginTop: 12 } : null]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Text style={{ fontSize: 13 }}>ℹ️</Text>
+                      <Text style={styles.insufficientTitle}>Limited 1,000m Comparables</Text>
                     </View>
-                    <Text style={styles.insufficientTitle}>Insufficient Data within 1,000m</Text>
                     <Text style={styles.insufficientSub}>
                       {insuff.message ||
-                        `Only ${insuff.comparableRecordsFound} comparable market record(s) found within 1,000 meters for ${currentUsageObj.label} land classification. A minimum of ${insuff.minimumRequiredRecords} verified market transactions is strictly required to compute a statistical open-market estimate.`}
+                        `Found ${insuff.comparableRecordsFound} verified transaction(s) within 1,000m for ${currentUsageObj.label}. A minimum of ${insuff.minimumRequiredRecords} is required for statistical open-market medians.`}
                     </Text>
-                    {insuff.recommendations && insuff.recommendations.length > 0 && (
-                      <Text style={styles.insufficientAdvice}>
-                        {insuff.recommendations.join(' ')}
-                      </Text>
-                    )}
                   </View>
 
                   {/* Action Buttons */}
@@ -595,6 +592,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  cardSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#D4AF37',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 14,
   },
   cardTitle: {
     fontSize: 16,

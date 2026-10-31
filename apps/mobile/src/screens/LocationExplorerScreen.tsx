@@ -365,9 +365,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             <View style={styles.pinDotInner} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.pinConfirmationTitle}>Target Pin Confirmed</Text>
+            <Text style={styles.pinConfirmationTitle}>{activeLocality}</Text>
             <Text style={styles.pinConfirmationCoords}>
-              {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E
+              {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • {currentUsageObj.label}
             </Text>
           </View>
           <View
@@ -382,24 +382,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
                 pinRecordsWithin1km >= 3 ? styles.pinCountBadgeTextSuccess : styles.pinCountBadgeTextWarning,
               ]}
             >
-              {pinRecordsWithin1km} Comparable{pinRecordsWithin1km === 1 ? '' : 's'}
+              {pinRecordsWithin1km} Comp{pinRecordsWithin1km === 1 ? '' : 's'}
             </Text>
           </View>
-        </View>
-
-        <View style={styles.pinInfoDivider} />
-
-        <View style={styles.pinMetaRow}>
-          <Text style={styles.pinMetaLabel}>Locality Context</Text>
-          <Text style={styles.pinMetaValue}>{activeLocality}</Text>
-        </View>
-        <View style={styles.pinMetaRow}>
-          <Text style={styles.pinMetaLabel}>Spatial Proximity</Text>
-          <Text style={styles.pinMetaValue}>1,000m Radius Buffer</Text>
-        </View>
-        <View style={styles.pinMetaRow}>
-          <Text style={styles.pinMetaLabel}>Zoning Category</Text>
-          <Text style={styles.pinMetaValue}>{currentUsageObj.label}</Text>
         </View>
 
         {/* Primary CTA */}
@@ -412,47 +397,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
           {loadingEstimate ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.primaryFindBtnText}>Find Land Value for this Pin</Text>
+            <Text style={styles.primaryFindBtnText}>Find Land Value for this Pin →</Text>
           )}
         </TouchableOpacity>
-      </View>
-
-      {/* Relocated Active Pilot Corridors List */}
-      <View style={styles.sectionCard}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.sectionHeaderTitle}>Active Pilot Corridors</Text>
-          <Text style={styles.badgeSubtle}>{localities.length} Corridors</Text>
-        </View>
-        <Text style={styles.sectionHeaderDesc}>
-          Reference corridors with verified transaction and guideline evidence:
-        </Text>
-
-        {loadingLocalities ? (
-          <ActivityIndicator color={Colors.primary} style={{ marginVertical: 12 }} />
-        ) : (
-          <View style={styles.hotspotGrid}>
-            {localities.map((loc) => (
-              <TouchableOpacity
-                key={loc.name}
-                style={[
-                  styles.hotspotCard,
-                  activeLocality === loc.name && styles.hotspotCardActive,
-                ]}
-                onPress={() => handleSelectLocalityRef(loc)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.hotspotTop}>
-                  <Text style={styles.hotspotName}>{loc.name}</Text>
-                  <Text style={styles.hotspotBadge}>{loc.recordCount} Records</Text>
-                </View>
-                <Text style={styles.hotspotDistrict}>{loc.district}</Text>
-                <Text style={styles.hotspotRate}>
-                  Guideline: ₹{(loc.guidelineRatePerCent / 100000).toFixed(2)}L / Cent
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
       </View>
     </ScrollView>
   );
@@ -830,25 +777,6 @@ const styles = StyleSheet.create({
   pinCountBadgeTextWarning: {
     color: '#B45309',
   },
-  pinInfoDivider: {
-    height: 1,
-    backgroundColor: '#FAF5FF',
-    marginVertical: 12,
-  },
-  pinMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  pinMetaLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  pinMetaValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E1B4B',
-  },
   primaryFindBtn: {
     backgroundColor: '#240046',
     borderRadius: 12,
@@ -869,80 +797,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#1E1B4B',
-  },
-  sectionHeaderDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-    marginBottom: 12,
-  },
-  badgeSubtle: {
-    fontSize: 11,
-    color: '#240046',
-    fontWeight: '700',
-    backgroundColor: '#FAF5FF',
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  hotspotGrid: {
-    gap: 8,
-  },
-  hotspotCard: {
-    backgroundColor: '#FAF8FC',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  hotspotCardActive: {
-    borderColor: '#D4AF37',
-    backgroundColor: '#FEFCE8',
-  },
-  hotspotTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  hotspotName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E1B4B',
-  },
-  hotspotBadge: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  hotspotDistrict: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  hotspotRate: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#240046',
-    marginTop: 4,
   },
 });
 
