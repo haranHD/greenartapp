@@ -573,6 +573,31 @@ app.MapPost("/api/v1/auth/change-password", [Authorize] async (
 .WithSummary("Updates or configures the authenticated user's account password.")
 .WithTags("Authentication");
 
+app.MapGet("/api/v1/auth/diagnostic/email", (
+    IEmailService emailService) =>
+{
+    var smtpUser = Environment.GetEnvironmentVariable("SMTP_USERNAME") ?? Environment.GetEnvironmentVariable("GMAIL_ADDRESS");
+    var hasSmtpPass = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? Environment.GetEnvironmentVariable("GMAIL_APP_PASSWORD"));
+    var resendKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+    var brevoKey = Environment.GetEnvironmentVariable("BREVO_API_KEY");
+
+    return Results.Ok(new
+    {
+        serviceConfigured = emailService.IsConfigured,
+        provider = !string.IsNullOrWhiteSpace(resendKey) ? "Resend (HTTPS Port 443)" :
+                   !string.IsNullOrWhiteSpace(brevoKey) ? "Brevo (HTTPS Port 443)" :
+                   (hasSmtpPass ? "Gmail/SMTP (Port 587)" : "None"),
+        smtpUsernamePresent = !string.IsNullOrWhiteSpace(smtpUser),
+        smtpPasswordPresent = hasSmtpPass,
+        resendConfigured = !string.IsNullOrWhiteSpace(resendKey),
+        brevoConfigured = !string.IsNullOrWhiteSpace(brevoKey),
+        note = "If using Render free tier, ports 25, 465, and 587 are blocked by Render. Configure RESEND_API_KEY or BREVO_API_KEY to send emails via HTTPS port 443 without blocks."
+    });
+})
+.WithName("EmailDiagnostic")
+.WithSummary("Reports the operational status and active provider of the backend email dispatch service.")
+.WithTags("Authentication");
+
 app.MapPost("/api/v1/auth/register/request-otp", async (
     [FromBody] RequestOtpRequestDto request,
     IAuthService authService,

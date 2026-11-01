@@ -24,13 +24,26 @@ public class SmtpEmailService : IEmailService
     private readonly string _password;
     private readonly string _fromEmail;
     private readonly string _fromName;
+    private readonly string? _resendApiKey;
+    private readonly string? _brevoApiKey;
+    private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
 
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password);
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(_resendApiKey) ||
+        !string.IsNullOrWhiteSpace(_brevoApiKey) ||
+        (!string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password));
 
     public SmtpEmailService(IConfiguration configuration, ILogger<SmtpEmailService> logger)
     {
         _configuration = configuration;
         _logger = logger;
+
+        // Resolve HTTP email providers (bypasses Render/cloud free-tier outbound SMTP port 587 firewall blocks)
+        _resendApiKey = (Environment.GetEnvironmentVariable("RESEND_API_KEY")
+            ?? _configuration["EmailSettings:ResendApiKey"])?.Trim();
+
+        _brevoApiKey = (Environment.GetEnvironmentVariable("BREVO_API_KEY")
+            ?? _configuration["EmailSettings:BrevoApiKey"])?.Trim();
 
         // Resolve host (default smtp.gmail.com)
         _host = Environment.GetEnvironmentVariable("SMTP_HOST")
@@ -53,10 +66,13 @@ public class SmtpEmailService : IEmailService
             ?? _configuration["EmailSettings:Username"]
             ?? string.Empty).Trim();
 
-        _password = (Environment.GetEnvironmentVariable("SMTP_PASSWORD")
+        var rawPassword = (Environment.GetEnvironmentVariable("SMTP_PASSWORD")
             ?? Environment.GetEnvironmentVariable("GMAIL_APP_PASSWORD")
             ?? _configuration["EmailSettings:Password"]
             ?? string.Empty).Trim();
+
+        // Normalize Google App Passwords: strip all spaces (e.g. "abcd efgh ijkl mnop" -> "abcdefghijklmnop")
+        _password = rawPassword.Replace(" ", "");
 
         // Resolve sender details
         _fromEmail = (Environment.GetEnvironmentVariable("SMTP_FROM_EMAIL")
@@ -69,14 +85,18 @@ public class SmtpEmailService : IEmailService
 
         if (IsConfigured)
         {
+            var providerType = !string.IsNullOrWhiteSpace(_resendApiKey) ? "Resend (HTTPS)" :
+                               !string.IsNullOrWhiteSpace(_brevoApiKey) ? "Brevo (HTTPS)" :
+                               $"SMTP ({_host}:{_port})";
+
             _logger.LogInformation(
-                "SmtpEmailService initialized for host {Host}:{Port} with sender identity {SenderEmail} (SSL={Ssl}).",
-                _host, _port, _fromEmail, _enableSsl);
+                "EmailService initialized using {Provider} with sender identity {SenderEmail}.",
+                providerType, _fromEmail);
         }
         else
         {
             _logger.LogWarning(
-                "SmtpEmailService is not fully configured (SMTP_USERNAME or SMTP_PASSWORD is not set). Real email dispatch will be bypassed.");
+                "EmailService is not fully configured. Set RESEND_API_KEY, BREVO_API_KEY, or SMTP_USERNAME/SMTP_PASSWORD to enable email delivery.");
         }
     }
 
@@ -113,11 +133,24 @@ public class SmtpEmailService : IEmailService
         if (!IsConfigured)
         {
             _logger.LogWarning(
-                "SMTP dispatch to {Recipient} skipped: SMTP_USERNAME or SMTP_PASSWORD not configured. Check environment variables or appsettings.json.",
+                "Email dispatch to {Recipient} skipped: No email provider configured (Set RESEND_API_KEY, BREVO_API_KEY, or SMTP_USERNAME/SMTP_PASSWORD).",
                 recipientEmail);
             return false;
         }
 
+        // 1. Dispatch via Resend HTTP API (HTTPS port 443 - unblocked on cloud free tiers)
+        if (!string.IsNullOrWhiteSpace(_resendApiKey))
+        {
+            return await SendViaResendAsync(recipientEmail, recipientName, subject, htmlBody, plainTextBody, cancellationToken);
+        }
+
+        // 2. Dispatch via Brevo HTTP API (HTTPS port 443 - unblocked on cloud free tiers)
+        if (!string.IsNullOrWhiteSpace(_brevoApiKey))
+        {
+            return await SendViaBrevoAsync(recipientEmail, recipientName, subject, htmlBody, plainTextBody, cancellationToken);
+        }
+
+        // 3. Dispatch via standard SMTP
         try
         {
             using var message = new MailMessage();
@@ -154,14 +187,106 @@ public class SmtpEmailService : IEmailService
         }
         catch (SmtpException smtpEx)
         {
-            _logger.LogError(smtpEx, "SMTP error while sending email to {Recipient} via {Host}:{Port}: {Message} (StatusCode={StatusCode})",
+            _logger.LogError(smtpEx, "SMTP error while sending email to {Recipient} via {Host}:{Port}: {Message} (StatusCode={StatusCode}). Note: If running on Render free tier, outbound SMTP ports 25, 465, and 587 are blocked. Use RESEND_API_KEY or upgrade instance.",
                 recipientEmail, _host, _port, smtpEx.Message, smtpEx.StatusCode);
             return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error dispatching email to {Recipient} via SMTP: {Message}",
+            _logger.LogError(ex, "Unexpected error dispatching email to {Recipient} via SMTP: {Message}. Note: If running on Render free tier, outbound SMTP ports 25, 465, and 587 are blocked. Use RESEND_API_KEY or upgrade instance.",
                 recipientEmail, ex.Message);
+            return false;
+        }
+    }
+
+    private async Task<bool> SendViaResendAsync(
+        string recipientEmail,
+        string recipientName,
+        string subject,
+        string htmlBody,
+        string? plainTextBody,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Dispatching email to {Recipient} via Resend REST API (HTTPS port 443)...", recipientEmail);
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+            req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _resendApiKey);
+
+            var sender = !string.IsNullOrWhiteSpace(_fromEmail) && _fromEmail.EndsWith("@resend.dev", StringComparison.OrdinalIgnoreCase)
+                ? $"Greenart Properties <{_fromEmail}>"
+                : "Greenart Properties <onboarding@resend.dev>";
+
+            var payload = new
+            {
+                from = sender,
+                to = new[] { recipientEmail },
+                subject = subject,
+                html = htmlBody,
+                text = plainTextBody
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var resp = await _httpClient.SendAsync(req, cancellationToken);
+            if (resp.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Email successfully delivered to {Recipient} via Resend.", recipientEmail);
+                return true;
+            }
+
+            var errBody = await resp.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Resend API error for {Recipient}: {StatusCode} - {Body}", recipientEmail, resp.StatusCode, errBody);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception dispatching email to {Recipient} via Resend: {Message}", recipientEmail, ex.Message);
+            return false;
+        }
+    }
+
+    private async Task<bool> SendViaBrevoAsync(
+        string recipientEmail,
+        string recipientName,
+        string subject,
+        string htmlBody,
+        string? plainTextBody,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            _logger.LogInformation("Dispatching email to {Recipient} via Brevo REST API (HTTPS port 443)...", recipientEmail);
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.brevo.com/v3/smtp/email");
+            req.Headers.Add("api-key", _brevoApiKey);
+
+            var payload = new
+            {
+                sender = new { name = _fromName, email = _fromEmail },
+                to = new[] { new { email = recipientEmail, name = recipientName } },
+                subject = subject,
+                htmlContent = htmlBody,
+                textContent = plainTextBody
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var resp = await _httpClient.SendAsync(req, cancellationToken);
+            if (resp.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Email successfully delivered to {Recipient} via Brevo.", recipientEmail);
+                return true;
+            }
+
+            var errBody = await resp.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Brevo API error for {Recipient}: {StatusCode} - {Body}", recipientEmail, resp.StatusCode, errBody);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception dispatching email to {Recipient} via Brevo: {Message}", recipientEmail, ex.Message);
             return false;
         }
     }
