@@ -186,11 +186,15 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       setSuccessMessage('A 6-digit verification code has been dispatched to your email.');
       setRegisterStep('otp');
     } catch (err: any) {
-      // If server is unreachable or offline, generate test code so user can test Step 2 & Step 3
-      const fallbackOtp = '123456';
-      setDevOtpHint(fallbackOtp);
-      setSuccessMessage(`Test OTP code generated: ${fallbackOtp}. Proceed with verification below.`);
-      setRegisterStep('otp');
+      if (__DEV__) {
+        // In local development, fallback allows testing Step 2 & Step 3 if server is temporarily offline
+        const fallbackOtp = '123456';
+        setDevOtpHint(fallbackOtp);
+        setSuccessMessage(`Test OTP code generated: ${fallbackOtp}. Proceed with verification below.`);
+        setRegisterStep('otp');
+      } else {
+        setErrorMessage(err?.response?.data?.message || err?.message || 'Failed to dispatch verification code. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -535,7 +539,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                   Please enter the 6-digit code sent to <Text style={{ fontWeight: '700', color: Colors.primary }}>{regEmail}</Text>
                 </Text>
 
-                {devOtpHint && (
+                {__DEV__ && devOtpHint && (
                   <TouchableOpacity
                     style={styles.devHintBanner}
                     onPress={() => setOtpCode(devOtpHint)}
