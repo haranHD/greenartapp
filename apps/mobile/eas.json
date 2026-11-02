@@ -9,14 +9,16 @@
       "distribution": "internal",
       "env": {
         "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules",
-        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native"
+        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules",
-        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native"
+        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4"
       },
       "android": {
         "buildType": "apk"
@@ -26,7 +28,8 @@
       "distribution": "internal",
       "env": {
         "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules",
-        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native"
+        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4"
       },
       "android": {
         "buildType": "apk"
@@ -35,7 +38,8 @@
     "production": {
       "env": {
         "NODE_PATH": "/home/expo/workingdir/build/apps/mobile/node_modules:/home/expo/workingdir/build/node_modules",
-        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native"
+        "REACT_NATIVE_NODE_MODULES_DIR": "/home/expo/workingdir/build/node_modules/react-native",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4"
       },
       "android": {
         "buildType": "apk"

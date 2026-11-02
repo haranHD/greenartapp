@@ -28,7 +28,12 @@
         "resizeMode": "contain",
         "backgroundColor": "#0E0B1F"
       },
-      "package": "group.greenart.mobile"
+      "package": "group.greenart.mobile",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

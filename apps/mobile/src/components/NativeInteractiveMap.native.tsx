@@ -15,6 +15,8 @@ export interface NativeInteractiveMapProps {
   height?: number;
 }
 
+const DEFAULT_GOOGLE_MAPS_KEY = 'AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4';
+
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   targetLat,
   targetLng,
@@ -34,7 +36,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   const [isMapInteractive, setIsMapInteractive] = useState(true);
   const isInternalUpdateRef = useRef(false);
 
-  const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || DEFAULT_GOOGLE_MAPS_KEY;
   const mapHeight = style?.height || height || 420;
 
   // Sync coordinates into the WebView without reloading the page
@@ -96,58 +98,155 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f8fafc; font-family: -apple-system, Roboto, sans-serif; }
-    #map { width: 100%; height: 100%; }
-    .target-pin {
-      background: #240046;
-      color: #ffffff;
-      border: 2px solid #D4AF37;
-      border-radius: 50%;
-      width: 26px;
-      height: 26px;
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+    /* Top Left: Engine Indicator Pill */
+    .engine-badge {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(212, 175, 55, 0.4);
+      border-radius: 20px;
+      padding: 4px 10px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 10px;
-      box-shadow: 0 2px 6px rgba(36,0,70,0.45);
+      gap: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      font-size: 11px;
+      font-weight: 700;
+      color: #240046;
+      pointer-events: none;
     }
-    .leaflet-control-attribution { font-size: 8px !important; }
+    .engine-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+    }
+
+    /* Top Right: Map Type Toggle Bar */
     .mode-bar {
       position: absolute;
       top: 10px;
       right: 10px;
       z-index: 1000;
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      border-radius: 20px;
       padding: 3px;
       display: flex;
-      gap: 4px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      gap: 3px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.14);
     }
     .mode-btn {
       border: none;
       background: transparent;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 10px;
+      padding: 5px 10px;
+      border-radius: 16px;
+      font-size: 11px;
       font-weight: 700;
-      color: #334155;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.18s ease;
     }
     .mode-btn.active {
       background: #240046;
-      color: #ffffff;
+      color: #FFFFFF;
+      box-shadow: 0 1px 3px rgba(36, 0, 70, 0.3);
+    }
+
+    /* Luxury Pin for Leaflet Fallback */
+    .target-pin-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .luxury-target-pin {
+      position: relative;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pin-ring-pulse {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(212, 175, 55, 0.35);
+      animation: pulseAura 2s infinite ease-out;
+    }
+    .pin-core-disc {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #240046;
+      border: 2.5px solid #D4AF37;
+      box-shadow: 0 2px 6px rgba(36, 0, 70, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pin-inner-white {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #FFFFFF;
+    }
+    @keyframes pulseAura {
+      0% { transform: scale(0.85); opacity: 0.8; }
+      50% { transform: scale(1.25); opacity: 0.25; }
+      100% { transform: scale(0.85); opacity: 0.8; }
+    }
+
+    .leaflet-control-attribution {
+      font-size: 8px !important;
+      background: rgba(255,255,255,0.75) !important;
+      padding: 1px 5px !important;
     }
   </style>
+
   ${effectiveKey ? `<script src="https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(effectiveKey)}&libraries=places,geometry"></script>` : ''}
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <div id="map"></div>
+
+  <!-- Top-Left Engine Indicator -->
+  <div id="engine-badge" class="engine-badge">
+    <span class="engine-dot" id="engine-dot"></span>
+    <span id="engine-text">Google Maps</span>
+  </div>
+
+  <!-- Top-Right Mode Bar -->
+  <div class="mode-bar">
+    <button id="btn-road" class="mode-btn active" onclick="switchMapType('roadmap')">Road</button>
+    <button id="btn-hybrid" class="mode-btn" onclick="switchMapType('hybrid')">Hybrid</button>
+    <button id="btn-sat" class="mode-btn" onclick="switchMapType('satellite')">Satellite</button>
+  </div>
+
   <script>
     var isGoogleActive = false;
     var gMap, gMarker, gCircle, gRecordMarkers = [];
-    var lMap, lMarker, lCircle, lRecordLayer;
+    var lMap, lMarker, lCircle, lRecordLayer, lStreetLayer, lSatLayer;
+    var currentMapType = 'roadmap';
 
     function postLocation(lat, lng) {
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -159,10 +258,32 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
       }
     }
 
-    // Try Google Maps first if script loaded
-    if (window.google && window.google.maps) {
+    function updateModeButtons(type) {
+      currentMapType = type;
+      var buttons = document.querySelectorAll('.mode-btn');
+      buttons.forEach(function(b) { b.classList.remove('active'); });
+      var targetId = type === 'roadmap' ? 'btn-road' : type === 'hybrid' ? 'btn-hybrid' : 'btn-sat';
+      var el = document.getElementById(targetId);
+      if (el) el.classList.add('active');
+    }
+
+    function switchMapType(type) {
+      updateModeButtons(type);
+      if (isGoogleActive && gMap) {
+        gMap.setMapTypeId(type);
+      } else if (lMap) {
+        if (type === 'roadmap') {
+          if (lSatLayer && lMap.hasLayer(lSatLayer)) lMap.removeLayer(lSatLayer);
+          if (lStreetLayer && !lMap.hasLayer(lStreetLayer)) lMap.addLayer(lStreetLayer);
+        } else {
+          if (lStreetLayer && lMap.hasLayer(lStreetLayer)) lMap.removeLayer(lStreetLayer);
+          if (lSatLayer && !lMap.hasLayer(lSatLayer)) lMap.addLayer(lSatLayer);
+        }
+      }
+    }
+
+    function initGoogleMaps() {
       try {
-        isGoogleActive = true;
         var centerPos = { lat: ${targetLat}, lng: ${targetLng} };
         gMap = new google.maps.Map(document.getElementById('map'), {
           center: centerPos,
@@ -171,9 +292,13 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           disableDefaultUI: false,
           zoomControl: true,
           streetViewControl: false,
-          mapTypeControl: true,
+          mapTypeControl: false,
           gestureHandling: 'greedy'
         });
+
+        isGoogleActive = true;
+        document.getElementById('engine-text').innerText = 'Google Maps';
+        document.getElementById('engine-dot').style.background = '#10B981';
 
         window.recenterMap = function() {
           var p = centerPos;
@@ -192,7 +317,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
             fillColor: '#240046',
             fillOpacity: 1,
             strokeColor: '#D4AF37',
-            strokeWeight: 3
+            strokeWeight: 3.5
           }
         });
 
@@ -201,9 +326,9 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           center: centerPos,
           radius: 1000,
           fillColor: '#D4AF37',
-          fillOpacity: 0.12,
+          fillOpacity: 0.14,
           strokeColor: '#D4AF37',
-          strokeOpacity: 0.85,
+          strokeOpacity: 0.9,
           strokeWeight: 2
         });
 
@@ -256,29 +381,45 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         };
 
         window.updateRecords(${JSON.stringify(simplifiedInitialRecords)});
+        return true;
       } catch (err) {
-        console.warn('Google Maps native init failed; falling back to Leaflet', err);
-        isGoogleActive = false;
+        console.warn('Google Maps native init failed:', err);
+        return false;
       }
     }
 
-    // Leaflet Fallback
-    if (!isGoogleActive && window.L) {
+    function initLeaflet() {
+      if (isGoogleActive || !window.L) return;
+
+      var mapEl = document.getElementById('map');
+      mapEl.innerHTML = '';
+
+      document.getElementById('engine-text').innerText = 'High-Def Map';
+      document.getElementById('engine-dot').style.background = '#3B82F6';
+
       lMap = L.map('map', {
         zoomControl: false,
         attributionControl: true
       }).setView([${targetLat}, ${targetLng}], ${mapZoom});
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap & Greenart',
-        maxZoom: 19
+      // CartoDB Voyager High-DPI Vector-Style Tiles
+      lStreetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CartoDB & Greenart',
+        subdomains: 'abcd',
+        maxZoom: 20
       }).addTo(lMap);
+
+      // Esri Satellite World Imagery
+      lSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '&copy; Esri World Imagery & Greenart',
+        maxZoom: 19
+      });
 
       var pinIcon = L.divIcon({
         className: 'target-pin-wrap',
-        html: '<div class="target-pin">PIN</div>',
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
+        html: '<div class="luxury-target-pin"><div class="pin-ring-pulse"></div><div class="pin-core-disc"><div class="pin-inner-white"></div></div></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
       });
 
       lMarker = L.marker([${targetLat}, ${targetLng}], { icon: pinIcon, draggable: true }).addTo(lMap);
@@ -295,7 +436,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         radius: 1000,
         color: '#D4AF37',
         fillColor: '#D4AF37',
-        fillOpacity: 0.12,
+        fillOpacity: 0.14,
         weight: 2
       }).addTo(lMap);
 
@@ -343,6 +484,23 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 
       window.updateRecords(${JSON.stringify(simplifiedInitialRecords)});
     }
+
+    // Trap Google Maps authentication errors (RefererNotAllowedMapError, etc.)
+    window.gm_authFailure = function() {
+      console.warn('Google Maps authentication failed; switching smoothly to High-Def Map');
+      isGoogleActive = false;
+      initLeaflet();
+    };
+
+    // Initialize: Try Google Maps first, then fallback to Leaflet
+    if (window.google && window.google.maps) {
+      var success = initGoogleMaps();
+      if (!success) {
+        initLeaflet();
+      }
+    } else {
+      initLeaflet();
+    }
   </script>
 </body>
 </html>
@@ -372,7 +530,10 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           <WebViewComponent
             ref={webViewRef}
             originWhitelist={['*']}
-            source={{ html: htmlContent }}
+            source={{
+              html: htmlContent,
+              baseUrl: 'https://greenartproperties.com',
+            }}
             onMessage={handleMessage}
             onLoadStart={() => setIsLoading(true)}
             onLoadEnd={() => setIsLoading(false)}
@@ -388,6 +549,9 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
             showsVerticalScrollIndicator={false}
+            androidHardwareAccelerationDisabled={false}
+            mixedContentMode="always"
+            allowFileAccess={true}
           />
         </View>
       )}
@@ -415,7 +579,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
                 isMapInteractive ? styles.interactionBtnTextActive : styles.interactionBtnTextInactive,
               ]}
             >
-              {isMapInteractive ? '✓ Single Touch Pan Active' : '🔒 Lock Map to Scroll'}
+              {isMapInteractive ? '👆 Map Active' : '📜 Scroll Page'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -461,16 +625,16 @@ const styles = StyleSheet.create({
   },
   recenterBtn: {
     position: 'absolute',
-    bottom: 12,
-    right: 12,
+    bottom: 10,
+    right: 10,
     zIndex: 20,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#D4AF37',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: 20,
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 2 },
@@ -485,8 +649,8 @@ const styles = StyleSheet.create({
   },
   interactionBar: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    bottom: 10,
+    left: 10,
     zIndex: 20,
   },
   interactionBtn: {
@@ -495,12 +659,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    gap: 6,
+    gap: 5,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 4,
   },
   interactionBtnInactive: {
     backgroundColor: '#FFFFFF',
@@ -513,12 +677,12 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   interactionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   interactionBtnText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   interactionBtnTextInactive: {
