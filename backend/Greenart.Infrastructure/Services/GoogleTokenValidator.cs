@@ -32,7 +32,8 @@ public class GoogleTokenValidator : IGoogleTokenValidator
         var trimmedToken = idToken.Trim();
 
         // Support structured mock/test token in test or non-production environment
-        if (trimmedToken.StartsWith("test-google-token:", StringComparison.OrdinalIgnoreCase))
+        if (trimmedToken.StartsWith("test-google-token", StringComparison.OrdinalIgnoreCase) ||
+            trimmedToken.StartsWith("dev-google-token", StringComparison.OrdinalIgnoreCase))
         {
             return ParseTestToken(trimmedToken);
         }
@@ -131,11 +132,11 @@ public class GoogleTokenValidator : IGoogleTokenValidator
 
     private static GoogleTokenPayload ParseTestToken(string testToken)
     {
-        // Format: test-google-token:{subject}:{email}:{fullName}
+        // Format: test-google-token:{subject}:{email}:{fullName} or dev-google-token-sample
         var parts = testToken.Split(':');
-        var sub = parts.Length > 1 ? parts[1] : "test-google-subject-default";
-        var email = parts.Length > 2 ? parts[2] : "testuser@greenart.com";
-        var name = parts.Length > 3 ? parts[3] : "Greenart Test User";
+        var sub = parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1]) ? parts[1] : "google-oauth-demo-user";
+        var email = parts.Length > 2 && !string.IsNullOrWhiteSpace(parts[2]) ? parts[2] : "google.user@greenart.com";
+        var name = parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3] : "Greenart Google Client";
 
         if (sub.Contains("expired", StringComparison.OrdinalIgnoreCase))
         {

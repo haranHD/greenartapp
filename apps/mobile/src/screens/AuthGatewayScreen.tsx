@@ -152,9 +152,12 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
     setLoading(true);
     setErrorMessage(null);
     try {
+      const emailHint = loginIdentifier.trim() && loginIdentifier.includes('@')
+        ? loginIdentifier.trim()
+        : 'google.client@greenart.com';
       const googleIdToken = (typeof window !== 'undefined' && (window as any).googleIdToken)
         ? (window as any).googleIdToken
-        : 'dev-google-token-sample';
+        : `test-google-token:google-user-${Date.now()}:${emailHint}:Greenart Google Client`;
       await authService.loginWithGoogle(googleIdToken);
       onSuccess();
     } catch (err: any) {
