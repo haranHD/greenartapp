@@ -33,7 +33,6 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   const WebViewComponent: any = WebView;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [isMapInteractive, setIsMapInteractive] = useState(true);
   const isInternalUpdateRef = useRef(false);
 
   const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || DEFAULT_GOOGLE_MAPS_KEY;
@@ -109,34 +108,6 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
     #map { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-
-    /* Top Left: Engine Indicator Pill */
-    .engine-badge {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 1000;
-      background: rgba(255, 255, 255, 0.94);
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(212, 175, 55, 0.4);
-      border-radius: 20px;
-      padding: 4px 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-      font-size: 11px;
-      font-weight: 700;
-      color: #240046;
-      pointer-events: none;
-    }
-    .engine-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #10B981;
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-    }
 
     /* Top Right: Map Type Toggle Bar */
     .mode-bar {
@@ -229,12 +200,6 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 <body>
   <div id="map"></div>
 
-  <!-- Top-Left Engine Indicator -->
-  <div id="engine-badge" class="engine-badge">
-    <span class="engine-dot" id="engine-dot"></span>
-    <span id="engine-text">Google Maps</span>
-  </div>
-
   <!-- Top-Right Mode Bar -->
   <div class="mode-bar">
     <button id="btn-road" class="mode-btn active" onclick="switchMapType('roadmap')">Road</button>
@@ -289,16 +254,15 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           center: centerPos,
           zoom: ${mapZoom},
           mapTypeId: 'roadmap',
-          disableDefaultUI: false,
-          zoomControl: true,
+          disableDefaultUI: true,
+          zoomControl: false,
           streetViewControl: false,
           mapTypeControl: false,
+          fullscreenControl: false,
           gestureHandling: 'greedy'
         });
 
         isGoogleActive = true;
-        document.getElementById('engine-text').innerText = 'Google Maps';
-        document.getElementById('engine-dot').style.background = '#10B981';
 
         window.recenterMap = function() {
           var p = centerPos;
@@ -393,9 +357,6 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 
       var mapEl = document.getElementById('map');
       mapEl.innerHTML = '';
-
-      document.getElementById('engine-text').innerText = 'High-Def Map';
-      document.getElementById('engine-dot').style.background = '#3B82F6';
 
       lMap = L.map('map', {
         zoomControl: false,
@@ -525,7 +486,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
       ) : (
         <View
           style={[styles.webviewWrapper, { height: mapHeight }]}
-          pointerEvents={isMapInteractive ? 'auto' : 'none'}
+          pointerEvents="auto"
         >
           <WebViewComponent
             ref={webViewRef}
@@ -556,46 +517,18 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         </View>
       )}
 
-      {/* Floating Mode Pill: Tap to pan/zoom map vs scroll screen */}
-      {!isLoading && !hasError && (
-        <View style={styles.interactionBar} pointerEvents="box-none">
-          <TouchableOpacity
-            style={[
-              styles.interactionBtn,
-              isMapInteractive ? styles.interactionBtnActive : styles.interactionBtnInactive,
-            ]}
-            onPress={() => setIsMapInteractive(!isMapInteractive)}
-            activeOpacity={0.85}
-          >
-            <View
-              style={[
-                styles.interactionDot,
-                { backgroundColor: isMapInteractive ? '#10B981' : '#D4AF37' },
-              ]}
-            />
-            <Text
-              style={[
-                styles.interactionBtnText,
-                isMapInteractive ? styles.interactionBtnTextActive : styles.interactionBtnTextInactive,
-              ]}
-            >
-              {isMapInteractive ? '👆 Map Active' : '📜 Scroll Page'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Floating Quick Recenter Button */}
       {!isLoading && !hasError && (
         <TouchableOpacity
-          style={styles.recenterBtn}
+          style={styles.recenterIconBtn}
           onPress={() => {
             const js = `if (window.recenterMap) { window.recenterMap(); } true;`;
             webViewRef.current?.injectJavaScript(js);
           }}
           activeOpacity={0.85}
+          accessibilityLabel="Recenter map pin"
         >
-          <Text style={styles.recenterBtnText}>🎯 Recenter Pin</Text>
+          <Text style={styles.recenterIconText}>🎯</Text>
         </TouchableOpacity>
       )}
 
@@ -623,73 +556,27 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#FAF5FF',
   },
-  recenterBtn: {
+  recenterIconBtn: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
+    bottom: 12,
+    right: 12,
     zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#D4AF37',
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.22,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
   },
-  recenterBtnText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#240046',
-  },
-  interactionBar: {
-    position: 'absolute',
-    bottom: 10,
-    left: 10,
-    zIndex: 20,
-  },
-  interactionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 5,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  interactionBtnInactive: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-  },
-  interactionBtnActive: {
-    backgroundColor: '#240046',
-    borderWidth: 1.5,
-    borderColor: '#10B981',
-  },
-  interactionDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  interactionBtnText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  interactionBtnTextInactive: {
-    color: '#240046',
-  },
-  interactionBtnTextActive: {
-    color: '#FFFFFF',
+  recenterIconText: {
+    fontSize: 16,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
