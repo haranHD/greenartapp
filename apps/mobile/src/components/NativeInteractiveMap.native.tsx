@@ -12,6 +12,7 @@ export interface NativeInteractiveMapProps {
   style?: any;
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
+  height?: number;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
@@ -24,15 +25,17 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   style,
   apiKey,
   userLocation,
+  height = 420,
 }) => {
   const webViewRef = useRef<any>(null);
   const WebViewComponent: any = WebView;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [isMapInteractive, setIsMapInteractive] = useState(false);
+  const [isMapInteractive, setIsMapInteractive] = useState(true);
   const isInternalUpdateRef = useRef(false);
 
   const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const mapHeight = style?.height || height || 420;
 
   // Sync coordinates into the WebView without reloading the page
   useEffect(() => {
@@ -169,8 +172,14 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           zoomControl: true,
           streetViewControl: false,
           mapTypeControl: true,
-          gestureHandling: 'cooperative'
+          gestureHandling: 'greedy'
         });
+
+        window.recenterMap = function() {
+          var p = centerPos;
+          if (gMarker && gMarker.getPosition) p = gMarker.getPosition();
+          if (gMap) { gMap.panTo(p); gMap.setZoom(${mapZoom}); }
+        };
 
         gMarker = new google.maps.Marker({
           position: centerPos,
@@ -305,6 +314,12 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         if (lMap) lMap.setView([lat, lng], zoom || lMap.getZoom());
       };
 
+      window.recenterMap = function() {
+        var p = [${targetLat}, ${targetLng}];
+        if (lMarker && lMarker.getLatLng) p = lMarker.getLatLng();
+        if (lMap) { lMap.setView(p, ${mapZoom}); }
+      };
+
       window.updateRecords = function(recs) {
         if (!lRecordLayer) return;
         lRecordLayer.clearLayers();
@@ -334,9 +349,9 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   `;
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { height: mapHeight }, style]}>
       {hasError ? (
-        <View style={styles.errorContainer}>
+        <View style={[styles.errorContainer, { height: mapHeight }]}>
           <Text style={styles.errorText}>Unable to load interactive map tiles.</Text>
           <TouchableOpacity
             style={styles.retryBtn}
@@ -351,7 +366,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         </View>
       ) : (
         <View
-          style={styles.webviewWrapper}
+          style={[styles.webviewWrapper, { height: mapHeight }]}
           pointerEvents={isMapInteractive ? 'auto' : 'none'}
         >
           <WebViewComponent
@@ -365,7 +380,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
               setIsLoading(false);
               setHasError(true);
             }}
-            style={styles.webview}
+            style={[styles.webview, { height: mapHeight }]}
             javaScriptEnabled={true}
             domStorageEnabled={true}
             nestedScrollEnabled={true}
@@ -400,10 +415,24 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
                 isMapInteractive ? styles.interactionBtnTextActive : styles.interactionBtnTextInactive,
               ]}
             >
-              {isMapInteractive ? '🔒 Lock Map to Scroll' : '🗺️ Tap to Pan/Zoom Map'}
+              {isMapInteractive ? '✓ Single Touch Pan Active' : '🔒 Lock Map to Scroll'}
             </Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* Floating Quick Recenter Button */}
+      {!isLoading && !hasError && (
+        <TouchableOpacity
+          style={styles.recenterBtn}
+          onPress={() => {
+            const js = `if (window.recenterMap) { window.recenterMap(); } true;`;
+            webViewRef.current?.injectJavaScript(js);
+          }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.recenterBtnText}>🎯 Recenter Pin</Text>
+        </TouchableOpacity>
       )}
 
       {isLoading && (
@@ -419,19 +448,40 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    height: 280,
     backgroundColor: '#FAF5FF',
     position: 'relative',
     overflow: 'hidden',
   },
   webviewWrapper: {
     width: '100%',
-    height: 280,
   },
   webview: {
     width: '100%',
-    height: 280,
     backgroundColor: '#FAF5FF',
+  },
+  recenterBtn: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    shadowColor: '#240046',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  recenterBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#240046',
   },
   interactionBar: {
     position: 'absolute',

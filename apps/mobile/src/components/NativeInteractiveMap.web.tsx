@@ -11,6 +11,7 @@ export interface NativeInteractiveMapProps {
   style?: any;
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
+  height?: number;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
@@ -23,6 +24,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   style,
   apiKey,
   userLocation,
+  height = 420,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -35,6 +37,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   const googleFailedRef = useRef(false);
 
   const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const mapHeight = style?.height || height || 420;
 
   // -------------------------------------------------------------------------
   // 1. Script Loading & Engine Selection (Google Maps -> Leaflet Fallback)
@@ -436,15 +439,15 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   };
 
   return (
-    <View style={[styles.canvasWrapper, style]}>
+    <View style={[styles.canvasWrapper, { height: mapHeight }, style]}>
       {/* Native Web DOM Container with forced pixel height */}
       <div
         id="greenart-mobile-map-canvas"
         ref={containerRef}
         style={{
           width: '100%',
-          height: '280px',
-          minHeight: '280px',
+          height: `${mapHeight}px`,
+          minHeight: `${mapHeight}px`,
           backgroundColor: '#FAF5FF',
           position: 'relative',
           overflow: 'hidden',

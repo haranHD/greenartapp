@@ -11,6 +11,7 @@ export interface NativeInteractiveMapProps {
   style?: any;
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
+  height?: number;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = (props) => {

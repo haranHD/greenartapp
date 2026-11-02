@@ -81,6 +81,9 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   isLocatingAddress = false,
   addressLocateStatus = null,
 }) => {
+  const [isMapExpanded, setIsMapExpanded] = React.useState(false);
+  const mapHeight = isMapExpanded ? 540 : 420;
+
   return (
     <ScrollView
       style={styles.scrollView}
@@ -317,31 +320,50 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
       </View>
 
       {/* Interactive Geographic Map Card */}
-      <View style={styles.mapCard}>
+      <View style={[styles.mapCard, isMapExpanded && styles.mapCardExpanded]}>
         <View style={styles.mapCardHeader}>
-          <View>
-            <Text style={styles.mapCardTitle}>{activeLocality}</Text>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.mapCardTitle}>{activeLocality}</Text>
+              <View style={styles.liveMapBadge}>
+                <View style={styles.liveMapDot} />
+                <Text style={styles.liveMapText}>Live Map</Text>
+              </View>
+            </View>
             <Text style={styles.mapCardSubtitle}>
               {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 1,000m Buffer
             </Text>
           </View>
+
           <View style={styles.mapZoomControls}>
+            <TouchableOpacity
+              style={[styles.expandBtn, isMapExpanded && styles.expandBtnActive]}
+              onPress={() => setIsMapExpanded(!isMapExpanded)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.expandBtnText, isMapExpanded && styles.expandBtnTextActive]}>
+                {isMapExpanded ? 'Collapse ✕' : 'Bigger Map ⛶'}
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.zoomBtn}
               onPress={() => setMapZoom((z) => Math.min(z + 1, 18))}
+              activeOpacity={0.7}
             >
               <Text style={styles.zoomBtnText}>+</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.zoomBtn}
               onPress={() => setMapZoom((z) => Math.max(z - 1, 12))}
+              activeOpacity={0.7}
             >
               <Text style={styles.zoomBtnText}>−</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Map Viewport Canvas */}
+        {/* Map Viewport Canvas with enlarged height */}
         <NativeInteractiveMap
           targetLat={targetLat}
           targetLng={targetLng}
@@ -349,11 +371,15 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
           activeLocality={activeLocality}
           records={records}
           userLocation={userDeviceLocation}
+          height={mapHeight}
           onSelectLocation={(lat, lng) => handleSelectCoordinates(lat, lng, 'Map Pin')}
         />
 
         <View style={styles.mapFooterBar}>
-          <Text style={styles.mapFooterCoord}>Tap map to reposition center pin</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontSize: 13 }}>👆</Text>
+            <Text style={styles.mapFooterCoord}>Single-touch to pan & tap anywhere to move pin</Text>
+          </View>
           <Text style={styles.mapFooterRadius}>Radius: 1,000m</Text>
         </View>
       </View>
@@ -651,6 +677,56 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
+  },
+  mapCardExpanded: {
+    borderColor: '#D4AF37',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  liveMapBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    gap: 4,
+  },
+  liveMapDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+  },
+  liveMapText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  expandBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1,
+    borderColor: '#D4AF37',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  expandBtnActive: {
+    backgroundColor: '#240046',
+    borderColor: '#D4AF37',
+  },
+  expandBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#240046',
+  },
+  expandBtnTextActive: {
+    color: '#FFFFFF',
   },
   mapCardHeader: {
     flexDirection: 'row',
