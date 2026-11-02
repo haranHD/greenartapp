@@ -14,6 +14,8 @@ export interface NativeInteractiveMapProps {
   height?: number;
 }
 
+const DEFAULT_GOOGLE_MAPS_KEY = 'AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4';
+
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   targetLat,
   targetLng,
@@ -36,7 +38,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   const [mapType, setMapType] = useState<'roadmap' | 'satellite' | 'hybrid'>('roadmap');
   const googleFailedRef = useRef(false);
 
-  const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  const effectiveKey = apiKey || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || DEFAULT_GOOGLE_MAPS_KEY;
   const mapHeight = style?.height || height || 420;
 
   // -------------------------------------------------------------------------
