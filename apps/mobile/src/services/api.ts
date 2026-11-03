@@ -24,6 +24,26 @@ export interface GuidelineReferenceDto {
   legalNotice: string;
 }
 
+export interface AskingPriceReferenceDto {
+  listingCount: number;
+  medianRatePerSqFt: number;
+  medianRatePerCent: number;
+  minRatePerSqFt: number;
+  maxRatePerSqFt: number;
+  notice: string;
+}
+
+export interface TotalValuationDto {
+  totalEstimatedPrice: number;
+  totalPriceMin: number;
+  totalPriceMax: number;
+  areaValue: number;
+  areaUnit: string;
+  equivalentSqFt: number;
+  equivalentCents: number;
+  totalGuidelinePrice?: number;
+}
+
 export interface EstimateSuccessResponse {
   status: 'Success';
   targetCoordinates: { latitude: number; longitude: number };
@@ -37,6 +57,9 @@ export interface EstimateSuccessResponse {
   sourceBreakdown: SourceCategoryBreakdownDto[];
   governmentGuidelineReference?: GuidelineReferenceDto;
   disclaimer: string;
+  askingPriceReference?: AskingPriceReferenceDto;
+  totalValuation?: TotalValuationDto;
+  calculationExplanation?: string;
 }
 
 export interface EstimateInsufficientDataResponse {
@@ -48,6 +71,8 @@ export interface EstimateInsufficientDataResponse {
   message: string;
   recommendations: string[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  askingPriceReference?: AskingPriceReferenceDto;
+  totalGuidelineValuation?: number;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;

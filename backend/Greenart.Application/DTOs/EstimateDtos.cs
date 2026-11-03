@@ -9,7 +9,9 @@ public record CalculateEstimateRequest(
     double Longitude,
     LandUsageType LandUsage = LandUsageType.Residential,
     double RadiusMeters = 1000.0,
-    AreaUnit PreferredUnit = AreaUnit.Cent
+    AreaUnit PreferredUnit = AreaUnit.Cent,
+    decimal? TargetArea = null,
+    AreaUnit? TargetAreaUnit = null
 );
 
 public record PriceRangeDto(
@@ -34,6 +36,26 @@ public record GuidelineReferenceDto(
     string LegalNotice
 );
 
+public record AskingPriceReferenceDto(
+    int ListingCount,
+    decimal MedianRatePerSqFt,
+    decimal MedianRatePerCent,
+    decimal MinRatePerSqFt,
+    decimal MaxRatePerSqFt,
+    string Notice
+);
+
+public record TotalValuationDto(
+    decimal TotalEstimatedPrice,
+    decimal TotalPriceMin,
+    decimal TotalPriceMax,
+    decimal AreaValue,
+    string AreaUnit,
+    decimal EquivalentSqFt,
+    decimal EquivalentCents,
+    decimal? TotalGuidelinePrice = null
+);
+
 public record EstimateSuccessResponse(
     string Status,
     CoordinatesDto TargetCoordinates,
@@ -46,7 +68,10 @@ public record EstimateSuccessResponse(
     DateTime LatestRecordDate,
     List<SourceCategoryBreakdownDto> SourceBreakdown,
     GuidelineReferenceDto? GovernmentGuidelineReference,
-    string Disclaimer
+    string Disclaimer,
+    AskingPriceReferenceDto? AskingPriceReference = null,
+    TotalValuationDto? TotalValuation = null,
+    string? CalculationExplanation = null
 );
 
 public record EstimateInsufficientDataResponse(
@@ -57,6 +82,7 @@ public record EstimateInsufficientDataResponse(
     int MinimumRequiredRecords,
     string Message,
     List<string> Recommendations,
-    GuidelineReferenceDto? GovernmentGuidelineReference = null
+    GuidelineReferenceDto? GovernmentGuidelineReference = null,
+    AskingPriceReferenceDto? AskingPriceReference = null,
+    decimal? TotalGuidelineValuation = null
 );
-

@@ -36,43 +36,66 @@ public class LandPriceRecordTests
     }
 
     [Fact]
-    public void Record_EligibilityCheck_ShouldExcludeRejectedOrOldRecords()
+    public void Record_EligibilityCheck_ShouldEnforceStrictEligibilityRules()
     {
         var asOf = new DateTime(2026, 10, 1);
 
-        // Recent record (6 months old)
-        var recentRecord = new LandPriceRecord(
+        // 1. Verified completed sale (6 months old) -> Eligible
+        var verifiedRecord = new LandPriceRecord(
             Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
             null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
             new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.VerifiedTransaction,
-            null, new DateTime(2026, 4, 1)
+            null, new DateTime(2026, 4, 1), VerificationStatus.Verified, isSynthetic: false
         );
-        Assert.True(recentRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        Assert.True(verifiedRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
 
-        // Old record (48 months old)
+        // 2. Old transaction (> 36 months) -> Ineligible
         var oldRecord = new LandPriceRecord(
             Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
             null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
             new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.VerifiedTransaction,
-            null, new DateTime(2022, 1, 1)
+            null, new DateTime(2022, 1, 1), VerificationStatus.Verified, isSynthetic: false
         );
         Assert.False(oldRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        Assert.False(oldRecord.TryGetIneligibilityReason(asOf, 36, out var oldReason));
+        Assert.Contains("exceeds the approved freshness window", oldReason);
 
-        // Rejected record
-        recentRecord.MarkRejected("Disputed title");
-        Assert.False(recentRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        // 3. Rejected record -> Ineligible
+        verifiedRecord.MarkRejected("Disputed title");
+        Assert.False(verifiedRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        Assert.False(verifiedRecord.TryGetIneligibilityReason(asOf, 36, out var rejectedReason));
+        Assert.Contains("not verified", rejectedReason);
 
-        // Pending review record is eligible unless rejected or archived
+        // 4. Pending review record -> Strictly Ineligible for market calculation
         var pendingRecord = new LandPriceRecord(
             Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
             null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
             new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.VerifiedTransaction,
-            null, new DateTime(2026, 4, 1)
+            null, new DateTime(2026, 4, 1), VerificationStatus.Verified, isSynthetic: false
         );
         pendingRecord.MarkPendingReview("Awaiting document verification");
         Assert.Equal(VerificationStatus.PendingReview, pendingRecord.VerificationStatus);
         Assert.Contains("PendingReview: Awaiting document verification", pendingRecord.Notes);
-        Assert.True(pendingRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        Assert.False(pendingRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+
+        // 5. Advertised asking price -> Ineligible for primary market pool
+        var askingRecord = new LandPriceRecord(
+            Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
+            null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
+            new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.AdvertisedAskingPrice,
+            null, new DateTime(2026, 4, 1), VerificationStatus.Verified, isSynthetic: false
+        );
+        Assert.False(askingRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+
+        // 6. Synthetic record -> Ineligible even if marked Verified
+        var syntheticRecord = new LandPriceRecord(
+            Guid.NewGuid(), "India", "Tamil Nadu", "Coimbatore", "Sulur", "Kannampalayam",
+            null, null, new GeoCoordinate(11.0, 77.0), LandUsageType.Residential,
+            new LandArea(3.0m, AreaUnit.Cent), 3000000m, SourceCategory.VerifiedTransaction,
+            null, new DateTime(2026, 4, 1), VerificationStatus.Verified, isSynthetic: true
+        );
+        Assert.False(syntheticRecord.IsEligibleForMarketEstimation(asOf, maxAgeMonths: 36));
+        Assert.False(syntheticRecord.TryGetIneligibilityReason(asOf, 36, out var synthReason));
+        Assert.Contains("Synthetic fixture records are strictly excluded", synthReason);
     }
 }
-

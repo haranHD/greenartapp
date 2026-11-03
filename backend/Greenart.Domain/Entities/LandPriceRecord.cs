@@ -98,19 +98,87 @@ public class LandPriceRecord
     }
 
     /// <summary>
-    /// Checks if this record is comparable for current market estimation:
-    /// - Not archived or rejected
-    /// - Observed within the allowed maximum age horizon (default 36 months)
+    /// Checks if this record strictly qualifies as an eligible verified completed sale for market estimation:
+    /// - SourceCategory must be VerifiedTransaction (registered completed conveyance)
+    /// - VerificationStatus must be Verified
+    /// - IsSynthetic must be false
+    /// - Price must be strictly positive (> 0)
+    /// - Area value and normalized rates must be strictly positive (> 0)
+    /// - ObservationDate must be valid and within the approved freshness window (default 36 months)
     /// </summary>
     public bool IsEligibleForMarketEstimation(DateTime asOfDate, int maxAgeMonths = 36)
     {
-        if (VerificationStatus == VerificationStatus.Rejected || VerificationStatus == VerificationStatus.Archived)
-        {
+        if (SourceCategory != SourceCategory.VerifiedTransaction)
             return false;
-        }
+
+        if (VerificationStatus != VerificationStatus.Verified)
+            return false;
+
+        if (IsSynthetic)
+            return false;
+
+        if (OriginalPrice <= 0 || NormalizedRatePerSqFt <= 0 || NormalizedRatePerCent <= 0)
+            return false;
+
+        if (Area.Value <= 0)
+            return false;
+
+        if (ObservationDate == default || ObservationDate == DateTime.MinValue)
+            return false;
 
         var ageInMonths = ((asOfDate.Year - ObservationDate.Year) * 12) + asOfDate.Month - ObservationDate.Month;
         return ageInMonths <= maxAgeMonths && ageInMonths >= -1; // Allow up to 1 month clock skew
+    }
+
+    /// <summary>
+    /// Explains why a record was excluded from market estimation for auditability.
+    /// </summary>
+    public bool TryGetIneligibilityReason(DateTime asOfDate, int maxAgeMonths, out string reason)
+    {
+        if (SourceCategory != SourceCategory.VerifiedTransaction)
+        {
+            reason = $"Source category '{SourceCategory}' is not an open-market verified transaction deed.";
+            return false;
+        }
+        if (VerificationStatus != VerificationStatus.Verified)
+        {
+            reason = $"Verification status '{VerificationStatus}' is not verified.";
+            return false;
+        }
+        if (IsSynthetic)
+        {
+            reason = "Synthetic fixture records are strictly excluded from market estimation.";
+            return false;
+        }
+        if (OriginalPrice <= 0 || NormalizedRatePerSqFt <= 0 || NormalizedRatePerCent <= 0)
+        {
+            reason = "Record contains non-positive price or invalid unit rates.";
+            return false;
+        }
+        if (Area.Value <= 0)
+        {
+            reason = "Record contains zero or invalid parcel area.";
+            return false;
+        }
+        if (ObservationDate == default || ObservationDate == DateTime.MinValue)
+        {
+            reason = "Record contains invalid transaction date.";
+            return false;
+        }
+        var ageInMonths = ((asOfDate.Year - ObservationDate.Year) * 12) + asOfDate.Month - ObservationDate.Month;
+        if (ageInMonths > maxAgeMonths)
+        {
+            reason = $"Transaction age ({ageInMonths} months) exceeds the approved freshness window ({maxAgeMonths} months).";
+            return false;
+        }
+        if (ageInMonths < -1)
+        {
+            reason = $"Transaction date is in the future beyond allowed clock skew ({ageInMonths} months).";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
     }
 
     /// <summary>

@@ -196,7 +196,7 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task CalculateEstimate_FromInteractiveMapPin_WithinPilotCorridor_Returns200Success()
+    public async Task CalculateEstimate_FromInteractiveMapPin_WithinPilotCorridor_Returns200WithStrictEligibility()
     {
         var client = _factory.CreateClient();
 
@@ -216,18 +216,21 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
 
-        Assert.Equal("Success", root.GetProperty("status").GetString());
+        // Under strict data eligibility, Kannampalayam pilot seed contains exactly 2 verified completed deeds.
+        // Advertised asking prices and historical client research are strictly excluded from the market pool.
+        // The engine honestly reports InsufficientData (2 of 3 required) while providing Layer 2 & 3 references.
+        Assert.Equal("InsufficientData", root.GetProperty("status").GetString());
         Assert.Equal(1000, root.GetProperty("searchRadiusMeters").GetInt32());
-        Assert.True(root.GetProperty("comparableRecordCount").GetInt32() >= 3);
-
-        // Verify confidence grade and price ranges
-        Assert.NotNull(root.GetProperty("confidence").GetString());
-        var centMedian = root.GetProperty("priceRangePerCent").GetProperty("medianRate").GetDecimal();
-        Assert.True(centMedian > 0);
+        Assert.Equal(2, root.GetProperty("comparableRecordsFound").GetInt32());
+        Assert.Equal(3, root.GetProperty("minimumRequiredRecords").GetInt32());
 
         // Verify separate statutory guideline reference
         Assert.True(root.TryGetProperty("governmentGuidelineReference", out var guideline));
         Assert.Equal(650000m, guideline.GetProperty("guidelineRatePerCent").GetDecimal());
+
+        // Verify separate asking price reference
+        Assert.True(root.TryGetProperty("askingPriceReference", out var asking));
+        Assert.Equal(1, asking.GetProperty("listingCount").GetInt32());
     }
 
     [Fact]
@@ -280,8 +283,8 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
-            Assert.Equal("Success", root.GetProperty("status").GetString());
-            Assert.Equal(3, root.GetProperty("comparableRecordCount").GetInt32());
+            Assert.Equal("InsufficientData", root.GetProperty("status").GetString());
+            Assert.Equal(2, root.GetProperty("comparableRecordsFound").GetInt32());
         }
     }
 
