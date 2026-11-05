@@ -30,3 +30,4 @@ public record AiLandPriceIntelligenceResponse(
     string Model,
     DateTime GeneratedAtUtc
 );
+

@@ -14,3 +14,4 @@ public interface IGeminiLandIntelligenceService
         AskingPriceReferenceDto? askingPriceReference,
         CancellationToken ct = default);
 }
+

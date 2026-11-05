@@ -488,6 +488,105 @@ public class EstimationEngineTests
         Assert.True(insufficient.TotalGuidelineValuation >= 5999900m && insufficient.TotalGuidelineValuation <= 6000100m);
     }
 
+    [Fact]
+    public async Task WhenEligibleRecordsLessThanThresholdAndGeminiConfigured_ShouldReturn_AiSynthesizedEstimate()
+    {
+        // Only 1 deed available (< 3 threshold)
+        var records = new List<LandPriceRecord>
+        {
+            CreateVerifiedDeed(11.0010, 77.0870, 950000m)
+        };
+        var repo = new MockLandPriceRepository(records);
+
+        var mockAiResponse = new AiLandPriceIntelligenceResponse(
+            Status: "Success",
+            TargetCoordinates: new CoordinatesDto(11.0012, 77.0874),
+            Locality: "Kannampalayam",
+            District: "Coimbatore",
+            LandUsage: "Residential",
+            EstimatedCurrentPricePerCent: 1050000m,
+            EstimatedCurrentPricePerSqFt: 2410m,
+            PriceRangeSummary: "AI-Synthesized estimate",
+            MarketSentiment: "Bullish",
+            GrowthDrivers: new List<string> { "L&T Bypass corridor connectivity" },
+            NegotiationTips: new List<string> { "Verify road frontage" },
+            DueDiligenceChecklist: new List<string> { "EC verification" },
+            GovernmentGuidelineReference: null,
+            TotalValuation: null,
+            Model: "gemini-3-flash-preview",
+            GeneratedAtUtc: DateTime.UtcNow
+        );
+
+        var geminiMock = new MockGeminiLandIntelligenceService(mockAiResponse, isConfigured: true);
+        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
+
+        var request = new CalculateEstimateRequest(
+            Latitude: 11.0012,
+            Longitude: 77.0874,
+            LandUsage: LandUsageType.Residential,
+            RadiusMeters: 1000
+        );
+
+        var response = await engine.EstimateMarketPriceAsync(request);
+
+        var success = Assert.IsType<EstimateSuccessResponse>(response);
+        Assert.Equal("Success", success.Status);
+        Assert.Equal("AI-Synthesized", success.Confidence);
+        Assert.Equal(1050000m, success.PriceRangePerCent.MedianRate);
+        Assert.Equal(2410m, success.PriceRangePerSqFt.MedianRate);
+        Assert.Contains("Gemini_AI_Synthesis", success.SourceBreakdown.Select(s => s.Category));
+        Assert.Contains("gemini-3-flash-preview", success.CalculationExplanation);
+    }
+
+    [Fact]
+    public async Task WhenEligibleRecordsLessThanThresholdAndGeminiReturnsNull_ShouldFallbackTo_InsufficientData()
+    {
+        var records = new List<LandPriceRecord>
+        {
+            CreateVerifiedDeed(11.0010, 77.0870, 950000m)
+        };
+        var repo = new MockLandPriceRepository(records);
+
+        var geminiMock = new MockGeminiLandIntelligenceService(null, isConfigured: true);
+        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
+
+        var request = new CalculateEstimateRequest(
+            Latitude: 11.0012,
+            Longitude: 77.0874,
+            LandUsage: LandUsageType.Residential,
+            RadiusMeters: 1000
+        );
+
+        var response = await engine.EstimateMarketPriceAsync(request);
+
+        var insufficient = Assert.IsType<EstimateInsufficientDataResponse>(response);
+        Assert.Equal("InsufficientData", insufficient.Status);
+        Assert.Equal(1, insufficient.ComparableRecordsFound);
+    }
+
+    private class MockGeminiLandIntelligenceService : IGeminiLandIntelligenceService
+    {
+        private readonly AiLandPriceIntelligenceResponse? _response;
+        public bool IsConfigured { get; }
+
+        public MockGeminiLandIntelligenceService(AiLandPriceIntelligenceResponse? response, bool isConfigured = true)
+        {
+            _response = response;
+            IsConfigured = isConfigured;
+        }
+
+        public Task<AiLandPriceIntelligenceResponse?> AnalyzeLandPriceAsync(
+            AiLandPriceIntelligenceRequest request,
+            GuidelineReferenceDto? guidelineBenchmark,
+            PriceRangeDto? marketObservedPerCent,
+            PriceRangeDto? marketObservedPerSqFt,
+            AskingPriceReferenceDto? askingPriceReference,
+            CancellationToken ct = default)
+        {
+            return Task.FromResult(_response);
+        }
+    }
+
     // =========================================================================
     // HELPER CREATORS
     // =========================================================================

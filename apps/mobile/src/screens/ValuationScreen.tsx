@@ -307,11 +307,20 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           styles.confidencePill,
                           estSuccess.confidence === 'High'
                             ? styles.confidencePillHigh
+                            : estSuccess.confidence === 'AI-Synthesized'
+                            ? styles.confidencePillAi
                             : styles.confidencePillModerate,
                         ]}
                       >
-                        <Text style={styles.confidencePillText}>
-                          {estSuccess.confidence} Confidence ({estSuccess.comparableRecordCount} Records)
+                        <Text
+                          style={[
+                            styles.confidencePillText,
+                            estSuccess.confidence === 'AI-Synthesized' && styles.confidencePillTextAi,
+                          ]}
+                        >
+                          {estSuccess.confidence === 'AI-Synthesized'
+                            ? '✨ AI-Synthesized (Gemini)'
+                            : `${estSuccess.confidence} Confidence (${estSuccess.comparableRecordCount} Records)`}
                         </Text>
                       </View>
                     </View>
@@ -353,6 +362,13 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                         </Text>
                       </View>
                     </View>
+
+                    {estSuccess.calculationExplanation && (
+                      <View style={styles.aiExplanationCard}>
+                        <Text style={styles.aiExplanationTitle}>✨ AI Market Intelligence & Regional Dynamics</Text>
+                        <Text style={styles.aiExplanationText}>{estSuccess.calculationExplanation}</Text>
+                      </View>
+                    )}
 
                     <Text style={styles.estimateDisclaimer}>
                       Indicative statistical estimate derived strictly from recent 1,000m comparables; not an official legal appraisal or guaranteed sale price.
@@ -881,10 +897,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
     borderColor: '#FDE68A',
   },
+  confidencePillAi: {
+    backgroundColor: '#F3E8FF',
+    borderColor: '#D8B4FE',
+  },
   confidencePillText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#B45309',
+  },
+  confidencePillTextAi: {
+    color: '#7E22CE',
+  },
+  aiExplanationCard: {
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 14,
+  },
+  aiExplanationTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#6B21A8',
+    marginBottom: 4,
+  },
+  aiExplanationText: {
+    fontSize: 12,
+    color: '#4C1D95',
+    lineHeight: 18,
   },
   bigRateDisplay: {
     flexDirection: 'row',
