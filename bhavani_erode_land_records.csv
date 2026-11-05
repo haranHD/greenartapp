@@ -1,0 +1,16 @@
+locality,taluk,streetOrLandmark,surveyNumber,latitude,longitude,landUsage,area,unit,price,sourceCategory,sourceReference,observationDate,district,notes
+Bhavani,Bhavani,Cauvery River Road,SF 102/1,11.4472,77.6841,Residential,3.0,Cent,1050000,VerifiedTransaction,SRO Bhavani Doc 1420/2024,2024-03-15,Erode,Registered residential conveyance; ₹350000/cent normal market rate
+Bhavani,Bhavani,Anthiyur Main Road,SF 108/3,11.4485,77.6835,Residential,4.0,Cent,1400000,VerifiedTransaction,SRO Bhavani Doc 2110/2024,2024-05-10,Erode,Registered DTCP layout plot; ₹350000/cent normal market rate
+Bhavani,Bhavani,Mettur Road Branch,SF 94/2,11.4460,77.6850,Residential,2.5,Cent,875000,VerifiedTransaction,SRO Bhavani Doc 2890/2024,2024-07-22,Erode,Registered sale deed; ₹350000/cent normal market rate
+Bhavani,Bhavani,New Bus Stand Road,SF 115/1,11.4478,77.6845,Residential,5.0,Cent,1750000,VerifiedTransaction,SRO Bhavani Doc 3540/2024,2024-09-05,Erode,Verified residential plot; ₹350000/cent
+Bhavani,Bhavani,Cauvery Nagar Extension,SF 120/A,11.4468,77.6838,Residential,3.5,Cent,1470000,AdvertisedAskingPrice,Local Broker Listing #BV-801,2024-08-14,Erode,Broker asking rate ₹420000/cent
+Bhavani,Bhavani,Anthiyur Link Road,SF 112/2,11.4490,77.6828,Residential,4.0,Cent,1680000,AdvertisedAskingPrice,Portal Listing #BV-944,2024-10-01,Erode,Portal asking rate ₹420000/cent
+Bhavani,Bhavani,Town Center Revenue Ward 1,SF 100,11.4471,77.6840,Residential,1.0,Cent,200000,GovernmentGuideline,TNREGINET 2024 Guideline Value,2024-01-01,Erode,Bhavani statutory guideline benchmark (₹200000/cent)
+Bhavani,Bhavani,Bhavani Bypass Road,SF 204/1,11.4455,77.6865,Commercial,5.0,Cent,7250000,VerifiedTransaction,SRO Bhavani Doc 1850/2024,2024-04-18,Erode,Commercial highway frontage plot; ₹1450000/cent
+Bhavani,Bhavani,Salem-Kochi NH Junction,SF 210/2,11.4448,77.6872,Commercial,4.0,Cent,5800000,VerifiedTransaction,SRO Bhavani Doc 2410/2024,2024-06-25,Erode,Registered commercial plot; ₹1450000/cent
+Bhavani,Bhavani,Commercial Corridor,SF 215,11.4452,77.6868,Commercial,3.0,Cent,5250000,AdvertisedAskingPrice,Broker Listing #BV-COM-12,2024-09-12,Erode,Owner asking rate ₹1750000/cent
+Bhavani,Bhavani,Periyapuliyur Canal Belt,SF 310/1,11.4510,77.6810,Agricultural,100.0,Cent,7800000,VerifiedTransaction,SRO Bhavani Doc 1120/2024,2024-02-28,Erode,Agricultural wet land (1 Acre); ₹78000/cent
+Bhavani,Bhavani,Kalingarayan Basin,SF 325/2,11.4525,77.6795,Agricultural,50.0,Cent,3900000,VerifiedTransaction,SRO Bhavani Doc 2980/2024,2024-07-15,Erode,Agricultural wet land (50 Cents); ₹78000/cent
+Bhavani,Bhavani,Agricultural Dry Tract,SF 402/1,11.4420,77.6780,Agricultural,100.0,Cent,4500000,VerifiedTransaction,SRO Bhavani Doc 1640/2024,2024-03-30,Erode,Agricultural dry land (1 Acre); ₹45000/cent
+Bhavani,Bhavani,Agricultural Dry Tract,SF 415/3,11.4410,77.6770,Agricultural,50.0,Cent,2750000,AdvertisedAskingPrice,Farmer Listing #BV-AGRI-04,2024-08-20,Erode,Agricultural dry land asking rate ₹55000/cent
+

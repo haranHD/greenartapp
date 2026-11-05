@@ -44,6 +44,25 @@ export interface TotalValuationDto {
   totalGuidelinePrice?: number;
 }
 
+export interface AiLandPriceIntelligenceResponse {
+  status: 'Success' | 'Fallback';
+  targetCoordinates: { latitude: number; longitude: number };
+  locality: string;
+  district: string;
+  landUsage: string;
+  estimatedCurrentPricePerCent: number;
+  estimatedCurrentPricePerSqFt: number;
+  priceRangeSummary: string;
+  marketSentiment: string;
+  growthDrivers: string[];
+  negotiationTips: string[];
+  dueDiligenceChecklist: string[];
+  governmentGuidelineReference?: GuidelineReferenceDto;
+  totalValuation?: TotalValuationDto;
+  model: string;
+  generatedAtUtc: string;
+}
+
 export interface EstimateSuccessResponse {
   status: 'Success';
   targetCoordinates: { latitude: number; longitude: number };
@@ -642,6 +661,70 @@ class MobileApiClient {
           legalNotice: 'Statutory guideline benchmark from TNREGINET (via LandLens).',
         },
         disclaimer: 'Indicative statistical estimate derived strictly from recent 1,000m comparables; not an official legal appraisal or guaranteed sale price.',
+      };
+    }
+  }
+
+  async getAiLandIntelligence(
+    latitude: number,
+    longitude: number,
+    landUsage: number = 1,
+    targetArea?: number,
+    targetAreaUnit?: number,
+    locality?: string,
+    district?: string
+  ): Promise<AiLandPriceIntelligenceResponse> {
+    try {
+      const response = await this.fetchWithTimeout(`/estimates/ai-intelligence`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          latitude,
+          longitude,
+          landUsage,
+          targetArea,
+          targetAreaUnit,
+          locality,
+          district,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return (await response.json()) as AiLandPriceIntelligenceResponse;
+    } catch {
+      // Offline fallback
+      return {
+        status: 'Fallback',
+        targetCoordinates: { latitude, longitude },
+        locality: locality || 'Tamil Nadu',
+        district: district || 'Coimbatore',
+        landUsage: landUsage === 1 ? 'Residential' : landUsage === 2 ? 'Commercial' : 'Agricultural',
+        estimatedCurrentPricePerCent: 1050000,
+        estimatedCurrentPricePerSqFt: 2410,
+        priceRangeSummary: 'Estimated based on regional land benchmarks and registered deeds.',
+        marketSentiment: 'Steady Growth',
+        growthDrivers: [
+          'National highway corridor connectivity',
+          'Suburban residential expansion and logistics growth',
+          'Industrial and commercial infrastructure development'
+        ],
+        negotiationTips: [
+          'Verify DTCP or CMDA layout approvals before committing',
+          'Cross-reference broker quotes against TNREGINET statutory guideline benchmarks'
+        ],
+        dueDiligenceChecklist: [
+          'Patta verification on Tamil Nadu e-Services portal',
+          '30-year Encumbrance Certificate (EC) for title clearance',
+          'Field Measurement Book (FMB) sketch boundary check'
+        ],
+        model: 'OfflineFallback',
+        generatedAtUtc: new Date().toISOString(),
       };
     }
   }

@@ -158,6 +158,9 @@ builder.Services.AddHttpClient<IGeocodingService, GooglePlacesGeocodingService>(
 // Register LandLens API Client
 builder.Services.AddHttpClient<ILandLensClient, LandLensClient>();
 
+// Register Google Gemini AI Land Intelligence Service
+builder.Services.AddHttpClient<IGeminiLandIntelligenceService, GeminiLandIntelligenceService>();
+
 // Enable CORS for frontend and mobile access
 builder.Services.AddCors(options =>
 {
@@ -1238,6 +1241,108 @@ app.MapPost("/api/v1/estimates/calculate", async (
 .WithName("CalculateEstimate")
 .WithSummary("Calculate Indicative Land Market Rate")
 .WithDescription("Queries comparable land records within a 1,000-meter radius of the selected coordinates and returns median/percentile ranges or an InsufficientData notice.")
+.WithOpenApi();
+
+// ---------------------------------------------------------
+// 2b. Gemini AI Land Price Intelligence & Market Analysis Endpoint
+// ---------------------------------------------------------
+app.MapPost("/api/v1/estimates/ai-intelligence", async (
+    [FromBody] AiLandPriceIntelligenceRequest request,
+    [FromServices] IEstimationEngine estimationEngine,
+    [FromServices] ILandLensClient landLensClient,
+    [FromServices] IGeminiLandIntelligenceService geminiService,
+    CancellationToken ct) =>
+{
+    if (request.Latitude < -90.0 || request.Latitude > 90.0)
+    {
+        return Results.BadRequest(new { Error = "Latitude must be between -90.0 and 90.0." });
+    }
+
+    if (request.Longitude < -180.0 || request.Longitude > 180.0)
+    {
+        return Results.BadRequest(new { Error = "Longitude must be between -180.0 and 180.0." });
+    }
+
+    if (TamilNaduGeoBounds.AreCoordinatesTransposed(request.Latitude, request.Longitude))
+    {
+        return Results.BadRequest(new { Error = "Coordinates appear to be transposed (Latitude in India is [6-38], Longitude is [68-98])." });
+    }
+
+    if (!TamilNaduGeoBounds.IsWithinIndia(request.Latitude, request.Longitude))
+    {
+        return Results.BadRequest(new { Error = $"Coordinates ({request.Latitude:F4}, {request.Longitude:F4}) fall outside Indian geographic territory." });
+    }
+
+    // 1. Run local estimation engine (which checks DB and resolves LandLens statutory guideline)
+    var estimateRequest = new CalculateEstimateRequest(
+        Latitude: request.Latitude,
+        Longitude: request.Longitude,
+        LandUsage: request.LandUsage,
+        RadiusMeters: 1000.0,
+        TargetArea: request.TargetArea,
+        TargetAreaUnit: request.TargetAreaUnit
+    );
+
+    var estResult = await estimationEngine.EstimateMarketPriceAsync(estimateRequest, ct);
+
+    GuidelineReferenceDto? guidelineBenchmark = null;
+    PriceRangeDto? marketCent = null;
+    PriceRangeDto? marketSqFt = null;
+    AskingPriceReferenceDto? askingRef = null;
+
+    if (estResult is EstimateSuccessResponse success)
+    {
+        guidelineBenchmark = success.GovernmentGuidelineReference;
+        marketCent = success.PriceRangePerCent;
+        marketSqFt = success.PriceRangePerSqFt;
+        askingRef = success.AskingPriceReference;
+    }
+    else if (estResult is EstimateInsufficientDataResponse insufficient)
+    {
+        guidelineBenchmark = insufficient.GovernmentGuidelineReference;
+        askingRef = insufficient.AskingPriceReference;
+    }
+
+    // 2. Call Gemini AI with both LandLens statutory data + DB ground truth
+    var aiAnalysis = await geminiService.AnalyzeLandPriceAsync(
+        request,
+        guidelineBenchmark,
+        marketCent,
+        marketSqFt,
+        askingRef,
+        ct);
+
+    if (aiAnalysis != null)
+    {
+        return Results.Ok(aiAnalysis);
+    }
+
+    // Fallback if AI service is temporarily offline: construct structured response from local data
+    var fallbackCent = marketCent?.MedianRate ?? (guidelineBenchmark?.GuidelineRatePerCent != null ? guidelineBenchmark.GuidelineRatePerCent * 1.5m : 1050000m);
+    var fallbackSqFt = marketSqFt?.MedianRate ?? Math.Round(fallbackCent / LandArea.SqFtPerCent, 2);
+
+    return Results.Ok(new AiLandPriceIntelligenceResponse(
+        Status: "Fallback",
+        TargetCoordinates: new CoordinatesDto(request.Latitude, request.Longitude),
+        Locality: guidelineBenchmark?.Locality ?? request.Locality ?? "Resolved Area",
+        District: request.District ?? "Coimbatore",
+        LandUsage: request.LandUsage.ToString(),
+        EstimatedCurrentPricePerCent: fallbackCent,
+        EstimatedCurrentPricePerSqFt: fallbackSqFt,
+        PriceRangeSummary: $"Standard market rate ₹{fallbackCent:N0}/Cent (₹{fallbackSqFt:N0}/Sq.Ft) with statutory guideline ₹{guidelineBenchmark?.GuidelineRatePerCent:N0}/Cent.",
+        MarketSentiment: "Steady Growth",
+        GrowthDrivers: new List<string> { "Highway connectivity", "Expanding suburban corridor", "Regional infrastructure developments" },
+        NegotiationTips: new List<string> { "Compare asking price against registered guideline benchmark", "Verify clear 30-year title with encumbrance certificate" },
+        DueDiligenceChecklist: new List<string> { "Patta verification", "Encumbrance Certificate (EC)", "DTCP/RERA approval" },
+        GovernmentGuidelineReference: guidelineBenchmark,
+        TotalValuation: null,
+        Model: "RuleBasedFallback",
+        GeneratedAtUtc: DateTime.UtcNow
+    ));
+})
+.WithName("GetAiLandIntelligence")
+.WithSummary("AI Land Price Intelligence & Market Analysis")
+.WithDescription("Synthesizes live LandLens TNREGINET statutory guideline benchmarks and database deeds with Google Gemini AI to analyze current land prices, growth drivers, and market sentiment.")
 .WithOpenApi();
 
 // ---------------------------------------------------------
