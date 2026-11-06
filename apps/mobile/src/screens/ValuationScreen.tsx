@@ -308,8 +308,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           estSuccess.confidence === 'High'
                             ? styles.confidencePillHigh
                             : estSuccess.confidence === 'AI-Synthesized'
-                            ? styles.confidencePillAi
-                            : styles.confidencePillModerate,
+                              ? styles.confidencePillAi
+                              : styles.confidencePillModerate,
                         ]}
                       >
                         <Text
