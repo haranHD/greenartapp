@@ -609,7 +609,7 @@ class MobileApiClient {
 
       // Central transit hubs (e.g. Karur Bus Stand): Commercial is 75L-1.2Cr, Prime Central Residential is 28L-40L
       // Standard town layouts: Commercial is 22L, Residential is 10.5L - 15L
-      const targetCentRate = isHub 
+      const targetCentRate = isHub
         ? (landUsage === 2 ? 8500000 : 3200000)
         : (landUsage === 2 ? 2200000 : 1050000);
       const targetSqFtRate = Math.round(targetCentRate / 435.6);
