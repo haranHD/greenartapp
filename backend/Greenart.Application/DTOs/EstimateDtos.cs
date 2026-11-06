@@ -11,7 +11,9 @@ public record CalculateEstimateRequest(
     double RadiusMeters = 1000.0,
     AreaUnit PreferredUnit = AreaUnit.Cent,
     decimal? TargetArea = null,
-    AreaUnit? TargetAreaUnit = null
+    AreaUnit? TargetAreaUnit = null,
+    string? Locality = null,
+    string? District = null
 );
 
 public record PriceRangeDto(

@@ -657,7 +657,7 @@ function GreenartMobileApp() {
     setActiveTab('estimate');
 
     try {
-      const res = await mobileApi.calculateEstimate(lat, lng, usage, 1000);
+      const res = await mobileApi.calculateEstimate(lat, lng, usage, 1000, activeLocality);
       if (calculationSeqRef.current !== currentSeq) return;
       setEstimate(res);
 

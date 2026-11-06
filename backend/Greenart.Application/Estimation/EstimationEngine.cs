@@ -50,12 +50,12 @@ public class EstimationEngine : IEstimationEngine
         // Rule: Guideline values must NEVER be blended into the market transaction pool
         var guidelineRecord = candidates.FirstOrDefault(r => r.SourceCategory == SourceCategory.GovernmentGuideline);
         GuidelineReferenceDto? guidelineBenchmark = null;
-        string? resolvedDistrict = null;
-        string? resolvedVillage = null;
+        string? resolvedDistrict = request.District;
+        string? resolvedVillage = request.Locality;
 
         if (guidelineRecord != null)
         {
-            resolvedVillage = guidelineRecord.Locality;
+            resolvedVillage ??= guidelineRecord.Locality;
             guidelineBenchmark = new GuidelineReferenceDto(
                 GuidelineRatePerCent: guidelineRecord.NormalizedRatePerCent,
                 GuidelineRatePerSqFt: guidelineRecord.NormalizedRatePerSqFt,
@@ -70,8 +70,8 @@ public class EstimationEngine : IEstimationEngine
             {
                 // Step A: Resolve parcel to extract revenue village/district/survey
                 var parcel = await _landLensClient.ResolveParcelAsync(targetCoord.Latitude, targetCoord.Longitude, cancellationToken);
-                resolvedDistrict = parcel?.DistrictName;
-                resolvedVillage = parcel?.VillageName;
+                resolvedDistrict ??= parcel?.DistrictName;
+                resolvedVillage ??= parcel?.VillageName;
 
                 // Step B: Query guideline value using coordinates and resolved parcel details
                 var gl = await _landLensClient.GetGuidelineValueAsync(new GuidelineValueRequest

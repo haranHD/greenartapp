@@ -42,7 +42,7 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         _model = configuration["GeminiSettings:Model"] 
             ?? configuration["GEMINI_MODEL"] 
             ?? Environment.GetEnvironmentVariable("GEMINI_MODEL") 
-            ?? "gemini-3-flash-preview";
+            ?? "gemini-3.5-flash";
 
         _baseUrl = configuration["GeminiSettings:BaseUrl"] 
             ?? configuration["GEMINI_BASE_URL"] 
@@ -276,6 +276,26 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
             ? $"Target Property Size: {request.TargetArea.Value} {request.TargetAreaUnit ?? Domain.Enums.AreaUnit.Cent}"
             : "Target Property Size: General 1 Cent rate inquiry.";
 
+        var isHubOrTransit = locality.Contains("Bus Stand", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Bus Terminus", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Railway", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Junction", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Market", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Collectorate", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("Town Center", StringComparison.OrdinalIgnoreCase) ||
+                             locality.Contains("CBD", StringComparison.OrdinalIgnoreCase);
+
+        var hubGuidance = isHubOrTransit
+            ? @"
+CRITICAL URBAN HUB & TRANSIT APEX DIRECTIVE:
+- This property is explicitly situated in or immediately touching a MAJOR URBAN TRANSIT / CENTRAL COMMERCIAL HUB (e.g., Central Bus Stand, Railway Junction, or City Center).
+- In Tamil Nadu tier-2/tier-3 cities (e.g. Karur, Erode, Tiruppur, Dindigul, Salem):
+  * Central Bus Stand corridors represent the absolute commercial apex of the city with high footfall, high rental yield, and commercial redevelopment demand.
+  * Commercial plots directly on or near the main bus stand trade at massive premiums, typically between ₹15,000 to ₹35,000+ per sq.ft (₹65 Lakhs to ₹1.5+ Crores per Cent).
+  * Residential or mixed-use land within walking distance of the central bus stand also trades at a prime urban rate (typically ₹4,500 to ₹10,000+ per sq.ft / ₹20 Lakhs to ₹45+ Lakhs per Cent), drastically higher than distant peripheral town layouts (which trade at ₹2,000-₹3,000/sq.ft).
+- You MUST reflect this prime transit hub premium accurately. Do NOT output a generic peripheral suburban or rural farmland rate."
+            : string.Empty;
+
         return $@"You are a Senior Geospatial Property Valuation Analyst & Real Estate Intelligence Expert specializing in Tamil Nadu, India.
 Analyze current land market prices and investment dynamics for the following target plot:
 
@@ -288,6 +308,7 @@ Ground Truth Reference Evidence:
 - {guidelineInfo}
 - {marketInfo}
 - {askingInfo}
+{hubGuidance}
 
 Provide a comprehensive, authoritative, realistic assessment in JSON format with exact keys:
 {{
