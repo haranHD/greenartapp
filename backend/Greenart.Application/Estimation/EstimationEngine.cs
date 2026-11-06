@@ -162,14 +162,23 @@ public class EstimationEngine : IEstimationEngine
             if (_geminiService != null && _geminiService.IsConfigured)
             {
                 // STEP 5A: Check if we already have a recent cached AI corridor estimate in DB within this radius
-                var cachedResearch = candidates
-                    .Where(r => r.SourceCategory == SourceCategory.ClientResearch)
-                    .Where(r => r.SourceReference != null && r.SourceReference.StartsWith("AI Corridor Synthesis"))
-                    .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
-                    .Where(r => r.NormalizedRatePerSqFt > 0 && r.NormalizedRatePerCent > 0)
-                    .Where(r => (asOfDate - r.ObservationDate).TotalDays <= 180)
-                    .OrderBy(r => r.Coordinates.DistanceToMeters(targetCoord))
-                    .FirstOrDefault();
+                // If the user provided a specific locality (e.g. "Karur Bus Stand"), ensure the cache matches that locality!
+                LandPriceRecord? cachedResearch = null;
+                if (!request.ForceFresh)
+                {
+                    cachedResearch = candidates
+                        .Where(r => r.SourceCategory == SourceCategory.ClientResearch)
+                        .Where(r => r.SourceReference != null && r.SourceReference.StartsWith("AI Corridor Synthesis"))
+                        .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
+                        .Where(r => r.NormalizedRatePerSqFt > 0 && r.NormalizedRatePerCent > 0)
+                        .Where(r => (asOfDate - r.ObservationDate).TotalDays <= 180)
+                        .Where(r => string.IsNullOrWhiteSpace(request.Locality) ||
+                                    r.Locality.Equals(request.Locality, StringComparison.OrdinalIgnoreCase) ||
+                                    r.Locality.Contains(request.Locality, StringComparison.OrdinalIgnoreCase) ||
+                                    request.Locality.Contains(r.Locality, StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(r => r.Coordinates.DistanceToMeters(targetCoord))
+                        .FirstOrDefault();
+                }
 
                 if (cachedResearch != null)
                 {

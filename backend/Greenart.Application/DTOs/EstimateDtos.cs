@@ -13,7 +13,8 @@ public record CalculateEstimateRequest(
     decimal? TargetArea = null,
     AreaUnit? TargetAreaUnit = null,
     string? Locality = null,
-    string? District = null
+    string? District = null,
+    bool ForceFresh = false
 );
 
 public record PriceRangeDto(
