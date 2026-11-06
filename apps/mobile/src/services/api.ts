@@ -636,8 +636,7 @@ class MobileApiClient {
             locality: targetLocality,
             legalNotice: 'Statutory guideline benchmark from TNREGINET (via LandLens). Not an open-market transaction.',
           },
-          disclaimer: 'AI-synthesized indicative valuation based on regional micro-market corridor and TNREGINET statutory benchmarks.',
-          calculationExplanation: `Synthesized via Google Gemini AI & LandLens live registry feeds for ${targetLocality} micro-market corridor.`,
+          disclaimer: 'Indicative valuation based on regional micro-market corridor and TNREGINET statutory benchmarks.',
         };
       }
 
