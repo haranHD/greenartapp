@@ -564,6 +564,73 @@ public class EstimationEngineTests
         Assert.Equal(1, insufficient.ComparableRecordsFound);
     }
 
+    [Fact]
+    public async Task WhenGeminiSynthesizesEstimate_ShouldPersistToDatabase_AndSubsequentQueryReusesCache()
+    {
+        var records = new List<LandPriceRecord>
+        {
+            CreateVerifiedDeed(11.0010, 77.0870, 950000m)
+        };
+        var repo = new MockLandPriceRepository(records);
+
+        var mockAiResponse = new AiLandPriceIntelligenceResponse(
+            Status: "Success",
+            TargetCoordinates: new CoordinatesDto(11.0012, 77.0874),
+            Locality: "Pollachi",
+            District: "Coimbatore",
+            LandUsage: "Residential",
+            EstimatedCurrentPricePerCent: 650000m,
+            EstimatedCurrentPricePerSqFt: 1492.20m,
+            PriceRangeSummary: "AI-Synthesized estimate for Pollachi",
+            MarketSentiment: "Steady",
+            GrowthDrivers: new List<string> { "Highway connectivity" },
+            NegotiationTips: new List<string> { "Check road width" },
+            DueDiligenceChecklist: new List<string> { "EC verification" },
+            GovernmentGuidelineReference: null,
+            TotalValuation: null,
+            Model: "gemini-3-flash-preview",
+            GeneratedAtUtc: DateTime.UtcNow
+        );
+
+        var geminiMock = new MockGeminiLandIntelligenceService(mockAiResponse, isConfigured: true);
+        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
+
+        var request1 = new CalculateEstimateRequest(
+            Latitude: 11.0012,
+            Longitude: 77.0874,
+            LandUsage: LandUsageType.Residential,
+            RadiusMeters: 1000
+        );
+
+        // First call triggers Gemini and persists to DB
+        var response1 = await engine.EstimateMarketPriceAsync(request1);
+        var success1 = Assert.IsType<EstimateSuccessResponse>(response1);
+        Assert.Equal(650000m, success1.PriceRangePerCent.MedianRate);
+
+        // Verify the record was persisted into repository
+        var allRecords = await repo.GetAllAsync();
+        var persistedAiRecord = allRecords.FirstOrDefault(r => r.SourceCategory == SourceCategory.ClientResearch);
+        Assert.NotNull(persistedAiRecord);
+        Assert.Equal(650000m, persistedAiRecord.NormalizedRatePerCent);
+        Assert.StartsWith("AI Corridor Synthesis", persistedAiRecord.SourceReference);
+
+        // Second call with a FAILING Gemini mock (returning null) reuses the cached record from DB
+        var failingGeminiMock = new MockGeminiLandIntelligenceService(null, isConfigured: true);
+        var engineWithCachedDb = new EstimationEngine(repo, landLensClient: null, geminiService: failingGeminiMock);
+
+        var request2 = new CalculateEstimateRequest(
+            Latitude: 11.0014,
+            Longitude: 77.0876,
+            LandUsage: LandUsageType.Residential,
+            RadiusMeters: 1000
+        );
+
+        var response2 = await engineWithCachedDb.EstimateMarketPriceAsync(request2);
+        var success2 = Assert.IsType<EstimateSuccessResponse>(response2);
+        Assert.Equal(650000m, success2.PriceRangePerCent.MedianRate);
+        Assert.Contains("ClientResearch_DatabaseCache", success2.SourceBreakdown.Select(s => s.Category));
+    }
+
     private class MockGeminiLandIntelligenceService : IGeminiLandIntelligenceService
     {
         private readonly AiLandPriceIntelligenceResponse? _response;

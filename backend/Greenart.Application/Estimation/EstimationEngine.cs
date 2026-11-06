@@ -157,12 +157,101 @@ public class EstimationEngine : IEstimationEngine
             .ToList();
 
         // 5. Insufficient Data Check (When verified completed sales < 3):
-        // If Gemini AI service is available, synthesize an evidence-backed market valuation
-        // using live LandLens statutory baseline, micro-market economic drivers, and asking price sentiment.
         if (eligibleCompletedSales.Count < MinimumRecordThreshold)
         {
             if (_geminiService != null && _geminiService.IsConfigured)
             {
+                // STEP 5A: Check if we already have a recent cached AI corridor estimate in DB within this radius
+                var cachedResearch = candidates
+                    .Where(r => r.SourceCategory == SourceCategory.ClientResearch)
+                    .Where(r => r.SourceReference != null && r.SourceReference.StartsWith("AI Corridor Synthesis"))
+                    .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
+                    .Where(r => r.NormalizedRatePerSqFt > 0 && r.NormalizedRatePerCent > 0)
+                    .Where(r => (asOfDate - r.ObservationDate).TotalDays <= 180)
+                    .OrderBy(r => r.Coordinates.DistanceToMeters(targetCoord))
+                    .FirstOrDefault();
+
+                if (cachedResearch != null)
+                {
+                    var estSqFt = cachedResearch.NormalizedRatePerSqFt;
+                    var estCent = cachedResearch.NormalizedRatePerCent;
+
+                    var minSqFt = Math.Round(estSqFt * 0.88m, 2);
+                    var maxSqFt = Math.Round(estSqFt * 1.15m, 2);
+                    var p25SqFt = Math.Round(minSqFt + (estSqFt - minSqFt) * 0.5m, 2);
+                    var p75SqFt = Math.Round(estSqFt + (maxSqFt - estSqFt) * 0.5m, 2);
+
+                    var minCent = Math.Round(estCent * 0.88m, 2);
+                    var maxCent = Math.Round(estCent * 1.15m, 2);
+                    var p25Cent = Math.Round(minCent + (estCent - minCent) * 0.5m, 2);
+                    var p75Cent = Math.Round(estCent + (maxCent - estCent) * 0.5m, 2);
+
+                    var cachedPriceRangePerSqFt = new PriceRangeDto(minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft");
+                    var cachedPriceRangePerCent = new PriceRangeDto(minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent");
+
+                    TotalValuationDto? cachedTotalVal = null;
+                    if (request.TargetArea.HasValue && request.TargetArea.Value > 0)
+                    {
+                        var areaUnit = request.TargetAreaUnit ?? request.PreferredUnit;
+                        var targetAreaObj = new LandArea(request.TargetArea.Value, areaUnit);
+                        var equivSqFt = targetAreaObj.ToSqFt();
+                        var equivCents = targetAreaObj.ToCents();
+
+                        var totalEst = Math.Round(estSqFt * equivSqFt, 2);
+                        var totalMin = Math.Round(minSqFt * equivSqFt, 2);
+                        var totalMax = Math.Round(maxSqFt * equivSqFt, 2);
+
+                        decimal? totalGuideline = null;
+                        if (guidelineBenchmark != null)
+                        {
+                            totalGuideline = Math.Round(guidelineBenchmark.GuidelineRatePerSqFt * equivSqFt, 2);
+                        }
+
+                        cachedTotalVal = new TotalValuationDto(
+                            TotalEstimatedPrice: totalEst,
+                            TotalPriceMin: totalMin,
+                            TotalPriceMax: totalMax,
+                            AreaValue: request.TargetArea.Value,
+                            AreaUnit: areaUnit.ToString(),
+                            EquivalentSqFt: Math.Round(equivSqFt, 2),
+                            EquivalentCents: Math.Round(equivCents, 2),
+                            TotalGuidelinePrice: totalGuideline
+                        );
+                    }
+
+                    var cachedBreakdown = new List<SourceCategoryBreakdownDto>
+                    {
+                        new("ClientResearch_DatabaseCache", 1)
+                    };
+                    if (guidelineBenchmark != null)
+                    {
+                        cachedBreakdown.Add(new("GovernmentGuideline_TNREGINET", 1));
+                    }
+                    if (askingPriceReference != null)
+                    {
+                        cachedBreakdown.Add(new("AdvertisedAskingPrice_Listings", askingPriceReference.ListingCount));
+                    }
+
+                    return new EstimateSuccessResponse(
+                        Status: "Success",
+                        TargetCoordinates: targetCoordDto,
+                        SearchRadiusMeters: radiusMeters,
+                        ComparableRecordCount: eligibleCompletedSales.Count,
+                        Confidence: "AI-Synthesized",
+                        PriceRangePerCent: cachedPriceRangePerCent,
+                        PriceRangePerSqFt: cachedPriceRangePerSqFt,
+                        EarliestRecordDate: cachedResearch.ObservationDate,
+                        LatestRecordDate: cachedResearch.ObservationDate,
+                        SourceBreakdown: cachedBreakdown,
+                        GovernmentGuidelineReference: guidelineBenchmark,
+                        Disclaimer: "Indicative valuation based on regional micro-market corridor and TNREGINET statutory benchmarks.",
+                        AskingPriceReference: askingPriceReference,
+                        TotalValuation: cachedTotalVal,
+                        CalculationExplanation: $"Retrieved from cached corridor research data ({cachedResearch.SourceReference}) for {cachedResearch.Locality}."
+                    );
+                }
+
+                // STEP 5B: If no cached estimate exists, synthesize using Gemini AI
                 try
                 {
                     var aiRequest = new AiLandPriceIntelligenceRequest(
@@ -192,6 +281,37 @@ public class EstimationEngine : IEstimationEngine
                         var estCent = aiResult.EstimatedCurrentPricePerCent > 0
                             ? aiResult.EstimatedCurrentPricePerCent
                             : Math.Round(aiResult.EstimatedCurrentPricePerSqFt * LandArea.SqFtPerCent, 2);
+
+                        // Automatically persist the AI synthesis to PostgreSQL DB as ClientResearch for future pinpoints
+                        try
+                        {
+                            var autoPersistedRecord = new LandPriceRecord(
+                                id: Guid.NewGuid(),
+                                country: "India",
+                                state: "Tamil Nadu",
+                                district: resolvedDistrict ?? "Coimbatore",
+                                taluk: null,
+                                locality: resolvedVillage ?? guidelineBenchmark?.Locality ?? "Tamil Nadu Corridor",
+                                streetOrLandmark: guidelineBenchmark?.Locality,
+                                surveyNumber: guidelineBenchmark?.SurveyNumber,
+                                coordinates: targetCoord,
+                                landUsage: request.LandUsage,
+                                area: new LandArea(1.0m, AreaUnit.Cent),
+                                originalPrice: estCent,
+                                sourceCategory: SourceCategory.ClientResearch,
+                                sourceReference: $"AI Corridor Synthesis ({aiResult.Model})",
+                                observationDate: DateTime.UtcNow,
+                                verificationStatus: VerificationStatus.Unverified,
+                                isSynthetic: false,
+                                notes: $"AI Market Estimate: {aiResult.PriceRangeSummary}. Sentiment: {aiResult.MarketSentiment}"
+                            );
+
+                            await _repository.AddAsync(autoPersistedRecord, cancellationToken);
+                        }
+                        catch
+                        {
+                            // Non-blocking: background save failure shouldn't disrupt client response
+                        }
 
                         var minSqFt = Math.Round(estSqFt * 0.88m, 2);
                         var maxSqFt = Math.Round(estSqFt * 1.15m, 2);
