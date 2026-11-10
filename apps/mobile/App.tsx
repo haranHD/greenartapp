@@ -368,6 +368,7 @@ function GreenartMobileApp() {
           locality: estSuccess.governmentGuidelineReference.locality || activeLocality,
         }
         : undefined,
+      factorBreakdown: estSuccess.factorBreakdown,
       comparablesCount: estSuccess.comparableRecordCount,
       comparables: nearbyRecords.slice(0, 5).map((nr) => ({
         id: nr.id,
@@ -604,6 +605,10 @@ function GreenartMobileApp() {
   const [isLocatingAddress, setIsLocatingAddress] = useState<boolean>(false);
   const [addressLocateStatus, setAddressLocateStatus] = useState<string | null>(null);
 
+  // Micro-Location Valuation Multiplier State
+  const [selectedRoadFrontage, setSelectedRoadFrontage] = useState<string>('Main Road / Highway (40ft-100ft)');
+  const [selectedAmenities, setSelectedAmenities] = useState<string>('Near Bus Stand / Commercial Transit Apex');
+
   const handleLocateAddress = async (rawAddress: string) => {
     if (!rawAddress || !rawAddress.trim()) return;
     setIsLocatingAddress(true);
@@ -647,7 +652,9 @@ function GreenartMobileApp() {
   const executeCalculation = async (
     lat: number = targetLat,
     lng: number = targetLng,
-    usage: number = landUsage
+    usage: number = landUsage,
+    road: string = selectedRoadFrontage,
+    amenities: string = selectedAmenities
   ) => {
     if (loadingEstimate) return;
     const currentSeq = ++calculationSeqRef.current;
@@ -657,7 +664,16 @@ function GreenartMobileApp() {
     setActiveTab('estimate');
 
     try {
-      const res = await mobileApi.calculateEstimate(lat, lng, usage, 1000, activeLocality);
+      const res = await mobileApi.calculateEstimate(
+        lat,
+        lng,
+        usage,
+        1000,
+        activeLocality,
+        undefined,
+        road,
+        amenities
+      );
       if (calculationSeqRef.current !== currentSeq) return;
       setEstimate(res);
 
@@ -863,6 +879,10 @@ function GreenartMobileApp() {
               setLngInput={setLngInput}
               handleManualCoordSubmit={handleManualCoordSubmit}
               executeCalculation={executeCalculation}
+              selectedRoadFrontage={selectedRoadFrontage}
+              setSelectedRoadFrontage={setSelectedRoadFrontage}
+              selectedAmenities={selectedAmenities}
+              setSelectedAmenities={setSelectedAmenities}
               loadingEstimate={loadingEstimate}
               estimateError={estimateError}
               estimate={estimate}

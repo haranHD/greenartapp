@@ -1280,7 +1280,11 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
         LandUsage: request.LandUsage,
         RadiusMeters: 1000.0,
         TargetArea: request.TargetArea,
-        TargetAreaUnit: request.TargetAreaUnit
+        TargetAreaUnit: request.TargetAreaUnit,
+        Locality: request.Locality,
+        District: request.District,
+        RoadFrontage: request.RoadFrontage,
+        SurroundingAmenities: request.SurroundingAmenities
     );
 
     var estResult = await estimationEngine.EstimateMarketPriceAsync(estimateRequest, ct);

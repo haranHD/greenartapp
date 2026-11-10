@@ -175,6 +175,15 @@ export interface ValuationPdfReport {
     locality: string;
     surveyNumber?: string;
   };
+  factorBreakdown?: {
+    baseLocalityRatePerCent: number;
+    roadFrontageAdjustmentPerCent: number;
+    amenitiesAdjustmentPerCent: number;
+    roadFrontageType: string;
+    surroundingAmenitiesType: string;
+    roadAdjustmentReason: string;
+    amenityAdjustmentReason: string;
+  };
   comparablesCount: number;
   comparables: Array<{
     id: string;

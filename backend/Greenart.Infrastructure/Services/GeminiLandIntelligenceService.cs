@@ -34,19 +34,19 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         _httpClient = httpClient;
         _logger = logger;
 
-        _apiKey = configuration["GeminiSettings:ApiKey"] 
-            ?? configuration["GEMINI_API_KEY"] 
-            ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY") 
+        _apiKey = configuration["GeminiSettings:ApiKey"]
+            ?? configuration["GEMINI_API_KEY"]
+            ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY")
             ?? string.Empty;
 
-        _model = configuration["GeminiSettings:Model"] 
-            ?? configuration["GEMINI_MODEL"] 
-            ?? Environment.GetEnvironmentVariable("GEMINI_MODEL") 
-            ?? "gemini-3.5-flash";
+        _model = configuration["GeminiSettings:Model"]
+            ?? configuration["GEMINI_MODEL"]
+            ?? Environment.GetEnvironmentVariable("GEMINI_MODEL")
+            ?? "gemini-1.5-flash";
 
-        _baseUrl = configuration["GeminiSettings:BaseUrl"] 
-            ?? configuration["GEMINI_BASE_URL"] 
-            ?? Environment.GetEnvironmentVariable("GEMINI_BASE_URL") 
+        _baseUrl = configuration["GeminiSettings:BaseUrl"]
+            ?? configuration["GEMINI_BASE_URL"]
+            ?? Environment.GetEnvironmentVariable("GEMINI_BASE_URL")
             ?? "https://generativelanguage.googleapis.com/v1beta";
 
         var timeoutSeconds = 30;
@@ -74,12 +74,12 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
 
         var sw = Stopwatch.StartNew();
 
-        var locality = !string.IsNullOrWhiteSpace(request.Locality) 
-            ? request.Locality 
+        var locality = !string.IsNullOrWhiteSpace(request.Locality)
+            ? request.Locality
             : guidelineBenchmark?.Locality ?? "Tamil Nadu Locality";
 
-        var district = !string.IsNullOrWhiteSpace(request.District) 
-            ? request.District 
+        var district = !string.IsNullOrWhiteSpace(request.District)
+            ? request.District
             : "Tamil Nadu";
 
         var prompt = BuildPrompt(request, locality, district, guidelineBenchmark, marketObservedPerCent, askingPriceReference);
@@ -116,7 +116,7 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
             if (!response.IsSuccessStatusCode)
             {
                 var errContent = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Gemini API returned error HTTP {StatusCode}: {ErrorContent}", 
+                _logger.LogWarning("Gemini API returned error HTTP {StatusCode}: {ErrorContent}",
                     (int)response.StatusCode, errContent);
                 return null;
             }
@@ -142,20 +142,50 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
             using var parsedDoc = JsonDocument.Parse(textJson);
             var parsed = parsedDoc.RootElement;
 
-            var estPerCent = parsed.TryGetProperty("estimatedCurrentPricePerCent", out var pCent) 
-                ? pCent.GetDecimal() 
+            var estPerCent = parsed.TryGetProperty("estimatedCurrentPricePerCent", out var pCent)
+                ? pCent.GetDecimal()
                 : marketObservedPerCent?.MedianRate ?? (guidelineBenchmark != null ? guidelineBenchmark.GuidelineRatePerCent * 1.5m : 0m);
 
-            var estPerSqFt = parsed.TryGetProperty("estimatedCurrentPricePerSqFt", out var pSqFt) 
-                ? pSqFt.GetDecimal() 
+            var estPerSqFt = parsed.TryGetProperty("estimatedCurrentPricePerSqFt", out var pSqFt)
+                ? pSqFt.GetDecimal()
                 : Math.Round(estPerCent / LandArea.SqFtPerCent, 2);
 
-            var priceRangeSummary = parsed.TryGetProperty("priceRangeSummary", out var pr) 
-                ? pr.GetString() ?? string.Empty 
+            var baseLocalityRate = parsed.TryGetProperty("baseLocalityRatePerCent", out var blr)
+                ? blr.GetDecimal()
+                : Math.Round(estPerCent * 0.60m, 2);
+
+            var roadAdj = parsed.TryGetProperty("roadFrontageAdjustmentPerCent", out var rfa)
+                ? rfa.GetDecimal()
+                : Math.Round(estPerCent * 0.25m, 2);
+
+            var amenityAdj = parsed.TryGetProperty("amenitiesAdjustmentPerCent", out var ama)
+                ? ama.GetDecimal()
+                : Math.Round(estPerCent * 0.15m, 2);
+
+            var roadReason = parsed.TryGetProperty("roadAdjustmentReason", out var rfr)
+                ? rfr.GetString() ?? ""
+                : (request.RoadFrontage ?? "Road frontage impact on visibility and access");
+
+            var amenityReason = parsed.TryGetProperty("amenityAdjustmentReason", out var amr)
+                ? amr.GetString() ?? ""
+                : (request.SurroundingAmenities ?? "Proximity to transit, hospitals, and schools");
+
+            var factorBreakdown = new ValuationFactorBreakdownDto(
+                BaseLocalityRatePerCent: baseLocalityRate,
+                RoadFrontageAdjustmentPerCent: roadAdj,
+                AmenitiesAdjustmentPerCent: amenityAdj,
+                RoadFrontageType: request.RoadFrontage ?? "Standard Layout Road",
+                SurroundingAmenitiesType: request.SurroundingAmenities ?? "Standard Residential Colony",
+                RoadAdjustmentReason: roadReason,
+                AmenityAdjustmentReason: amenityReason
+            );
+
+            var priceRangeSummary = parsed.TryGetProperty("priceRangeSummary", out var pr)
+                ? pr.GetString() ?? string.Empty
                 : $"Estimated ₹{estPerCent:N0} / Cent (₹{estPerSqFt:N0} / Sq.Ft)";
 
-            var marketSentiment = parsed.TryGetProperty("marketSentiment", out var ms) 
-                ? ms.GetString() ?? "Moderate Growth" 
+            var marketSentiment = parsed.TryGetProperty("marketSentiment", out var ms)
+                ? ms.GetString() ?? "Moderate Growth"
                 : "Moderate Growth";
 
             var growthDrivers = new List<string>();
@@ -242,7 +272,8 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
                 GovernmentGuidelineReference: guidelineBenchmark,
                 TotalValuation: totalValuation,
                 Model: _model,
-                GeneratedAtUtc: DateTime.UtcNow
+                GeneratedAtUtc: DateTime.UtcNow,
+                FactorBreakdown: factorBreakdown
             );
         }
         catch (Exception ex)
@@ -260,7 +291,7 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         PriceRangeDto? market,
         AskingPriceReferenceDto? asking)
     {
-        var guidelineInfo = guideline != null 
+        var guidelineInfo = guideline != null
             ? $"TNREGINET Statutory Guideline Benchmark: ₹{guideline.GuidelineRatePerCent:N0}/Cent (₹{guideline.GuidelineRatePerSqFt:N0}/Sq.Ft), Survey/Location: {guideline.Locality}"
             : "TNREGINET Statutory Guideline: Not directly attached for this survey.";
 
@@ -272,7 +303,7 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
             ? $"Local Advertised Asking Prices: Median ₹{asking.MedianRatePerCent:N0}/Cent across {asking.ListingCount} broker listing(s)"
             : "Local Advertised Asking Prices: General market rates apply.";
 
-        var areaInfo = request.TargetArea.HasValue 
+        var areaInfo = request.TargetArea.HasValue
             ? $"Target Property Size: {request.TargetArea.Value} {request.TargetAreaUnit ?? Domain.Enums.AreaUnit.Cent}"
             : "Target Property Size: General 1 Cent rate inquiry.";
 
@@ -285,35 +316,59 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
                              locality.Contains("Town Center", StringComparison.OrdinalIgnoreCase) ||
                              locality.Contains("CBD", StringComparison.OrdinalIgnoreCase);
 
-        var hubGuidance = isHubOrTransit
-            ? @"
-CRITICAL URBAN HUB & TRANSIT APEX DIRECTIVE:
-- This property is explicitly situated in or immediately touching a MAJOR URBAN TRANSIT / CENTRAL COMMERCIAL HUB (e.g., Central Bus Stand, Railway Junction, or City Center).
-- In Tamil Nadu tier-2/tier-3 cities (e.g. Karur, Erode, Tiruppur, Dindigul, Salem):
-  * Central Bus Stand corridors represent the absolute commercial apex of the city with high footfall, high rental yield, and commercial redevelopment demand.
-  * Commercial plots directly on or near the main bus stand trade at massive premiums, typically between ₹15,000 to ₹35,000+ per sq.ft (₹65 Lakhs to ₹1.5+ Crores per Cent).
-  * Residential or mixed-use land within walking distance of the central bus stand also trades at a prime urban rate (typically ₹4,500 to ₹10,000+ per sq.ft / ₹20 Lakhs to ₹45+ Lakhs per Cent), drastically higher than distant peripheral town layouts (which trade at ₹2,000-₹3,000/sq.ft).
-- You MUST reflect this prime transit hub premium accurately. Do NOT output a generic peripheral suburban or rural farmland rate."
-            : string.Empty;
+        var roadFrontage = !string.IsNullOrWhiteSpace(request.RoadFrontage)
+            ? request.RoadFrontage
+            : (isHubOrTransit ? "Main Road / Highway (40ft-100ft)" : "Standard Layout Road (24ft-30ft)");
+
+        var amenities = !string.IsNullOrWhiteSpace(request.SurroundingAmenities)
+            ? request.SurroundingAmenities
+            : (isHubOrTransit ? "Near Bus Stand / Commercial Transit Apex" : "Standard Residential Colony");
 
         return $@"You are a Senior Geospatial Property Valuation Analyst & Real Estate Intelligence Expert specializing in Tamil Nadu, India.
-Analyze current land market prices and investment dynamics for the following target plot:
+Analyze current 2026 land market prices and investment dynamics for the following target plot:
 
 Target Location: {locality}, {district}, Tamil Nadu, India
 Geographic Coordinates: Latitude {request.Latitude:F4}, Longitude {request.Longitude:F4}
 Land Classification: {request.LandUsage}
 {areaInfo}
 
+Micro-Location Attributes:
+- Selected Road Frontage & Width: {roadFrontage}
+- Surrounding Civic & Social Anchors: {amenities}
+
 Ground Truth Reference Evidence:
 - {guidelineInfo}
 - {marketInfo}
 - {askingInfo}
-{hubGuidance}
+
+TAMIL NADU MICRO-LOCATION VALUATION DIRECTIVES:
+1. ROAD HIERARCHY IMPACT:
+   - 'Main Road / Highway (40ft-100ft)': In Tamil Nadu cities and towns, properties directly fronting commercial arterials, State Highways (SH), or National Highways (NH) command an 80% to 250%+ premium over interior streets. Retail frontage and commercial development potential drastically drive values.
+   - 'Standard Layout Road (24ft-30ft)': Baseline approved layout residential rate.
+   - 'Interior / Village Lane (<20ft)': Discount of 20% to 50% relative to approved layout rates due to narrow access, dead-ends, or unapproved status.
+
+2. SURROUNDING CIVIC & TRANSIT ANCHOR IMPACT:
+   - 'Near Bus Stand / Commercial Transit Apex': Commercial apex with maximum footfall. Commercial plots directly on or flanking central bus stands (e.g. Karur Bus Stand, Salem Junction, Gandhipuram, Erode Central) trade at ₹60 Lakhs to ₹1.5+ Crores per Cent (₹14,000 to ₹35,000+/sq.ft). Prime residential plots in immediate walking distance trade at ₹25 Lakhs to ₹45 Lakhs per Cent (₹5,500 to ₹10,000/sq.ft).
+   - 'Near Hospitals & Schools': Strong residential desirability, family housing demand, and rental yield. Commands +15% to +35% premium over outlying layouts.
+   - 'Standard Residential Colony': Steady town appreciation rate.
+   - 'Rural Outskirts': Trades near agricultural / raw unapproved layout benchmarks.
+
+3. ITEMIZATION BREAKDOWN REQUIREMENT:
+   Calculate the market rate as a sum of clear value drivers:
+   - baseLocalityRatePerCent: Baseline market rate per cent for average interior land in this locality.
+   - roadFrontageAdjustmentPerCent: Additional premium (or discount) per cent attributed to the specified road frontage.
+   - amenitiesAdjustmentPerCent: Premium per cent attributed to nearby transit, hospitals, schools, or markets.
+   - estimatedCurrentPricePerCent: Net fair market price per cent (= base + road + amenity).
 
 Provide a comprehensive, authoritative, realistic assessment in JSON format with exact keys:
 {{
-  ""estimatedCurrentPricePerCent"": <numeric number in INR per cent, realistic fair market value>,
+  ""baseLocalityRatePerCent"": <numeric number in INR per cent for base area>,
+  ""roadFrontageAdjustmentPerCent"": <numeric number in INR per cent for road impact>,
+  ""amenitiesAdjustmentPerCent"": <numeric number in INR per cent for amenity impact>,
+  ""estimatedCurrentPricePerCent"": <numeric number in INR per cent, sum of base + adjustments>,
   ""estimatedCurrentPricePerSqFt"": <numeric number in INR per sq.ft, using 1 cent = 435.6 sq.ft>,
+  ""roadAdjustmentReason"": ""<one sentence explaining the road frontage impact>"",
+  ""amenityAdjustmentReason"": ""<one sentence explaining the surrounding amenities impact>"",
   ""priceRangeSummary"": ""<concise 2-sentence summary comparing fair market rate vs guideline rate and typical asking range>"",
   ""marketSentiment"": ""<Bullish | High Growth Corridor | Stable / Steady | Emerging Suburban>"",
   ""growthDrivers"": [

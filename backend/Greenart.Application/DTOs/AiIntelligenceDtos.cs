@@ -2,6 +2,16 @@ using Greenart.Domain.Enums;
 
 namespace Greenart.Application.DTOs;
 
+public record ValuationFactorBreakdownDto(
+    decimal BaseLocalityRatePerCent,
+    decimal RoadFrontageAdjustmentPerCent,
+    decimal AmenitiesAdjustmentPerCent,
+    string RoadFrontageType,
+    string SurroundingAmenitiesType,
+    string RoadAdjustmentReason,
+    string AmenityAdjustmentReason
+);
+
 public record AiLandPriceIntelligenceRequest(
     double Latitude,
     double Longitude,
@@ -9,7 +19,9 @@ public record AiLandPriceIntelligenceRequest(
     decimal? TargetArea = null,
     AreaUnit? TargetAreaUnit = null,
     string? Locality = null,
-    string? District = null
+    string? District = null,
+    string? RoadFrontage = null,
+    string? SurroundingAmenities = null
 );
 
 public record AiLandPriceIntelligenceResponse(
@@ -28,6 +40,7 @@ public record AiLandPriceIntelligenceResponse(
     GuidelineReferenceDto? GovernmentGuidelineReference,
     TotalValuationDto? TotalValuation,
     string Model,
-    DateTime GeneratedAtUtc
+    DateTime GeneratedAtUtc,
+    ValuationFactorBreakdownDto? FactorBreakdown = null
 );
 

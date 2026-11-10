@@ -15,7 +15,9 @@ public record CalculateEstimateRequest(
     AreaUnit? TargetAreaUnit = null,
     string? Locality = null,
     string? District = null,
-    bool ForceFresh = false
+    bool ForceFresh = false,
+    string? RoadFrontage = null,
+    string? SurroundingAmenities = null
 );
 
 public record PriceRangeDto(
@@ -76,7 +78,8 @@ public record EstimateSuccessResponse(
     string Disclaimer,
     AskingPriceReferenceDto? AskingPriceReference = null,
     TotalValuationDto? TotalValuation = null,
-    string? CalculationExplanation = null
+    string? CalculationExplanation = null,
+    ValuationFactorBreakdownDto? FactorBreakdown = null
 );
 
 public record EstimateInsufficientDataResponse(
@@ -89,5 +92,6 @@ public record EstimateInsufficientDataResponse(
     List<string> Recommendations,
     GuidelineReferenceDto? GovernmentGuidelineReference = null,
     AskingPriceReferenceDto? AskingPriceReference = null,
-    decimal? TotalGuidelineValuation = null
+    decimal? TotalGuidelineValuation = null,
+    ValuationFactorBreakdownDto? FactorBreakdown = null
 );

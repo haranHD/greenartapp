@@ -162,6 +162,29 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
                 </View>
               </View>
 
+              {/* Micro-Location Factor Breakdown */}
+              {report.factorBreakdown && (
+                <View style={styles.pdfBreakdownCard}>
+                  <Text style={styles.pdfBreakdownTitle}>MICRO-LOCATION VALUE MULTIPLIERS</Text>
+                  <View style={styles.pdfBreakdownRow}>
+                    <Text style={styles.pdfBreakdownKey}>Base Locality Rate:</Text>
+                    <Text style={styles.pdfBreakdownVal}>{formatCurrency(report.factorBreakdown.baseLocalityRatePerCent)} / Cent</Text>
+                  </View>
+                  <View style={styles.pdfBreakdownRow}>
+                    <Text style={styles.pdfBreakdownKey}>Road Frontage ({report.factorBreakdown.roadFrontageType}):</Text>
+                    <Text style={[styles.pdfBreakdownVal, { color: '#15803D' }]}>
+                      +{formatCurrency(report.factorBreakdown.roadFrontageAdjustmentPerCent)} / Cent
+                    </Text>
+                  </View>
+                  <View style={styles.pdfBreakdownRow}>
+                    <Text style={styles.pdfBreakdownKey}>Civic & Transit Anchors ({report.factorBreakdown.surroundingAmenitiesType}):</Text>
+                    <Text style={[styles.pdfBreakdownVal, { color: '#15803D' }]}>
+                      +{formatCurrency(report.factorBreakdown.amenitiesAdjustmentPerCent)} / Cent
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Total Estimated Plot Value */}
               <View style={styles.totalValueBanner}>
                 <Text style={styles.totalValueLabel}>TOTAL ESTIMATED PLOT CONSIDERATION (MEDIAN)</Text>
@@ -440,6 +463,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#240046',
+  },
+  pdfBreakdownCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    padding: 8,
+    marginBottom: 10,
+  },
+  pdfBreakdownTitle: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+  pdfBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  pdfBreakdownKey: {
+    fontSize: 8.5,
+    color: '#475569',
+  },
+  pdfBreakdownVal: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   bracketBox: {
     flexDirection: 'row',
