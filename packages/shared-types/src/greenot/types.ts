@@ -155,3 +155,20 @@ export interface BuildingValuationResult {
   netBuildingValue: number;
   totalPropertyValue: number;
 }
+
+export interface MarketRateBufferResult {
+  rawRate: number;
+  lowerRate: number;
+  upperRate: number;
+  approximateRate: number;
+  midpointRate: number;
+  unit: string;
+  isLakhs: boolean;
+  lowerFormatted: string;
+  upperFormatted: string;
+  approximateFormatted: string;
+  rangeFormatted: string;
+  displayEstimatedRange: string;
+  displayApproximateRate: string;
+}
+

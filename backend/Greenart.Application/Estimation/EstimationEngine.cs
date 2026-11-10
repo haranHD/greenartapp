@@ -195,8 +195,12 @@ public class EstimationEngine : IEstimationEngine
                     var p25Cent = Math.Round(minCent + (estCent - minCent) * 0.5m, 2);
                     var p75Cent = Math.Round(estCent + (maxCent - estCent) * 0.5m, 2);
 
-                    var cachedPriceRangePerSqFt = new PriceRangeDto(minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft");
-                    var cachedPriceRangePerCent = new PriceRangeDto(minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent");
+                    var cachedPriceRangePerSqFt = new PriceRangeDto(
+                        minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft",
+                        GreenotValuationEngine.CalculateMarketRateBuffer(estSqFt, "Sq.Ft"));
+                    var cachedPriceRangePerCent = new PriceRangeDto(
+                        minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent",
+                        GreenotValuationEngine.CalculateMarketRateBuffer(estCent, "Cent"));
 
                     TotalValuationDto? cachedTotalVal = null;
                     if (request.TargetArea.HasValue && request.TargetArea.Value > 0)
@@ -332,8 +336,12 @@ public class EstimationEngine : IEstimationEngine
                         var p25Cent = Math.Round(minCent + (estCent - minCent) * 0.5m, 2);
                         var p75Cent = Math.Round(estCent + (maxCent - estCent) * 0.5m, 2);
 
-                        var aiPriceRangePerSqFt = new PriceRangeDto(minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft");
-                        var aiPriceRangePerCent = new PriceRangeDto(minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent");
+                        var aiPriceRangePerSqFt = new PriceRangeDto(
+                            minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft",
+                            GreenotValuationEngine.CalculateMarketRateBuffer(estSqFt, "Sq.Ft"));
+                        var aiPriceRangePerCent = new PriceRangeDto(
+                            minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent",
+                            GreenotValuationEngine.CalculateMarketRateBuffer(estCent, "Cent"));
 
                         var aiSourceBreakdown = new List<SourceCategoryBreakdownDto>
                         {
@@ -587,13 +595,17 @@ public class EstimationEngine : IEstimationEngine
         var q1 = GetPercentile(sorted, 0.25);
         var q3 = GetPercentile(sorted, 0.75);
 
+        var bufferUnit = unit.Contains("Cent", StringComparison.OrdinalIgnoreCase) ? "Cent" : "Sq.Ft";
+        var buffer = GreenotValuationEngine.CalculateMarketRateBuffer(median, bufferUnit);
+
         return new PriceRangeDto(
             MinRate: Math.Round(min, 2),
             Percentile25: Math.Round(q1, 2),
             MedianRate: Math.Round(median, 2),
             Percentile75: Math.Round(q3, 2),
             MaxRate: Math.Round(max, 2),
-            Unit: unit
+            Unit: unit,
+            MarketRateBuffer: buffer
         );
     }
 

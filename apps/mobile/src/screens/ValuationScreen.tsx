@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Colors } from '../theme/colors';
-import { LAND_USAGES, formatLakhs } from '../utils/formatters';
+import { LAND_USAGES, formatLakhs, calculateMarketRateBuffer } from '../utils/formatters';
 import {
   MobileTab,
   EstimateStep,
@@ -318,43 +318,71 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                       </View>
                     </View>
 
-                    {/* Rate Display */}
-                    <View style={styles.bigRateDisplay}>
-                      <Text style={styles.bigRateNumber}>
-                        {displayUnit === 'Cent'
-                          ? formatLakhs(medianCent)
-                          : `₹${Math.round(medianSqFt).toLocaleString('en-IN')}`}
-                      </Text>
-                      <Text style={styles.bigRateUnit}>
-                        {displayUnit === 'Cent' ? '/ Cent' : '/ Sq.Ft'}
-                      </Text>
-                    </View>
+                    {(() => {
+                      const activeUnit = displayUnit === 'Cent' ? 'Cent' : 'Sq.Ft';
+                      const activeRate = displayUnit === 'Cent' ? medianCent : medianSqFt;
+                      const activeBuffer = calculateMarketRateBuffer(activeRate, activeUnit);
+                      const altUnit = displayUnit === 'Cent' ? 'Sq.Ft' : 'Cent';
+                      const altRate = displayUnit === 'Cent' ? medianSqFt : medianCent;
+                      const altBuffer = calculateMarketRateBuffer(altRate, altUnit);
 
-                    <Text style={styles.convertedRateSub}>
-                      {displayUnit === 'Cent'
-                        ? `Equivalent to ₹${Math.round(medianSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                        : `Equivalent to ${formatLakhs(medianCent)} / Cent`}
-                    </Text>
+                      return (
+                        <>
+                          {/* Estimated Range Market Buffer Banner */}
+                          <View style={styles.estimatedRangeBanner}>
+                            <Text style={styles.estimatedRangeLabel}>Estimated Range</Text>
+                            <Text style={styles.estimatedRangeVal}>
+                              {activeBuffer.rangeFormatted} / {activeUnit}
+                            </Text>
+                          </View>
 
-                    {/* Range Metrics */}
-                    <View style={styles.rangesGrid}>
-                      <View style={styles.rangeBox}>
-                        <Text style={styles.rangeBoxLabel}>Typical Range (25th–75th)</Text>
-                        <Text style={styles.rangeBoxVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(iqrCent25)} – ${formatLakhs(iqrCent75)}`
-                            : `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')} – ₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}`}
-                        </Text>
-                      </View>
-                      <View style={styles.rangeBox}>
-                        <Text style={styles.rangeBoxLabel}>Observed Range (Min–Max)</Text>
-                        <Text style={styles.rangeBoxVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(minCent)} – ${formatLakhs(maxCent)}`
-                            : `₹${Math.round(minSqFt).toLocaleString('en-IN')} – ₹${Math.round(maxSqFt).toLocaleString('en-IN')}`}
-                        </Text>
-                      </View>
-                    </View>
+                          {/* Rate Display with Approximate Market Rate Anchor */}
+                          <View style={styles.bigRateDisplay}>
+                            <View>
+                              <Text style={styles.approxRateLabel}>Approximate Market Rate</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                                <Text style={styles.bigRateNumber}>
+                                  {activeBuffer.approximateFormatted}
+                                </Text>
+                                <Text style={styles.bigRateUnit}>
+                                  / {activeUnit}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+
+                          <Text style={styles.convertedRateSub}>
+                            Equivalent to approx. {altBuffer.approximateFormatted} / {altUnit}
+                          </Text>
+
+                          {/* Range Metrics */}
+                          <View style={styles.rangesGrid}>
+                            <View style={styles.rangeBox}>
+                              <Text style={styles.rangeBoxLabel}>Estimated Range (Buffer)</Text>
+                              <Text style={[styles.rangeBoxVal, { color: '#240046', fontWeight: '800' }]}>
+                                {activeBuffer.rangeFormatted}
+                              </Text>
+                            </View>
+                            <View style={styles.rangeBox}>
+                              <Text style={styles.rangeBoxLabel}>Typical Range (25th–75th)</Text>
+                              <Text style={styles.rangeBoxVal}>
+                                {displayUnit === 'Cent'
+                                  ? `${formatLakhs(iqrCent25)} – ${formatLakhs(iqrCent75)}`
+                                  : `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')} – ₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}`}
+                              </Text>
+                            </View>
+                            <View style={styles.rangeBox}>
+                              <Text style={styles.rangeBoxLabel}>Observed Range (Min–Max)</Text>
+                              <Text style={styles.rangeBoxVal}>
+                                {displayUnit === 'Cent'
+                                  ? `${formatLakhs(minCent)} – ${formatLakhs(maxCent)}`
+                                  : `₹${Math.round(minSqFt).toLocaleString('en-IN')} – ₹${Math.round(maxSqFt).toLocaleString('en-IN')}`}
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      );
+                    })()}
 
                     <Text style={styles.estimateDisclaimer}>
                       Indicative statistical estimate derived strictly from recent 1,000m comparables; not an official legal appraisal or guaranteed sale price.
@@ -887,6 +915,38 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#B45309',
+  },
+  estimatedRangeBanner: {
+    backgroundColor: '#FAF5FF',
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  estimatedRangeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7E22CE',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  estimatedRangeVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#240046',
+  },
+  approxRateLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   bigRateDisplay: {
     flexDirection: 'row',

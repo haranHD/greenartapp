@@ -148,4 +148,69 @@ public class GreenotValuationAcceptanceTests
         Assert.Equal(43200000.00m, allUnits.PerGround); // ₹4.32 Crore / Ground (2,400 sq.ft)
         Assert.Equal(784080000.00m, allUnits.PerAcre);  // ₹78.41 Crore / Acre
     }
+
+    [Fact]
+    public void MarketRateBuffer_UserInput10Point92LakhsPerCent_WrapsToUserFriendlyRangeAndAnchor()
+    {
+        // User Specification & Requirement:
+        // Input Data: 10.92 L / Cent
+        // App Output Display:
+        //   • Estimated Range: ₹10.75 L – ₹11.00 L / Cent
+        //   • Approximate Market Rate: ₹10.90 L / Cent
+        decimal inputRate = 10.92m;
+
+        var buffer = GreenotValuationEngine.CalculateMarketRateBuffer(inputRate, "Cent");
+
+        Assert.Equal(10.75m, buffer.LowerRate);
+        Assert.Equal(11.00m, buffer.UpperRate);
+        Assert.Equal(10.90m, buffer.ApproximateRate);
+        Assert.Equal("₹10.75 L – ₹11.00 L", buffer.RangeFormatted);
+        Assert.Equal("Estimated Range: ₹10.75 L – ₹11.00 L / Cent", buffer.DisplayEstimatedRange);
+        Assert.Equal("Approximate Market Rate: ₹10.90 L / Cent", buffer.DisplayApproximateRate);
+    }
+
+    [Fact]
+    public void MarketRateBuffer_RawInrPerCent1092000_ConvertsAndWrapsAccurately()
+    {
+        // When rate is passed as raw INR (₹10,92,000 per Cent)
+        decimal rawInr = 1092000m;
+
+        var buffer = GreenotValuationEngine.CalculateMarketRateBuffer(rawInr, "Cent");
+
+        Assert.Equal(10.75m, buffer.LowerRate);
+        Assert.Equal(11.00m, buffer.UpperRate);
+        Assert.Equal(10.90m, buffer.ApproximateRate);
+        Assert.Equal("Estimated Range: ₹10.75 L – ₹11.00 L / Cent", buffer.DisplayEstimatedRange);
+        Assert.Equal("Approximate Market Rate: ₹10.90 L / Cent", buffer.DisplayApproximateRate);
+    }
+
+    [Fact]
+    public void MarketRateBuffer_ExactQuarterBoundary_CreatesRealisticBuffer()
+    {
+        // When rate is an exact quarter (e.g. 6.50L), it should provide a realistic ±0.25 buffer
+        decimal inputRate = 6.50m;
+
+        var buffer = GreenotValuationEngine.CalculateMarketRateBuffer(inputRate, "Cent");
+
+        Assert.Equal(6.25m, buffer.LowerRate);
+        Assert.Equal(6.75m, buffer.UpperRate);
+        Assert.Equal(6.50m, buffer.ApproximateRate);
+        Assert.Equal("Estimated Range: ₹6.25 L – ₹6.75 L / Cent", buffer.DisplayEstimatedRange);
+        Assert.Equal("Approximate Market Rate: ₹6.50 L / Cent", buffer.DisplayApproximateRate);
+    }
+
+    [Fact]
+    public void MarketRateBuffer_PerSqFtRate_RoundsToCleanInterval()
+    {
+        // ₹2,410 / Sq.Ft
+        decimal rateSqFt = 2410m;
+
+        var buffer = GreenotValuationEngine.CalculateMarketRateBuffer(rateSqFt, "Sq.Ft");
+
+        Assert.Equal(2400m, buffer.LowerRate);
+        Assert.Equal(2450m, buffer.UpperRate);
+        Assert.Equal(2400m, buffer.ApproximateRate);
+        Assert.Equal("Estimated Range: ₹2,400 – ₹2,450 / Sq.Ft", buffer.DisplayEstimatedRange);
+        Assert.Equal("Approximate Market Rate: ₹2,400 / Sq.Ft", buffer.DisplayApproximateRate);
+    }
 }

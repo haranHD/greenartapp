@@ -9,6 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { ValuationPdfReport } from '@greenart/shared-types';
+import { calculateMarketRateBuffer } from '../utils/formatters';
 
 export interface ValuationPdfModalProps {
   report: ValuationPdfReport | null;
@@ -122,6 +123,24 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
             {/* Valuation Brackets */}
             <View style={styles.sectionBlock}>
               <Text style={styles.sectionBlockHeader}>2. ALGORITHMIC MARKET RATE ESTIMATE</Text>
+
+              {(() => {
+                const marketBuffer = calculateMarketRateBuffer(report.valuationRange.medianRatePerCent, 'Cent');
+                return (
+                  <View style={styles.marketBufferPdfRow}>
+                    <View style={styles.marketBufferPill}>
+                      <Text style={styles.marketBufferPdfLabel}>ESTIMATED RANGE</Text>
+                      <Text style={styles.marketBufferPdfVal}>{marketBuffer.rangeFormatted} / Cent</Text>
+                    </View>
+                    <View style={[styles.marketBufferPill, styles.marketBufferPillHighlight]}>
+                      <Text style={styles.marketBufferPdfLabel}>APPROXIMATE MARKET RATE</Text>
+                      <Text style={[styles.marketBufferPdfVal, { color: '#7E22CE' }]}>
+                        {marketBuffer.approximateFormatted} / Cent
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
 
               <View style={styles.bracketBox}>
                 <View style={styles.bracketCol}>
@@ -388,6 +407,39 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#240046',
     fontWeight: '800',
+  },
+  marketBufferPdfRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  marketBufferPill: {
+    flex: 1,
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  marketBufferPillHighlight: {
+    backgroundColor: '#F3E8FF',
+    borderColor: '#D8B4FE',
+    marginRight: 0,
+    marginLeft: 6,
+  },
+  marketBufferPdfLabel: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    color: '#6B21A8',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  marketBufferPdfVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#240046',
   },
   bracketBox: {
     flexDirection: 'row',

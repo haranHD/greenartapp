@@ -1,3 +1,4 @@
+using Greenart.Application.Estimation;
 using Greenart.Domain.Enums;
 
 namespace Greenart.Application.DTOs;
@@ -23,7 +24,8 @@ public record PriceRangeDto(
     decimal MedianRate,
     decimal Percentile75,
     decimal MaxRate,
-    string Unit
+    string Unit,
+    MarketRateBufferDto? MarketRateBuffer = null
 );
 
 public record SourceCategoryBreakdownDto(

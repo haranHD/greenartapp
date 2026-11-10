@@ -16,6 +16,7 @@ import {
   ConfidenceScoreBreakdown,
   GreenotConfidenceLabel,
   UnitRateRange,
+  MarketRateBufferResult,
 } from './types';
 
 // ============================================================================
@@ -587,3 +588,110 @@ export function calculateBuildingValuation(
     totalPropertyValue,
   };
 }
+
+// ============================================================================
+// 9. MARKET RATE BUFFER & APPROXIMATE MIDPOINT RATE
+// ============================================================================
+/**
+ * Calculates a user-friendly price range (market buffer) and clean approximate midpoint rate.
+ *
+ * Rules:
+ * 1. For Lakhs rates (e.g. per Cent, per Ground, or raw rates >= 100,000 INR):
+ *    - Lower limit: Round down to the nearest lower quarter interval (.00, .25, .50, .75).
+ *    - Upper limit: Round up to the nearest upper quarter interval (.00, .25, .50, .75).
+ *    - If lower == upper: expands by quarter step (±0.25) to provide a true market buffer.
+ *    - Approximate rate: Rounded to nearest clean decimal (e.g. 10.90L or 10.95L)
+ *      or the clean midpoint of the generated range.
+ *    - Example: 10.92 L / Cent -> Estimated Range: ₹10.75 L – ₹11.00 L / Cent,
+ *                                Approximate Market Rate: ₹10.90 L / Cent.
+ * 2. For Sq.Ft rates (Rupees per sq.ft):
+ *    - Lower/Upper limits rounded to nearest sensible interval (e.g. ₹50 or ₹100).
+ *    - Approximate rate rounded to nearest clean interval.
+ */
+export function calculateMarketRateBuffer(
+  rate: number,
+  unit: string = 'Cent',
+  customStep?: number
+): MarketRateBufferResult {
+  const isPerSqFt = unit.toLowerCase().includes('sq');
+  const isLakhUnit = !isPerSqFt;
+
+  const rawRate = rate;
+  let lowerRate = 0;
+  let upperRate = 0;
+  let approximateRate = 0;
+  let midpointRate = 0;
+  let lowerFormatted = '';
+  let upperFormatted = '';
+  let approximateFormatted = '';
+
+  if (isLakhUnit) {
+    // If rate is in raw INR (>= 1,000), convert to Lakhs
+    const rateInLakhs = rate >= 1000 ? rate / 100000 : rate;
+    const step = customStep ?? 0.25;
+
+    let lowerLakhs = Math.floor(rateInLakhs / step) * step;
+    let upperLakhs = Math.ceil(rateInLakhs / step) * step;
+
+    if (lowerLakhs === upperLakhs) {
+      lowerLakhs = Math.max(0, rateInLakhs - step);
+      upperLakhs = rateInLakhs + step;
+    }
+
+    // Clean approximate rate rounded to nearest 0.05 clean decimal (e.g. 10.90L, 10.95L)
+    const approxLakhs = Math.round(rateInLakhs / 0.05) * 0.05;
+    const midLakhs = (lowerLakhs + upperLakhs) / 2;
+
+    lowerRate = Math.round(lowerLakhs * 100) / 100;
+    upperRate = Math.round(upperLakhs * 100) / 100;
+    approximateRate = Math.round(approxLakhs * 100) / 100;
+    midpointRate = Math.round(midLakhs * 1000) / 1000;
+
+    lowerFormatted = `₹${lowerRate.toFixed(2)} L`;
+    upperFormatted = `₹${upperRate.toFixed(2)} L`;
+    approximateFormatted = `₹${approximateRate.toFixed(2)} L`;
+  } else {
+    // Per Sq.Ft rates in Rupees
+    const step = customStep ?? (rate >= 5000 ? 100 : 50);
+    let lower = Math.floor(rate / step) * step;
+    let upper = Math.ceil(rate / step) * step;
+
+    if (lower === upper) {
+      lower = Math.max(0, rate - step);
+      upper = rate + step;
+    }
+
+    const approx = Math.round(rate / (step / 2)) * (step / 2);
+    const mid = (lower + upper) / 2;
+
+    lowerRate = lower;
+    upperRate = upper;
+    approximateRate = approx;
+    midpointRate = mid;
+
+    lowerFormatted = `₹${Math.round(lowerRate).toLocaleString('en-IN')}`;
+    upperFormatted = `₹${Math.round(upperRate).toLocaleString('en-IN')}`;
+    approximateFormatted = `₹${Math.round(approximateRate).toLocaleString('en-IN')}`;
+  }
+
+  const rangeFormatted = `${lowerFormatted} – ${upperFormatted}`;
+  const displayEstimatedRange = `Estimated Range: ${rangeFormatted} / ${unit}`;
+  const displayApproximateRate = `Approximate Market Rate: ${approximateFormatted} / ${unit}`;
+
+  return {
+    rawRate,
+    lowerRate,
+    upperRate,
+    approximateRate,
+    midpointRate,
+    unit,
+    isLakhs: isLakhUnit,
+    lowerFormatted,
+    upperFormatted,
+    approximateFormatted,
+    rangeFormatted,
+    displayEstimatedRange,
+    displayApproximateRate,
+  };
+}
+

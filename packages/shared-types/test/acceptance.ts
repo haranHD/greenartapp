@@ -11,6 +11,7 @@ import {
   calculateBuildingValuation,
   validateListingArithmetic,
   convertSqFtRateToAllUnits,
+  calculateMarketRateBuffer,
   SQFT_PER_GROUND,
   SQFT_PER_CENT,
   SQFT_PER_ACRE,
@@ -263,6 +264,55 @@ function runAcceptanceTests() {
     buildingResult.totalPropertyValue === 46700000,
     'Total property value = Land (₹4.32 Cr) + Building (₹35 L) = ₹4.67 Cr',
     `Got ${buildingResult.totalPropertyValue}`
+  );
+
+  // --------------------------------------------------------------------------
+  // TEST 7: Market Rate Buffer & Approximate Midpoint Rate (User Requirement)
+  // --------------------------------------------------------------------------
+  console.log('\n--- Test 7: Market Rate Buffer (10.92L Example) ---');
+  // Input Data: 10.92 L / Cent
+  // App Output Display:
+  //   • Estimated Range: ₹10.75 L – ₹11.00 L / Cent
+  //   • Approximate Market Rate: ₹10.90 L / Cent
+  const buffer1092 = calculateMarketRateBuffer(10.92, 'Cent');
+
+  assert(buffer1092.lowerRate === 10.75, 'Lower limit rounded down to quarter interval 10.75 L', `Got ${buffer1092.lowerRate}`);
+  assert(buffer1092.upperRate === 11.00, 'Upper limit rounded up to quarter interval 11.00 L', `Got ${buffer1092.upperRate}`);
+  assert(buffer1092.approximateRate === 10.90, 'Approximate rate rounded to clean decimal 10.90 L', `Got ${buffer1092.approximateRate}`);
+  assert(
+    buffer1092.displayEstimatedRange === 'Estimated Range: ₹10.75 L – ₹11.00 L / Cent',
+    'Matches requested display: Estimated Range: ₹10.75 L – ₹11.00 L / Cent',
+    `Got ${buffer1092.displayEstimatedRange}`
+  );
+  assert(
+    buffer1092.displayApproximateRate === 'Approximate Market Rate: ₹10.90 L / Cent',
+    'Matches requested display: Approximate Market Rate: ₹10.90 L / Cent',
+    `Got ${buffer1092.displayApproximateRate}`
+  );
+
+  // Raw INR input (₹10,92,000 per Cent)
+  const bufferRaw = calculateMarketRateBuffer(1092000, 'Cent');
+  assert(
+    bufferRaw.displayEstimatedRange === 'Estimated Range: ₹10.75 L – ₹11.00 L / Cent',
+    'Raw INR 1,092,000 per cent formats identically'
+  );
+  assert(
+    bufferRaw.displayApproximateRate === 'Approximate Market Rate: ₹10.90 L / Cent',
+    'Raw INR 1,092,000 per cent approximate rate matches 10.90L'
+  );
+
+  // Per Sq.Ft rate (e.g. ₹2,410 / Sq.Ft)
+  const bufferSqFt = calculateMarketRateBuffer(2410, 'Sq.Ft');
+  assert(bufferSqFt.lowerRate === 2400, 'SqFt lower limit is ₹2,400');
+  assert(bufferSqFt.upperRate === 2450, 'SqFt upper limit is ₹2,450');
+  assert(bufferSqFt.approximateRate === 2400, 'SqFt approximate rate is ₹2,400');
+  assert(
+    bufferSqFt.displayEstimatedRange === 'Estimated Range: ₹2,400 – ₹2,450 / Sq.Ft',
+    'SqFt range formatted cleanly'
+  );
+  assert(
+    bufferSqFt.displayApproximateRate === 'Approximate Market Rate: ₹2,400 / Sq.Ft',
+    'SqFt approximate rate formatted cleanly'
   );
 
   // --------------------------------------------------------------------------
