@@ -1,4 +1,5 @@
 using Greenart.Domain.Entities;
+using Greenart.Domain.Entities.Greenot;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 
@@ -21,6 +22,16 @@ public class LandPriceDbContext : DbContext
     public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
     public DbSet<MarketplaceListing> MarketplaceListings => Set<MarketplaceListing>();
     public DbSet<ListingEnquiry> ListingEnquiries => Set<ListingEnquiry>();
+
+    // Greenot Quality-Control & Auditable Valuation Schema (Non-destructive addition)
+    public DbSet<GreenotProperty> GreenotProperties => Set<GreenotProperty>();
+    public DbSet<GreenotComparableProperty> GreenotComparableProperties => Set<GreenotComparableProperty>();
+    public DbSet<GreenotEvidenceSource> GreenotEvidenceSources => Set<GreenotEvidenceSource>();
+    public DbSet<GreenotPropertyEvidence> GreenotPropertyEvidence => Set<GreenotPropertyEvidence>();
+    public DbSet<GreenotGuidelineValue> GreenotGuidelineValues => Set<GreenotGuidelineValue>();
+    public DbSet<GreenotHistoricalRate> GreenotHistoricalRates => Set<GreenotHistoricalRate>();
+    public DbSet<GreenotValuationRun> GreenotValuationRuns => Set<GreenotValuationRun>();
+    public DbSet<GreenotBuildingValuation> GreenotBuildingValuations => Set<GreenotBuildingValuation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

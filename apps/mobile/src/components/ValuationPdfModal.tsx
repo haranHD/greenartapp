@@ -113,7 +113,7 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
                 <View style={styles.gridRow}>
                   <Text style={styles.gridKey}>Subject Land Extent:</Text>
                   <Text style={styles.gridValBold}>
-                    {report.extentCent} Cents ({report.extentSqFt.toLocaleString()} Sq.Ft / {(report.extentCent / 100).toFixed(3)} Acres)
+                    {report.extentCent} Cents ({report.extentSqFt.toLocaleString()} Sq.Ft • {(report.extentSqFt / 2400).toFixed(2)} Grounds • {(report.extentCent / 100).toFixed(3)} Acres)
                   </Text>
                 </View>
               </View>
@@ -127,15 +127,19 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
                 <View style={styles.bracketCol}>
                   <Text style={styles.bracketLabel}>CONSERVATIVE (25TH %ILE)</Text>
                   <Text style={styles.bracketVal}>{formatCurrency(report.valuationRange.p25RatePerCent)} / Cent</Text>
+                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p25RatePerCent / 435.6) * 2400))} / Ground</Text>
                 </View>
                 <View style={[styles.bracketCol, styles.bracketColPrimary]}>
                   <Text style={styles.bracketLabelPrimary}>MEDIAN MARKET RATE</Text>
                   <Text style={styles.bracketValPrimary}>{formatCurrency(report.valuationRange.medianRatePerCent)} / Cent</Text>
-                  <Text style={styles.bracketSubPrimary}>≈ ₹{Math.round(report.valuationRange.medianRatePerCent / 435.6)} / sq.ft</Text>
+                  <Text style={styles.bracketSubPrimary}>
+                    ≈ ₹{Math.round(report.valuationRange.medianRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {formatCurrency(Math.round((report.valuationRange.medianRatePerCent / 435.6) * 2400))} / Ground
+                  </Text>
                 </View>
                 <View style={styles.bracketCol}>
                   <Text style={styles.bracketLabel}>OPTIMISTIC (75TH %ILE)</Text>
                   <Text style={styles.bracketVal}>{formatCurrency(report.valuationRange.p75RatePerCent)} / Cent</Text>
+                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p75RatePerCent / 435.6) * 2400))} / Ground</Text>
                 </View>
               </View>
 
@@ -430,6 +434,11 @@ const styles = StyleSheet.create({
   bracketSubPrimary: {
     fontSize: 9,
     color: '#B45309',
+    marginTop: 2,
+  },
+  bracketSub: {
+    fontSize: 8.5,
+    color: '#64748B',
     marginTop: 2,
   },
   totalValueBanner: {
