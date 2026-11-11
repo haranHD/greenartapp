@@ -131,7 +131,10 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
   // ---------------------------------------------------------------------------
 
   const handlePasswordLogin = async () => {
-    if (!loginIdentifier.trim() || !loginPassword) {
+    const cleanId = loginIdentifier.trim();
+    const cleanPwd = loginPassword.trim();
+
+    if (!cleanId || !cleanPwd) {
       setErrorMessage('Please enter your email/username and password.');
       return;
     }
@@ -139,7 +142,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
     setLoading(true);
     setErrorMessage(null);
     try {
-      await authService.loginWithPassword(loginIdentifier.trim(), loginPassword);
+      await authService.loginWithPassword(cleanId, cleanPwd);
       onSuccess();
     } catch (err: any) {
       setErrorMessage(err?.message || 'Login failed. Please check credentials.');

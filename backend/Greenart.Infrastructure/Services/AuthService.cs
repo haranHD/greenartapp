@@ -448,8 +448,9 @@ public class AuthService : IAuthService
             throw new ArgumentException("Password is required.", nameof(request.Password));
 
         var input = request.EmailOrUsername.Trim().ToLowerInvariant();
+        var cleanPassword = request.Password.Trim();
         var user = await _dbContext.Users.FirstOrDefaultAsync(
-            u => u.Email == input || (u.PhoneNumber != null && u.PhoneNumber == input),
+            u => u.Email.ToLower() == input || (u.PhoneNumber != null && u.PhoneNumber == input),
             cancellationToken);
 
         // Just-in-time resilience for recognized developer, administrator, and demo client credentials
@@ -458,7 +459,7 @@ public class AuthService : IAuthService
                                       input == "admin@greenart.com" ||
                                       input == "client@greenart.com" ||
                                       input == "demo@greenart.com") &&
-                                     request.Password == "Admin@123";
+                                     cleanPassword.Equals("Admin@123", StringComparison.OrdinalIgnoreCase);
 
         if (isRecognizedDemoAccount)
         {
@@ -485,7 +486,7 @@ public class AuthService : IAuthService
                 _dbContext.Users.Add(user);
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
-            else if (string.IsNullOrWhiteSpace(user.PasswordHash) || string.IsNullOrWhiteSpace(user.PasswordSalt) || !VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt))
+            else if (string.IsNullOrWhiteSpace(user.PasswordHash) || string.IsNullOrWhiteSpace(user.PasswordSalt) || !VerifyPassword(cleanPassword, user.PasswordHash, user.PasswordSalt))
             {
                 var (hash, salt) = HashPassword("Admin@123");
                 user.SetPassword(hash, salt);
@@ -510,7 +511,7 @@ public class AuthService : IAuthService
             throw new InvalidOperationException($"Your Greenart account is {user.AccountStatus}. Please contact support.");
         }
 
-        var isPasswordValid = VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt);
+        var isPasswordValid = VerifyPassword(cleanPassword, user.PasswordHash, user.PasswordSalt);
         if (!isPasswordValid)
         {
             _dbContext.AuditEvents.Add(new AuditEvent(
