@@ -393,10 +393,13 @@ using (var scope = app.Services.CreateScope())
                             ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expires_at_utc timestamp with time zone NULL;
                         END IF;
                     END $$;");
+
+                // Ensure core administrator, client, and developer accounts are provisioned
+                await UserDataSeeder.SeedUsersAsync(dbContext, logger);
             }
             catch (Exception syncEx)
             {
-                logger.LogDebug("User columns schema sync notice: {Message}", syncEx.Message);
+                logger.LogDebug("User schema sync/seeding notice: {Message}", syncEx.Message);
             }
         }
         else

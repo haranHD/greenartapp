@@ -1053,7 +1053,7 @@ class MobileApiClient {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ emailOrUsername, password }),
       },
-      12000
+      30000
     );
     if (!response.ok) {
       let errMsg = 'Invalid email/username or password.';

@@ -407,6 +407,19 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
               )}
             </TouchableOpacity>
 
+            {/* Quick Demo Credentials Fill Button */}
+            <TouchableOpacity
+              style={styles.demoFillBtn}
+              onPress={() => {
+                setLoginIdentifier('haricode04@gmail.com');
+                setLoginPassword('Admin@123');
+                setErrorMessage(null);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.demoFillBtnText}>⚡ Use Demo Credentials (haricode04@gmail.com)</Text>
+            </TouchableOpacity>
+
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>or continue with</Text>
@@ -1253,6 +1266,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  demoFillBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  demoFillBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });
 

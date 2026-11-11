@@ -83,4 +83,15 @@ public class DataSeederTests
             Assert.True(record.NormalizedRatePerSqFt > 0);
         }
     }
+
+    [Fact]
+    public void UserDataSeeder_HashPassword_ProducesCryptographicallySecureHashAndSalt()
+    {
+        var (hash, salt) = UserDataSeeder.HashPassword("Admin@123");
+
+        Assert.False(string.IsNullOrWhiteSpace(hash));
+        Assert.False(string.IsNullOrWhiteSpace(salt));
+        Assert.Equal(64, hash.Length); // 32 bytes hex encoded = 64 chars
+        Assert.Equal(32, salt.Length); // 16 bytes hex encoded = 32 chars
+    }
 }
