@@ -10,6 +10,8 @@ import {
   LocalitySuggestionDto,
   NearbyLandRecordDto,
   HealthStatusResponse,
+  ApiUnavailableError,
+  ApiValidationError,
 } from '../services/api';
 import {
   MarketplaceListing,
@@ -34,6 +36,11 @@ export interface ValuationHistoryItem {
   comparableCount: number;
   calculatedAt: string;
 }
+
+export {
+  ApiUnavailableError,
+  ApiValidationError,
+};
 
 export type {
   MobileTab,

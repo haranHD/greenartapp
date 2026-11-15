@@ -35,6 +35,7 @@ appsettings.Staging.json
 node_modules/
 dist/
 build/
+.test_build/
 .npm/
 npm-debug.log*
 yarn-debug.log*

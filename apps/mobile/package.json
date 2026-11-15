@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export -p web",
+    "test": "node scripts/run-tests.js",
     "eas-build-post-install": "node scripts/eas-post-install.js"
   },
   "dependencies": {

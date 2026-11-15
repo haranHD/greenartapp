@@ -26,7 +26,6 @@ import {
   NearbyLandRecordDto,
   HealthStatusResponse,
   DEFAULT_FALLBACK_LOCALITIES,
-  DEFAULT_FALLBACK_LAND_RECORDS,
 } from './src/services/api';
 import { FloatingBottomNav, MobileTab } from './src/components/FloatingBottomNav';
 import { AppHeader } from './src/components/AppHeader';
@@ -237,8 +236,8 @@ function GreenartMobileApp() {
     }
   };
 
-  // Backend Data State (Pre-populated with baseline pilot data for instant offline readiness)
-  const [records, setRecords] = useState<LandRecordDto[]>(DEFAULT_FALLBACK_LAND_RECORDS);
+  // Backend Data State (Clean state strictly loaded from verified backend)
+  const [records, setRecords] = useState<LandRecordDto[]>([]);
   const [, setLoadingRecords] = useState<boolean>(false);
   const [localities, setLocalities] = useState<LocalityReference[]>(DEFAULT_FALLBACK_LOCALITIES);
   const [loadingLocalities, setLoadingLocalities] = useState<boolean>(false);
@@ -505,8 +504,9 @@ function GreenartMobileApp() {
       setNearbyRecords(data);
     } catch (err: any) {
       if (nearbySeqRef.current !== currentSeq) return;
-      console.log('[App] Using local nearby calculations:', err?.message || err);
-      setNearbyError(null);
+      console.log('[App] Proximity fetch error:', err?.message || err);
+      setNearbyRecords([]);
+      setNearbyError(err?.message || 'Unable to load nearby records from server.');
     } finally {
       if (nearbySeqRef.current === currentSeq) {
         setLoadingNearby(false);

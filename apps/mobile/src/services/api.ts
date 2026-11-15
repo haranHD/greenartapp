@@ -2,6 +2,24 @@
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 
+export class ApiUnavailableError extends Error {
+  constructor(message: string = 'Could not reach the server. Please try again.') {
+    super(message);
+    this.name = 'ApiUnavailableError';
+    Object.setPrototypeOf(this, ApiUnavailableError.prototype);
+  }
+}
+
+export class ApiValidationError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode: number = 400) {
+    super(message);
+    this.name = 'ApiValidationError';
+    this.statusCode = statusCode;
+    Object.setPrototypeOf(this, ApiValidationError.prototype);
+  }
+}
+
 export interface PriceRangeDto {
   minRate: number;
   percentile25: number;
@@ -22,6 +40,7 @@ export interface GuidelineReferenceDto {
   locality: string;
   surveyNumber?: string;
   legalNotice: string;
+  sectionLabel?: string;
 }
 
 export interface AskingPriceReferenceDto {
@@ -31,6 +50,7 @@ export interface AskingPriceReferenceDto {
   minRatePerSqFt: number;
   maxRatePerSqFt: number;
   notice: string;
+  sectionLabel?: string;
 }
 
 export interface TotalValuationDto {
@@ -72,6 +92,7 @@ export interface AiLandPriceIntelligenceResponse {
   model: string;
   generatedAtUtc: string;
   factorBreakdown?: ValuationFactorBreakdownDto;
+  sectionLabel?: string;
 }
 
 export interface EstimateSuccessResponse {
@@ -79,7 +100,7 @@ export interface EstimateSuccessResponse {
   targetCoordinates: { latitude: number; longitude: number };
   searchRadiusMeters: number;
   comparableRecordCount: number;
-  confidence: 'High' | 'Moderate' | 'Low' | 'AI-Synthesized' | string;
+  confidence: 'High' | 'Moderate' | 'Low' | string;
   priceRangePerCent: PriceRangeDto;
   priceRangePerSqFt: PriceRangeDto;
   earliestRecordDate: string;
@@ -91,6 +112,7 @@ export interface EstimateSuccessResponse {
   totalValuation?: TotalValuationDto;
   calculationExplanation?: string;
   factorBreakdown?: ValuationFactorBreakdownDto;
+  sectionLabel?: string;
 }
 
 export interface EstimateInsufficientDataResponse {
@@ -105,6 +127,7 @@ export interface EstimateInsufficientDataResponse {
   askingPriceReference?: AskingPriceReferenceDto;
   totalGuidelineValuation?: number;
   factorBreakdown?: ValuationFactorBreakdownDto;
+  sectionLabel?: string;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -582,8 +605,9 @@ class MobileApiClient {
     roadFrontage?: string,
     surroundingAmenities?: string
   ): Promise<EstimateApiResponse> {
+    let response: Response;
     try {
-      const response = await this.fetchWithTimeout(`/estimates/calculate`, {
+      response = await this.fetchWithTimeout(`/estimates/calculate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -600,140 +624,26 @@ class MobileApiClient {
           surroundingAmenities,
         }),
       });
-
-      if (!response.ok) {
-        let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
-        try {
-          const errJson = await response.json();
-          if (errJson && errJson.error) errorMsg = errJson.error;
-          else if (errJson && errJson.message) errorMsg = errJson.message;
-        } catch {
-          // Not JSON
-        }
-        throw new Error(errorMsg);
-      }
-
-      return (await response.json()) as EstimateApiResponse;
     } catch {
-      // Offline fallback: dynamically calibrate based on urban transit hub, road frontage, or amenities
-      const isHub = (localityName && (
-        localityName.toLowerCase().includes('bus stand') ||
-        localityName.toLowerCase().includes('railway') ||
-        localityName.toLowerCase().includes('junction') ||
-        localityName.toLowerCase().includes('commercial') ||
-        localityName.toLowerCase().includes('terminus')
-      )) || (surroundingAmenities && surroundingAmenities.toLowerCase().includes('transit'));
-
-      const isMainRoad = roadFrontage && (
-        roadFrontage.toLowerCase().includes('main') ||
-        roadFrontage.toLowerCase().includes('highway')
-      );
-
-      const isVillage = roadFrontage && (
-        roadFrontage.toLowerCase().includes('village') ||
-        roadFrontage.toLowerCase().includes('interior')
-      );
-
-      let targetCentRate = 1200000;
-      let baseRate = 800000;
-      let roadAdj = 250000;
-      let amenityAdj = 150000;
-
-      if (isHub || isMainRoad) {
-        if (landUsage === 2) {
-          // Commercial prime hub
-          targetCentRate = 8500000;
-          baseRate = 3500000;
-          roadAdj = 3500000;
-          amenityAdj = 1500000;
-        } else {
-          // Prime residential near hub / main road
-          targetCentRate = 3200000;
-          baseRate = 1500000;
-          roadAdj = 1100000;
-          amenityAdj = 600000;
-        }
-      } else if (isVillage) {
-        if (landUsage === 2) {
-          targetCentRate = 1600000;
-          baseRate = 1200000;
-          roadAdj = -100000;
-          amenityAdj = 500000;
-        } else {
-          targetCentRate = 750000;
-          baseRate = 850000;
-          roadAdj = -150000;
-          amenityAdj = 50000;
-        }
-      } else {
-        // Standard town layout
-        if (landUsage === 2) {
-          targetCentRate = 2400000;
-          baseRate = 1500000;
-          roadAdj = 500000;
-          amenityAdj = 400000;
-        } else {
-          targetCentRate = 1200000;
-          baseRate = 850000;
-          roadAdj = 200000;
-          amenityAdj = 150000;
-        }
-      }
-
-      const targetSqFtRate = Math.round(targetCentRate / 435.6);
-      const targetGuidelineCent = (isHub || isMainRoad) ? Math.round(targetCentRate * 0.40) : 650000;
-      const targetGuidelineSqFt = Math.round(targetGuidelineCent / 435.6);
-
-      const targetLocality = localityName || 'Kannampalayam';
-
-      const factorBreakdown: ValuationFactorBreakdownDto = {
-        baseLocalityRatePerCent: baseRate,
-        roadFrontageAdjustmentPerCent: roadAdj,
-        amenitiesAdjustmentPerCent: amenityAdj,
-        roadFrontageType: roadFrontage || (isHub ? 'Main Road / Highway (40ft-100ft)' : 'Standard Layout Road (24ft-30ft)'),
-        surroundingAmenitiesType: surroundingAmenities || (isHub ? 'Near Bus Stand / Transit Hub' : 'Standard Residential Colony'),
-        roadAdjustmentReason: isMainRoad ? 'High visibility commercial/arterial road frontage' : isVillage ? 'Interior access discount' : 'Standard layout road frontage',
-        amenityAdjustmentReason: isHub ? 'Walking distance to central bus stand transit hub' : 'Local civic and educational institutions',
-      };
-
-      return {
-        status: 'Success',
-        targetCoordinates: { latitude, longitude },
-        searchRadiusMeters: radiusMeters,
-        comparableRecordCount: 0,
-        confidence: 'AI-Synthesized',
-        priceRangePerCent: {
-          minRate: Math.round(targetCentRate * 0.88),
-          percentile25: Math.round(targetCentRate * 0.94),
-          medianRate: targetCentRate,
-          percentile75: Math.round(targetCentRate * 1.08),
-          maxRate: Math.round(targetCentRate * 1.15),
-          unit: 'Cent',
-        },
-        priceRangePerSqFt: {
-          minRate: Math.round(targetSqFtRate * 0.88),
-          percentile25: Math.round(targetSqFtRate * 0.94),
-          medianRate: targetSqFtRate,
-          percentile75: Math.round(targetSqFtRate * 1.08),
-          maxRate: Math.round(targetSqFtRate * 1.15),
-          unit: 'Sq.Ft',
-        },
-        earliestRecordDate: '2024-01-01T00:00:00Z',
-        latestRecordDate: '2024-11-01T00:00:00Z',
-        sourceBreakdown: [
-          { category: 'AI_Synthesized_Baseline', count: 1 },
-          { category: 'GovernmentGuideline_TNREGINET', count: 1 },
-        ],
-        governmentGuidelineReference: {
-          guidelineRatePerCent: targetGuidelineCent,
-          guidelineRatePerSqFt: targetGuidelineSqFt,
-          locality: targetLocality,
-          legalNotice: 'Statutory guideline benchmark from TNREGINET (via LandLens). Not an open-market transaction.',
-        },
-        disclaimer: 'Indicative valuation based on regional micro-market corridor and TNREGINET statutory benchmarks.',
-        factorBreakdown,
-      };
+      throw new ApiUnavailableError('Could not reach the server. Please try again.');
     }
+
+    if (!response.ok) {
+      let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errJson = await response.json();
+        if (errJson && errJson.error) errorMsg = errJson.error;
+        else if (errJson && errJson.message) errorMsg = errJson.message;
+      } catch {
+        // Not JSON
+      }
+      if (response.status === 400) {
+        throw new ApiValidationError(errorMsg, 400);
+      }
+      throw new ApiUnavailableError('Could not reach the server. Please try again.');
+    }
+
+    return (await response.json()) as EstimateApiResponse;
   }
 
   async getAiLandIntelligence(
@@ -747,8 +657,9 @@ class MobileApiClient {
     roadFrontage?: string,
     surroundingAmenities?: string
   ): Promise<AiLandPriceIntelligenceResponse> {
+    let response: Response;
     try {
-      const response = await this.fetchWithTimeout(`/estimates/ai-intelligence`, {
+      response = await this.fetchWithTimeout(`/estimates/ai-intelligence`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -766,42 +677,24 @@ class MobileApiClient {
           surroundingAmenities,
         }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      return (await response.json()) as AiLandPriceIntelligenceResponse;
     } catch {
-      // Offline fallback
-      return {
-        status: 'Fallback',
-        targetCoordinates: { latitude, longitude },
-        locality: locality || 'Tamil Nadu',
-        district: district || 'Coimbatore',
-        landUsage: landUsage === 1 ? 'Residential' : landUsage === 2 ? 'Commercial' : 'Agricultural',
-        estimatedCurrentPricePerCent: 1050000,
-        estimatedCurrentPricePerSqFt: 2410,
-        priceRangeSummary: 'Estimated based on regional land benchmarks and registered deeds.',
-        marketSentiment: 'Steady Growth',
-        growthDrivers: [
-          'National highway corridor connectivity',
-          'Suburban residential expansion and logistics growth',
-          'Industrial and commercial infrastructure development'
-        ],
-        negotiationTips: [
-          'Verify DTCP or CMDA layout approvals before committing',
-          'Cross-reference broker quotes against TNREGINET statutory guideline benchmarks'
-        ],
-        dueDiligenceChecklist: [
-          'Patta verification on Tamil Nadu e-Services portal',
-          '30-year Encumbrance Certificate (EC) for title clearance',
-          'Field Measurement Book (FMB) sketch boundary check'
-        ],
-        model: 'OfflineFallback',
-        generatedAtUtc: new Date().toISOString(),
-      };
+      throw new ApiUnavailableError('Could not reach the server. Please try again.');
     }
+
+    if (!response.ok) {
+      let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errJson = await response.json();
+        if (errJson && errJson.error) errorMsg = errJson.error;
+        else if (errJson && errJson.message) errorMsg = errJson.message;
+      } catch {}
+      if (response.status === 400) {
+        throw new ApiValidationError(errorMsg, 400);
+      }
+      throw new ApiUnavailableError('Could not reach the server. Please try again.');
+    }
+
+    return (await response.json()) as AiLandPriceIntelligenceResponse;
   }
 
   async getLocalities(): Promise<LocalityReference[]> {
@@ -816,7 +709,7 @@ class MobileApiClient {
       if (Array.isArray(data) && data.length > 0) return data;
       return DEFAULT_FALLBACK_LOCALITIES;
     } catch {
-      // Offline fallback: returns reliable default Tamil Nadu pilot localities
+      // Offline fallback: returns reliable default Tamil Nadu pilot localities for search suggestions
       return DEFAULT_FALLBACK_LOCALITIES;
     }
   }
@@ -842,17 +735,11 @@ class MobileApiClient {
         throw new Error(`Failed to load land records: ${response.statusText}`);
       }
       const data = (await response.json()) as LandRecordDto[];
-      if (Array.isArray(data) && data.length > 0) return data;
-      return DEFAULT_FALLBACK_LAND_RECORDS;
+      if (Array.isArray(data)) return data;
+      return [];
     } catch {
-      // Offline fallback: filter bundled pilot records
-      let filtered = [...DEFAULT_FALLBACK_LAND_RECORDS];
-      if (params?.locality) {
-        filtered = filtered.filter(
-          (r) => r.locality.toLowerCase() === params.locality!.toLowerCase()
-        );
-      }
-      return filtered;
+      // Do not return fallback records as verified evidence
+      return [];
     }
   }
 
@@ -882,25 +769,8 @@ class MobileApiClient {
 
       return (await response.json()) as NearbyLandRecordDto[];
     } catch {
-      // Local haversine fallback computation
-      const records = DEFAULT_FALLBACK_LAND_RECORDS;
-      const nearby: NearbyLandRecordDto[] = [];
-      for (const r of records) {
-        const dLat = ((r.latitude - latitude) * Math.PI) / 180;
-        const dLon = ((r.longitude - longitude) * Math.PI) / 180;
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos((latitude * Math.PI) / 180) *
-          Math.cos((r.latitude * Math.PI) / 180) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const dist = 6371000 * c;
-        if (dist <= radiusMeters) {
-          nearby.push({ ...r, distanceMeters: Math.round(dist) });
-        }
-      }
-      return nearby.sort((a, b) => a.distanceMeters - b.distanceMeters);
+      // Do not return fallback records as verified nearby evidence
+      return [];
     }
   }
 
