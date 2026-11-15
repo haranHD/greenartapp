@@ -915,7 +915,7 @@ export const App = () => {
     const byUsage = {
       Residential: records.filter(r => r.landUsage === 'Residential').length,
       Commercial: records.filter(r => r.landUsage === 'Commercial').length,
-      Agricultural: records.filter(r => r.landUsage.startsWith('Agricultural')).length,
+      Agricultural: records.filter(r => (r.landUsage || '').startsWith('Agricultural')).length,
       Industrial: records.filter(r => r.landUsage === 'Industrial').length,
       MixedUse: records.filter(r => r.landUsage === 'MixedUse').length,
     };
@@ -927,15 +927,15 @@ export const App = () => {
   const filteredRecords = React.useMemo(() => {
     return records.filter((r: ApiLandRecord) => {
       const matchSearch = !filterSearch ||
-        r.locality.toLowerCase().includes(filterSearch.toLowerCase()) ||
+        (r.locality && r.locality.toLowerCase().includes(filterSearch.toLowerCase())) ||
         (r.surveyNumber && r.surveyNumber.toLowerCase().includes(filterSearch.toLowerCase())) ||
         (r.streetOrLandmark && r.streetOrLandmark.toLowerCase().includes(filterSearch.toLowerCase())) ||
-        r.district.toLowerCase().includes(filterSearch.toLowerCase());
+        (r.district && r.district.toLowerCase().includes(filterSearch.toLowerCase()));
 
-      const matchLocality = filterLocality === 'All' || r.locality.toLowerCase() === filterLocality.toLowerCase();
+      const matchLocality = filterLocality === 'All' || (r.locality && r.locality.toLowerCase() === filterLocality.toLowerCase());
       const matchStatus = filterStatus === 'All' || r.verificationStatus === filterStatus;
       const matchSource = filterSource === 'All' || r.sourceCategory === filterSource;
-      const matchUsage = filterUsage === 'All' || r.landUsage === filterUsage || (filterUsage === 'Agricultural' && r.landUsage.startsWith('Agricultural'));
+      const matchUsage = filterUsage === 'All' || r.landUsage === filterUsage || (filterUsage === 'Agricultural' && (r.landUsage || '').startsWith('Agricultural'));
 
       return matchSearch && matchLocality && matchStatus && matchSource && matchUsage;
     });
