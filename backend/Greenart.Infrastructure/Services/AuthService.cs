@@ -453,48 +453,6 @@ public class AuthService : IAuthService
             u => u.Email.ToLower() == input || (u.PhoneNumber != null && u.PhoneNumber == input),
             cancellationToken);
 
-        // Just-in-time resilience for recognized developer, administrator, and demo client credentials
-        var isRecognizedDemoAccount = (input == "haricode04@gmail.com" ||
-                                      input == "admin@greenartproperties.com" ||
-                                      input == "admin@greenart.com" ||
-                                      input == "client@greenart.com" ||
-                                      input == "demo@greenart.com") &&
-                                     cleanPassword.Equals("Admin@123", StringComparison.OrdinalIgnoreCase);
-
-        if (isRecognizedDemoAccount)
-        {
-            if (user == null)
-            {
-                var (hash, salt) = HashPassword("Admin@123");
-                var role = (input == "haricode04@gmail.com" || input.StartsWith("admin")) ? UserRole.Administrator : UserRole.Customer;
-                user = new User(
-                    id: Guid.NewGuid(),
-                    email: input,
-                    fullName: input == "haricode04@gmail.com" ? "Hari (Lead Developer & Admin)" : "Greenart Administrator",
-                    googleSubjectId: $"email:{input}",
-                    phoneNumber: "+919876543210",
-                    avatarUrl: null,
-                    role: role,
-                    accountStatus: AccountStatus.Active,
-                    isSellerVerified: true,
-                    sellerType: role == UserRole.Administrator ? SellerType.Promoter : SellerType.IndividualOwner,
-                    createdAtUtc: DateTime.UtcNow,
-                    isEmailVerified: true,
-                    passwordHash: hash,
-                    passwordSalt: salt
-                );
-                _dbContext.Users.Add(user);
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-            else if (string.IsNullOrWhiteSpace(user.PasswordHash) || string.IsNullOrWhiteSpace(user.PasswordSalt) || !VerifyPassword(cleanPassword, user.PasswordHash, user.PasswordSalt))
-            {
-                var (hash, salt) = HashPassword("Admin@123");
-                user.SetPassword(hash, salt);
-                user.VerifyEmail();
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
-        }
-
         if (user == null || string.IsNullOrWhiteSpace(user.PasswordHash) || string.IsNullOrWhiteSpace(user.PasswordSalt))
         {
             _dbContext.AuditEvents.Add(new AuditEvent(

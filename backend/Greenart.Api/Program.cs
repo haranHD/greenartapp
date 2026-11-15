@@ -1,5 +1,10 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using Greenart.Api.Authentication;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Application.DTOs;
@@ -217,13 +222,65 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Configure Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// Configure Rate Limiting per real client IP
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync("{\"error\":\"Too many requests. Please slow down and try again shortly.\"}", token);
+    };
+    options.AddPolicy("EstimatesRateLimit", httpContext =>
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+    options.AddPolicy("IntegrationsRateLimit", httpContext =>
+    {
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
+        {
+            AutoReplenishment = true,
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        });
+    });
+});
+
 var app = builder.Build();
 
-// 1. Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+// Check if ADMIN_API_KEY is configured
+var adminApiKey = builder.Configuration["ADMIN_API_KEY"] ?? builder.Configuration["AdminSettings:ApiKey"];
+if (string.IsNullOrWhiteSpace(adminApiKey))
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+    if (app.Environment.IsProduction())
+    {
+        app.Logger.LogError("CRITICAL SECURITY: ADMIN_API_KEY is not configured in Production environment. Administrative requests will be denied.");
+    }
+    else
+    {
+        app.Logger.LogWarning("Admin API key is not configured. Administrative API requests via X-Admin-Key will be denied.");
+    }
+}
+
+// 1. Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
+app.UseForwardedHeaders();
 
 // 2. Resilient Global CORS & Error Handling Middleware (Always active, attaches CORS headers to all responses)
 app.Use(async (context, next) =>
@@ -263,6 +320,9 @@ app.Use(async (context, next) =>
 });
 
 app.UseCors();
+
+// Rate limiting (evaluated after ForwardedHeaders so RemoteIpAddress represents the client)
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -395,7 +455,8 @@ using (var scope = app.Services.CreateScope())
                     END $$;");
 
                 // Ensure core administrator, client, and developer accounts are provisioned
-                await UserDataSeeder.SeedUsersAsync(dbContext, logger);
+                var seedAdminPassword = builder.Configuration["SEED_ADMIN_PASSWORD"] ?? builder.Configuration["ADMIN_PASSWORD"];
+                await UserDataSeeder.SeedUsersAsync(dbContext, logger, app.Environment.IsDevelopment(), seedAdminPassword);
             }
             catch (Exception syncEx)
             {
@@ -725,12 +786,13 @@ app.MapGet("/api/v1/admin/users", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] IConfiguration config,
     IAuthService authService,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -1068,12 +1130,13 @@ app.MapGet("/api/v1/admin/marketplace/listings/pending", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] IConfiguration config,
     [FromServices] LandPriceDbContext dbContext,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -1096,12 +1159,13 @@ app.MapPost("/api/v1/admin/marketplace/listings/{id:guid}/review", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] IConfiguration config,
     [FromServices] LandPriceDbContext dbContext,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -1216,6 +1280,7 @@ app.MapGet("/api/v1/health", async (
 app.MapPost("/api/v1/estimates/calculate", async (
     [FromBody] CalculateEstimateRequest request,
     [FromServices] IEstimationService estimationService,
+    [FromServices] IMemoryCache memoryCache,
     CancellationToken ct) =>
 {
     if (request.Latitude < -90.0 || request.Latitude > 90.0)
@@ -1238,13 +1303,21 @@ app.MapPost("/api/v1/estimates/calculate", async (
         return Results.BadRequest(new { Error = $"Coordinates ({request.Latitude:F4}, {request.Longitude:F4}) fall outside Indian geographic territory." });
     }
 
+    var cacheKey = $"estimate:{request.Latitude:F4}:{request.Longitude:F4}:{request.LandUsage}:{request.RadiusMeters}:{request.PreferredUnit}:{request.TargetArea}:{request.TargetAreaUnit}:{request.Locality}:{request.RoadFrontage}:{request.SurroundingAmenities}";
+    if (!request.ForceFresh && memoryCache.TryGetValue(cacheKey, out object? cachedResult) && cachedResult != null)
+    {
+        return Results.Ok(cachedResult);
+    }
+
     var result = await estimationService.CalculateEstimateAsync(request, ct);
+    memoryCache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
     return Results.Ok(result);
 })
 .WithName("CalculateEstimate")
 .WithSummary("Calculate Indicative Land Market Rate")
 .WithDescription("Queries comparable land records within a 1,000-meter radius of the selected coordinates and returns median/percentile ranges or an InsufficientData notice.")
-.WithOpenApi();
+.WithOpenApi()
+.RequireRateLimiting("EstimatesRateLimit");
 
 // ---------------------------------------------------------
 // 2b. Gemini AI Land Price Intelligence & Market Analysis Endpoint
@@ -1254,6 +1327,7 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
     [FromServices] IEstimationEngine estimationEngine,
     [FromServices] ILandLensClient landLensClient,
     [FromServices] IGeminiLandIntelligenceService geminiService,
+    [FromServices] IMemoryCache memoryCache,
     CancellationToken ct) =>
 {
     if (request.Latitude < -90.0 || request.Latitude > 90.0)
@@ -1274,6 +1348,12 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
     if (!TamilNaduGeoBounds.IsWithinIndia(request.Latitude, request.Longitude))
     {
         return Results.BadRequest(new { Error = $"Coordinates ({request.Latitude:F4}, {request.Longitude:F4}) fall outside Indian geographic territory." });
+    }
+
+    var cacheKey = $"ai-intel:{request.Latitude:F4}:{request.Longitude:F4}:{request.LandUsage}:{request.TargetArea}:{request.TargetAreaUnit}:{request.Locality}:{request.District}:{request.RoadFrontage}:{request.SurroundingAmenities}";
+    if (memoryCache.TryGetValue(cacheKey, out AiLandPriceIntelligenceResponse? cachedIntel) && cachedIntel != null)
+    {
+        return Results.Ok(cachedIntel);
     }
 
     // 1. Run local estimation engine (which checks DB and resolves LandLens statutory guideline)
@@ -1294,7 +1374,7 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
 
     if (estResult is EstimateInsufficientDataResponse insufficient)
     {
-        return Results.Ok(new AiLandPriceIntelligenceResponse(
+        var insufficientResponse = new AiLandPriceIntelligenceResponse(
             Status: "InsufficientData",
             TargetCoordinates: new CoordinatesDto(request.Latitude, request.Longitude),
             Locality: insufficient.GovernmentGuidelineReference?.Locality ?? request.Locality ?? "Resolved Area",
@@ -1323,7 +1403,9 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
             GeneratedAtUtc: DateTime.UtcNow,
             FactorBreakdown: null,
             SectionLabel: "Completed Transaction Evidence"
-        ));
+        );
+        memoryCache.Set(cacheKey, insufficientResponse, TimeSpan.FromMinutes(5));
+        return Results.Ok(insufficientResponse);
     }
 
     if (estResult is not EstimateSuccessResponse success)
@@ -1352,11 +1434,12 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
             FactorBreakdown = null,
             SectionLabel = "Completed Transaction Evidence"
         };
+        memoryCache.Set(cacheKey, verifiedAiResponse, TimeSpan.FromMinutes(5));
         return Results.Ok(verifiedAiResponse);
     }
 
     // Fallback if AI service is offline or unconfigured: return verified engine price with standard legal checklist
-    return Results.Ok(new AiLandPriceIntelligenceResponse(
+    var fallbackResponse = new AiLandPriceIntelligenceResponse(
         Status: "Success",
         TargetCoordinates: new CoordinatesDto(request.Latitude, request.Longitude),
         Locality: success.GovernmentGuidelineReference?.Locality ?? request.Locality ?? "Resolved Area",
@@ -1385,12 +1468,15 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
         GeneratedAtUtc: DateTime.UtcNow,
         FactorBreakdown: null,
         SectionLabel: "Completed Transaction Evidence"
-    ));
+    );
+    memoryCache.Set(cacheKey, fallbackResponse, TimeSpan.FromMinutes(5));
+    return Results.Ok(fallbackResponse);
 })
 .WithName("GetAiLandIntelligence")
 .WithSummary("AI Land Price Intelligence & Market Analysis")
 .WithDescription("Synthesizes live LandLens TNREGINET statutory guideline benchmarks and database deeds with Google Gemini AI to analyze current land prices, growth drivers, and market sentiment.")
-.WithOpenApi();
+.WithOpenApi()
+.RequireRateLimiting("EstimatesRateLimit");
 
 // ---------------------------------------------------------
 // 3. Land Records Registry Query Endpoint
@@ -1569,13 +1655,23 @@ app.MapGet("/api/v1/land-records/{id:guid}", async (
 // ---------------------------------------------------------
 // Administrative Authorization Helper
 // ---------------------------------------------------------
-static bool IsAuthorizedAdmin(string? adminKey, IConfiguration config)
+static bool IsAuthorizedAdmin(string? adminKey, IConfiguration config, ClaimsPrincipal? user = null)
 {
-    var configuredKey = config["AdminSettings:ApiKey"]
-        ?? config["ADMIN_API_KEY"]
-        ?? "greenart-admin-secret-key-2024";
+    if (user?.IsInRole(UserRole.Administrator.ToString()) == true)
+    {
+        return true;
+    }
 
-    return !string.IsNullOrWhiteSpace(adminKey) && string.Equals(adminKey.Trim(), configuredKey.Trim(), StringComparison.Ordinal);
+    var configuredKey = config["ADMIN_API_KEY"] ?? config["AdminSettings:ApiKey"];
+    if (string.IsNullOrWhiteSpace(configuredKey) || string.IsNullOrWhiteSpace(adminKey))
+    {
+        return false;
+    }
+
+    var adminBytes = Encoding.UTF8.GetBytes(adminKey.Trim());
+    var configuredBytes = Encoding.UTF8.GetBytes(configuredKey.Trim());
+
+    return CryptographicOperations.FixedTimeEquals(adminBytes, configuredBytes);
 }
 
 // ---------------------------------------------------------
@@ -1586,12 +1682,13 @@ app.MapPost("/api/v1/land-records", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] IConfiguration config,
     [FromServices] ILandPriceRepository repository,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
     if (string.IsNullOrWhiteSpace(request.Locality))
@@ -1694,12 +1791,13 @@ app.MapPatch("/api/v1/land-records/{id:guid}/verification", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] IConfiguration config,
     [FromServices] ILandPriceRepository repository,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -1933,16 +2031,17 @@ app.MapPost("/api/v1/land-records/import/csv", async (
     [FromServices] ICsvLandPriceImporter importer,
     [FromServices] IConfiguration config,
     [FromServices] ILogger<Program> logger,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
     var isDryRun = dryRun ?? false;
     var shouldSkipDuplicates = skipDuplicates ?? true;
 
     // Administrator authorization verification
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -2072,7 +2171,8 @@ app.MapGet("/api/v1/ml/readiness", async (
 // 13. LandLens Integration Endpoints (Administrative)
 // ---------------------------------------------------------
 var landlensGroup = app.MapGroup("/api/v1/integrations/landlens")
-    .WithTags("LandLens Integration");
+    .WithTags("LandLens Integration")
+    .RequireRateLimiting("IntegrationsRateLimit");
 
 landlensGroup.MapGet("/status", (
     [FromServices] ILandLensClient client,
@@ -2096,12 +2196,13 @@ landlensGroup.MapGet("/me", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] ILandLensClient client,
     [FromServices] IConfiguration config,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -2133,12 +2234,13 @@ landlensGroup.MapGet("/tools", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] ILandLensClient client,
     [FromServices] IConfiguration config,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -2160,12 +2262,13 @@ landlensGroup.MapPost("/resolve-parcel", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] ILandLensClient client,
     [FromServices] IConfiguration config,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -2191,12 +2294,13 @@ landlensGroup.MapPost("/guideline-value", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] ILandLensClient client,
     [FromServices] IConfiguration config,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 
@@ -2222,12 +2326,13 @@ landlensGroup.MapPost("/guideline-history", async (
     [FromHeader(Name = "X-Admin-Key")] string? adminKey,
     [FromServices] ILandLensClient client,
     [FromServices] IConfiguration config,
+    ClaimsPrincipal user,
     CancellationToken ct) =>
 {
-    if (!IsAuthorizedAdmin(adminKey, config))
+    if (!IsAuthorizedAdmin(adminKey, config, user))
     {
         return Results.Json(
-            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header." },
+            new { Error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
             statusCode: StatusCodes.Status401Unauthorized);
     }
 

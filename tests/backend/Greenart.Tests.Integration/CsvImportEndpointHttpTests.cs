@@ -19,6 +19,7 @@ public class CsvImportEndpointHttpTests : IClassFixture<WebApplicationFactory<Pr
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ADMIN_API_KEY", AdminKey);
             builder.ConfigureServices(services =>
             {
                 var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ILandPriceRepository));

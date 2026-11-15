@@ -9,7 +9,7 @@ namespace Greenart.Infrastructure.Persistence.Seeding;
 
 /// <summary>
 /// Pre-provisions core administrative, client test, and developer accounts into PostGIS PostgreSQL.
-/// Ensures standard credentials work seamlessly across production and staging environments without manual registration.
+/// Seeded ONLY in the Development environment when SEED_ADMIN_PASSWORD is set. Never runs in Production.
 /// </summary>
 public static class UserDataSeeder
 {
@@ -25,14 +25,32 @@ public static class UserDataSeeder
         return (Convert.ToHexString(hashBytes), Convert.ToHexString(saltBytes));
     }
 
-    public static async Task SeedUsersAsync(LandPriceDbContext context, ILogger logger, CancellationToken cancellationToken = default)
+    public static async Task SeedUsersAsync(
+        LandPriceDbContext context,
+        ILogger logger,
+        bool isDevelopment = false,
+        string? adminPassword = null,
+        CancellationToken cancellationToken = default)
     {
-        var defaultUsers = new List<(string Email, string FullName, string Password, UserRole Role, string Phone)>
+        if (!isDevelopment)
         {
-            ("haricode04@gmail.com", "Hari (Lead Developer & Admin)", "Admin@123", UserRole.Administrator, "+919876543210"),
-            ("admin@greenartproperties.com", "Greenart Administrator", "Admin@123", UserRole.Administrator, "+919876543211"),
-            ("client@greenart.com", "Greenart Client Demo", "Admin@123", UserRole.Customer, "+919876543212"),
-            ("demo@greenart.com", "Greenart Demo User", "Admin@123", UserRole.Customer, "+919876543213")
+            logger.LogInformation("Skipping demo user seeding: current environment is not Development. Seeding is strictly disabled in Production.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(adminPassword))
+        {
+            logger.LogWarning("No SEED_ADMIN_PASSWORD configured for Development demo seeding. Skipping user seeding.");
+            return;
+        }
+
+        var devPassword = adminPassword.Trim();
+        var defaultUsers = new List<(string Email, string FullName, UserRole Role, string Phone)>
+        {
+            ("haricode04@gmail.com", "Hari (Lead Developer & Admin)", UserRole.Administrator, "+919876543210"),
+            ("admin@greenartproperties.com", "Greenart Administrator", UserRole.Administrator, "+919876543211"),
+            ("client@greenart.com", "Greenart Client Demo", UserRole.Customer, "+919876543212"),
+            ("demo@greenart.com", "Greenart Demo User", UserRole.Customer, "+919876543213")
         };
 
         int seededCount = 0;
@@ -45,7 +63,7 @@ public static class UserDataSeeder
 
             if (existingUser == null)
             {
-                var (hash, salt) = HashPassword(def.Password);
+                var (hash, salt) = HashPassword(devPassword);
                 var newUser = new User(
                     id: Guid.NewGuid(),
                     email: normalizedEmail,
@@ -67,7 +85,7 @@ public static class UserDataSeeder
             }
             else if (string.IsNullOrWhiteSpace(existingUser.PasswordHash) || string.IsNullOrWhiteSpace(existingUser.PasswordSalt))
             {
-                var (hash, salt) = HashPassword(def.Password);
+                var (hash, salt) = HashPassword(devPassword);
                 existingUser.SetPassword(hash, salt);
                 existingUser.VerifyEmail();
                 updatedCount++;
@@ -77,7 +95,7 @@ public static class UserDataSeeder
         if (seededCount > 0 || updatedCount > 0)
         {
             await context.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Core user credentials synchronized: {Seeded} newly seeded, {Updated} updated with active passwords.", seededCount, updatedCount);
+            logger.LogInformation("Development demo user credentials synchronized: {Seeded} newly seeded, {Updated} updated.", seededCount, updatedCount);
         }
     }
 }
