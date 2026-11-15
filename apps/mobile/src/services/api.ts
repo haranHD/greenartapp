@@ -687,7 +687,7 @@ class MobileApiClient {
         const errJson = await response.json();
         if (errJson && errJson.error) errorMsg = errJson.error;
         else if (errJson && errJson.message) errorMsg = errJson.message;
-      } catch {}
+      } catch { }
       if (response.status === 400) {
         throw new ApiValidationError(errorMsg, 400);
       }
