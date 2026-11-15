@@ -41,6 +41,7 @@ public record AiLandPriceIntelligenceResponse(
     TotalValuationDto? TotalValuation,
     string Model,
     DateTime GeneratedAtUtc,
-    ValuationFactorBreakdownDto? FactorBreakdown = null
+    ValuationFactorBreakdownDto? FactorBreakdown = null,
+    string SectionLabel = "Completed Transaction Evidence"
 );
 

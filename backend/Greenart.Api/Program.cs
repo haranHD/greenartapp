@@ -1292,59 +1292,99 @@ app.MapPost("/api/v1/estimates/ai-intelligence", async (
 
     var estResult = await estimationEngine.EstimateMarketPriceAsync(estimateRequest, ct);
 
-    GuidelineReferenceDto? guidelineBenchmark = null;
-    PriceRangeDto? marketCent = null;
-    PriceRangeDto? marketSqFt = null;
-    AskingPriceReferenceDto? askingRef = null;
-
-    if (estResult is EstimateSuccessResponse success)
+    if (estResult is EstimateInsufficientDataResponse insufficient)
     {
-        guidelineBenchmark = success.GovernmentGuidelineReference;
-        marketCent = success.PriceRangePerCent;
-        marketSqFt = success.PriceRangePerSqFt;
-        askingRef = success.AskingPriceReference;
-    }
-    else if (estResult is EstimateInsufficientDataResponse insufficient)
-    {
-        guidelineBenchmark = insufficient.GovernmentGuidelineReference;
-        askingRef = insufficient.AskingPriceReference;
+        return Results.Ok(new AiLandPriceIntelligenceResponse(
+            Status: "InsufficientData",
+            TargetCoordinates: new CoordinatesDto(request.Latitude, request.Longitude),
+            Locality: insufficient.GovernmentGuidelineReference?.Locality ?? request.Locality ?? "Resolved Area",
+            District: request.District ?? "",
+            LandUsage: request.LandUsage.ToString(),
+            EstimatedCurrentPricePerCent: 0m,
+            EstimatedCurrentPricePerSqFt: 0m,
+            PriceRangeSummary: "Completed Transaction Evidence: Insufficient verified sales data to establish market price. Statutory guideline and asking benchmarks shown for reference only.",
+            MarketSentiment: "Insufficient Data",
+            GrowthDrivers: new List<string>(),
+            NegotiationTips: new List<string>
+            {
+                "Require seller to provide registered parent documents and Patta for verification.",
+                "Consult TNREGINET registered guideline rate as statutory stamp-duty floor."
+            },
+            DueDiligenceChecklist: new List<string>
+            {
+                "Verify Patta / Chitta in Tamil Nadu e-Services (Anytime / Anywhere Patta Portal)",
+                "Check 30-year Encumbrance Certificate (EC) on TNREGINET for non-mortgage clearance",
+                "Verify DTCP or CMDA layout planning approval and RERA registration for residential plots",
+                "Survey Boundary Check (FMB - Field Measurement Book) with Sub-Registrar / Village Administrative Officer (VAO)"
+            },
+            GovernmentGuidelineReference: insufficient.GovernmentGuidelineReference,
+            TotalValuation: null,
+            Model: "EngineInsufficientEvidence",
+            GeneratedAtUtc: DateTime.UtcNow,
+            FactorBreakdown: null,
+            SectionLabel: "Completed Transaction Evidence"
+        ));
     }
 
-    // 2. Call Gemini AI with both LandLens statutory data + DB ground truth
+    if (estResult is not EstimateSuccessResponse success)
+    {
+        return Results.BadRequest(new { Error = "Unable to compute land market estimate." });
+    }
+
+    // Call Gemini AI for qualitative market explanations (growth drivers, negotiation tips, due diligence)
+    // Core principle: Price numbers must be COPIED strictly from verified engine result (success)
     var aiAnalysis = await geminiService.AnalyzeLandPriceAsync(
         request,
-        guidelineBenchmark,
-        marketCent,
-        marketSqFt,
-        askingRef,
+        success.GovernmentGuidelineReference,
+        success.PriceRangePerCent,
+        success.PriceRangePerSqFt,
+        success.AskingPriceReference,
         ct);
 
     if (aiAnalysis != null)
     {
-        return Results.Ok(aiAnalysis);
+        var verifiedAiResponse = aiAnalysis with
+        {
+            Status = "Success",
+            EstimatedCurrentPricePerCent = success.PriceRangePerCent.MedianRate,
+            EstimatedCurrentPricePerSqFt = success.PriceRangePerSqFt.MedianRate,
+            TotalValuation = success.TotalValuation,
+            FactorBreakdown = null,
+            SectionLabel = "Completed Transaction Evidence"
+        };
+        return Results.Ok(verifiedAiResponse);
     }
 
-    // Fallback if AI service is temporarily offline: construct structured response from local data
-    var fallbackCent = marketCent?.MedianRate ?? (guidelineBenchmark?.GuidelineRatePerCent != null ? guidelineBenchmark.GuidelineRatePerCent * 1.5m : 1050000m);
-    var fallbackSqFt = marketSqFt?.MedianRate ?? Math.Round(fallbackCent / LandArea.SqFtPerCent, 2);
-
+    // Fallback if AI service is offline or unconfigured: return verified engine price with standard legal checklist
     return Results.Ok(new AiLandPriceIntelligenceResponse(
-        Status: "Fallback",
+        Status: "Success",
         TargetCoordinates: new CoordinatesDto(request.Latitude, request.Longitude),
-        Locality: guidelineBenchmark?.Locality ?? request.Locality ?? "Resolved Area",
-        District: request.District ?? "Coimbatore",
+        Locality: success.GovernmentGuidelineReference?.Locality ?? request.Locality ?? "Resolved Area",
+        District: request.District ?? "",
         LandUsage: request.LandUsage.ToString(),
-        EstimatedCurrentPricePerCent: fallbackCent,
-        EstimatedCurrentPricePerSqFt: fallbackSqFt,
-        PriceRangeSummary: $"Standard market rate ₹{fallbackCent:N0}/Cent (₹{fallbackSqFt:N0}/Sq.Ft) with statutory guideline ₹{guidelineBenchmark?.GuidelineRatePerCent:N0}/Cent.",
-        MarketSentiment: "Steady Growth",
-        GrowthDrivers: new List<string> { "Highway connectivity", "Expanding suburban corridor", "Regional infrastructure developments" },
-        NegotiationTips: new List<string> { "Compare asking price against registered guideline benchmark", "Verify clear 30-year title with encumbrance certificate" },
-        DueDiligenceChecklist: new List<string> { "Patta verification", "Encumbrance Certificate (EC)", "DTCP/RERA approval" },
-        GovernmentGuidelineReference: guidelineBenchmark,
-        TotalValuation: null,
-        Model: "RuleBasedFallback",
-        GeneratedAtUtc: DateTime.UtcNow
+        EstimatedCurrentPricePerCent: success.PriceRangePerCent.MedianRate,
+        EstimatedCurrentPricePerSqFt: success.PriceRangePerSqFt.MedianRate,
+        PriceRangeSummary: $"Completed Transaction Evidence: Verified market rate median ₹{success.PriceRangePerCent.MedianRate:N0}/Cent (₹{success.PriceRangePerSqFt.MedianRate:N0}/Sq.Ft) derived from {success.ComparableRecordCount} deed(s).",
+        MarketSentiment: "Verified Market Evidence",
+        GrowthDrivers: new List<string>(),
+        NegotiationTips: new List<string>
+        {
+            "Compare asking price against registered completed-deed benchmark.",
+            "Verify clear 30-year title with encumbrance certificate."
+        },
+        DueDiligenceChecklist: new List<string>
+        {
+            "Verify Patta / Chitta in Tamil Nadu e-Services (Anytime / Anywhere Patta Portal)",
+            "Check 30-year Encumbrance Certificate (EC) on TNREGINET for non-mortgage clearance",
+            "Verify DTCP or CMDA layout planning approval and RERA registration for residential plots",
+            "Survey Boundary Check (FMB - Field Measurement Book) with Sub-Registrar / Village Administrative Officer (VAO)"
+        },
+        GovernmentGuidelineReference: success.GovernmentGuidelineReference,
+        TotalValuation: success.TotalValuation,
+        Model: "EngineVerified",
+        GeneratedAtUtc: DateTime.UtcNow,
+        FactorBreakdown: null,
+        SectionLabel: "Completed Transaction Evidence"
     ));
 })
 .WithName("GetAiLandIntelligence")

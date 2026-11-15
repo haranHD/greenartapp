@@ -20,16 +20,13 @@ public class EstimationEngine : IEstimationEngine
 
     private readonly ILandPriceRepository _repository;
     private readonly ILandLensClient? _landLensClient;
-    private readonly IGeminiLandIntelligenceService? _geminiService;
 
     public EstimationEngine(
         ILandPriceRepository repository,
-        ILandLensClient? landLensClient = null,
-        IGeminiLandIntelligenceService? geminiService = null)
+        ILandLensClient? landLensClient = null)
     {
         _repository = repository;
         _landLensClient = landLensClient;
-        _geminiService = geminiService;
     }
 
     public async Task<object> EstimateMarketPriceAsync(CalculateEstimateRequest request, CancellationToken cancellationToken = default)
@@ -61,7 +58,8 @@ public class EstimationEngine : IEstimationEngine
                 GuidelineRatePerSqFt: guidelineRecord.NormalizedRatePerSqFt,
                 Locality: guidelineRecord.Locality,
                 SurveyNumber: guidelineRecord.SurveyNumber,
-                LegalNotice: "Statutory minimum valuation benchmark from TNREGINET for stamp duty calculation. Not an open-market transaction."
+                LegalNotice: "Government Guideline Benchmark: Statutory minimum valuation benchmark from TNREGINET for stamp duty calculation. Not an open-market transaction.",
+                SectionLabel: "Government Guideline Benchmark"
             );
         }
         else if (_landLensClient != null && _landLensClient.IsConfigured)
@@ -94,7 +92,8 @@ public class EstimationEngine : IEstimationEngine
                         GuidelineRatePerSqFt: gl.GuidelineRatePerSqFt ?? Math.Round((gl.GuidelineRatePerCent ?? 0) / LandArea.SqFtPerCent, 2),
                         Locality: gl.StreetName ?? parcel?.VillageName ?? "Resolved Area",
                         SurveyNumber: parcel?.SurveyNumber,
-                        LegalNotice: "Statutory minimum guideline rate from TNREGINET (via LandLens live feed). Not an open-market transaction."
+                        LegalNotice: "Government Guideline Benchmark: Statutory minimum guideline rate from TNREGINET (via LandLens live feed). Not an open-market transaction.",
+                        SectionLabel: "Government Guideline Benchmark"
                     );
                 }
                 else if (parcel != null && !string.IsNullOrWhiteSpace(parcel.VillageName))
@@ -113,7 +112,8 @@ public class EstimationEngine : IEstimationEngine
                             GuidelineRatePerSqFt: loc.MedianRatePerSqFt,
                             Locality: localityLabel,
                             SurveyNumber: parcel.SurveyNumber,
-                            LegalNotice: $"Statutory guideline benchmark for {loc.VillageName} from TNREGINET (via LandLens). Range: ₹{loc.MinRatePerSqFt:N0} - ₹{loc.MaxRatePerSqFt:N0}/sq.ft. Not an open-market transaction."
+                            LegalNotice: $"Government Guideline Benchmark: Statutory guideline benchmark for {loc.VillageName} from TNREGINET (via LandLens). Range: ₹{loc.MinRatePerSqFt:N0} - ₹{loc.MaxRatePerSqFt:N0}/sq.ft. Not an open-market transaction.",
+                            SectionLabel: "Government Guideline Benchmark"
                         );
                     }
                 }
@@ -145,7 +145,8 @@ public class EstimationEngine : IEstimationEngine
                 MedianRatePerCent: Math.Round(GetPercentile(askingCentRates, 0.50), 2),
                 MinRatePerSqFt: Math.Round(askingSqFtRates.First(), 2),
                 MaxRatePerSqFt: Math.Round(askingSqFtRates.Last(), 2),
-                Notice: "Independent asking-price reference from advertised property listings within search radius. Reflects seller expectations before negotiations. Not an agreed or completed sale price."
+                Notice: "Asking Price Benchmark: Independent asking-price reference from advertised property listings within search radius. Reflects seller expectations before negotiations. Not an agreed or completed sale price.",
+                SectionLabel: "Asking Price Benchmark"
             );
         }
 
@@ -159,251 +160,6 @@ public class EstimationEngine : IEstimationEngine
         // 5. Insufficient Data Check (When verified completed sales < 3):
         if (eligibleCompletedSales.Count < MinimumRecordThreshold)
         {
-            if (_geminiService != null && _geminiService.IsConfigured)
-            {
-                // STEP 5A: Check if we already have a recent cached AI corridor estimate in DB within this radius
-                // If the user provided a specific locality (e.g. "Karur Bus Stand"), ensure the cache matches that locality!
-                LandPriceRecord? cachedResearch = null;
-                if (!request.ForceFresh)
-                {
-                    cachedResearch = candidates
-                        .Where(r => r.SourceCategory == SourceCategory.ClientResearch)
-                        .Where(r => r.SourceReference != null && r.SourceReference.StartsWith("AI Corridor Synthesis"))
-                        .Where(r => r.VerificationStatus != VerificationStatus.Rejected && r.VerificationStatus != VerificationStatus.Archived)
-                        .Where(r => r.NormalizedRatePerSqFt > 0 && r.NormalizedRatePerCent > 0)
-                        .Where(r => (asOfDate - r.ObservationDate).TotalDays <= 180)
-                        .Where(r => string.IsNullOrWhiteSpace(request.Locality) ||
-                                    r.Locality.Equals(request.Locality, StringComparison.OrdinalIgnoreCase) ||
-                                    r.Locality.Contains(request.Locality, StringComparison.OrdinalIgnoreCase) ||
-                                    request.Locality.Contains(r.Locality, StringComparison.OrdinalIgnoreCase))
-                        .Where(r => string.IsNullOrWhiteSpace(request.RoadFrontage) ||
-                                    (r.Notes != null && r.Notes.Contains(request.RoadFrontage)) ||
-                                    (r.SourceReference != null && r.SourceReference.Contains(request.RoadFrontage)))
-                        .OrderBy(r => r.Coordinates.DistanceToMeters(targetCoord))
-                        .FirstOrDefault();
-                }
-
-                if (cachedResearch != null)
-                {
-                    var estSqFt = cachedResearch.NormalizedRatePerSqFt;
-                    var estCent = cachedResearch.NormalizedRatePerCent;
-
-                    var minSqFt = Math.Round(estSqFt * 0.88m, 2);
-                    var maxSqFt = Math.Round(estSqFt * 1.15m, 2);
-                    var p25SqFt = Math.Round(minSqFt + (estSqFt - minSqFt) * 0.5m, 2);
-                    var p75SqFt = Math.Round(estSqFt + (maxSqFt - estSqFt) * 0.5m, 2);
-
-                    var minCent = Math.Round(estCent * 0.88m, 2);
-                    var maxCent = Math.Round(estCent * 1.15m, 2);
-                    var p25Cent = Math.Round(minCent + (estCent - minCent) * 0.5m, 2);
-                    var p75Cent = Math.Round(estCent + (maxCent - estCent) * 0.5m, 2);
-
-                    var cachedPriceRangePerSqFt = new PriceRangeDto(
-                        minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft",
-                        GreenotValuationEngine.CalculateMarketRateBuffer(estSqFt, "Sq.Ft"));
-                    var cachedPriceRangePerCent = new PriceRangeDto(
-                        minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent",
-                        GreenotValuationEngine.CalculateMarketRateBuffer(estCent, "Cent"));
-
-                    TotalValuationDto? cachedTotalVal = null;
-                    if (request.TargetArea.HasValue && request.TargetArea.Value > 0)
-                    {
-                        var areaUnit = request.TargetAreaUnit ?? request.PreferredUnit;
-                        var targetAreaObj = new LandArea(request.TargetArea.Value, areaUnit);
-                        var equivSqFt = targetAreaObj.ToSqFt();
-                        var equivCents = targetAreaObj.ToCents();
-
-                        var totalEst = Math.Round(estSqFt * equivSqFt, 2);
-                        var totalMin = Math.Round(minSqFt * equivSqFt, 2);
-                        var totalMax = Math.Round(maxSqFt * equivSqFt, 2);
-
-                        decimal? totalGuideline = null;
-                        if (guidelineBenchmark != null)
-                        {
-                            totalGuideline = Math.Round(guidelineBenchmark.GuidelineRatePerSqFt * equivSqFt, 2);
-                        }
-
-                        cachedTotalVal = new TotalValuationDto(
-                            TotalEstimatedPrice: totalEst,
-                            TotalPriceMin: totalMin,
-                            TotalPriceMax: totalMax,
-                            AreaValue: request.TargetArea.Value,
-                            AreaUnit: areaUnit.ToString(),
-                            EquivalentSqFt: Math.Round(equivSqFt, 2),
-                            EquivalentCents: Math.Round(equivCents, 2),
-                            TotalGuidelinePrice: totalGuideline
-                        );
-                    }
-
-                    var cachedBreakdown = new List<SourceCategoryBreakdownDto>
-                    {
-                        new("ClientResearch_DatabaseCache", 1)
-                    };
-                    if (guidelineBenchmark != null)
-                    {
-                        cachedBreakdown.Add(new("GovernmentGuideline_TNREGINET", 1));
-                    }
-                    if (askingPriceReference != null)
-                    {
-                        cachedBreakdown.Add(new("AdvertisedAskingPrice_Listings", askingPriceReference.ListingCount));
-                    }
-
-                    var cachedBreakdownFactor = new ValuationFactorBreakdownDto(
-                        BaseLocalityRatePerCent: Math.Round(estCent * 0.60m, 2),
-                        RoadFrontageAdjustmentPerCent: Math.Round(estCent * 0.25m, 2),
-                        AmenitiesAdjustmentPerCent: Math.Round(estCent * 0.15m, 2),
-                        RoadFrontageType: request.RoadFrontage ?? "Standard Layout Road",
-                        SurroundingAmenitiesType: request.SurroundingAmenities ?? "Standard Residential Colony",
-                        RoadAdjustmentReason: $"Historical corridor alignment for {cachedResearch.Locality}",
-                        AmenityAdjustmentReason: "Proximity to local transit and civic amenities"
-                    );
-
-                    return new EstimateSuccessResponse(
-                        Status: "Success",
-                        TargetCoordinates: targetCoordDto,
-                        SearchRadiusMeters: radiusMeters,
-                        ComparableRecordCount: eligibleCompletedSales.Count,
-                        Confidence: "AI-Synthesized",
-                        PriceRangePerCent: cachedPriceRangePerCent,
-                        PriceRangePerSqFt: cachedPriceRangePerSqFt,
-                        EarliestRecordDate: cachedResearch.ObservationDate,
-                        LatestRecordDate: cachedResearch.ObservationDate,
-                        SourceBreakdown: cachedBreakdown,
-                        GovernmentGuidelineReference: guidelineBenchmark,
-                        Disclaimer: "Indicative valuation based on regional micro-market corridor and TNREGINET statutory benchmarks.",
-                        AskingPriceReference: askingPriceReference,
-                        TotalValuation: cachedTotalVal,
-                        CalculationExplanation: $"Retrieved from cached corridor research data ({cachedResearch.SourceReference}) for {cachedResearch.Locality}.",
-                        FactorBreakdown: cachedBreakdownFactor
-                    );
-                }
-
-                // STEP 5B: If no cached estimate exists, synthesize using Gemini AI
-                try
-                {
-                    var aiRequest = new AiLandPriceIntelligenceRequest(
-                        Latitude: targetCoord.Latitude,
-                        Longitude: targetCoord.Longitude,
-                        LandUsage: request.LandUsage,
-                        TargetArea: request.TargetArea,
-                        TargetAreaUnit: request.TargetAreaUnit ?? request.PreferredUnit,
-                        Locality: resolvedVillage ?? guidelineBenchmark?.Locality,
-                        District: resolvedDistrict,
-                        RoadFrontage: request.RoadFrontage,
-                        SurroundingAmenities: request.SurroundingAmenities
-                    );
-
-                    var aiResult = await _geminiService.AnalyzeLandPriceAsync(
-                        aiRequest,
-                        guidelineBenchmark,
-                        null,
-                        null,
-                        askingPriceReference,
-                        cancellationToken);
-
-                    if (aiResult != null && (aiResult.EstimatedCurrentPricePerSqFt > 0 || aiResult.EstimatedCurrentPricePerCent > 0))
-                    {
-                        var estSqFt = aiResult.EstimatedCurrentPricePerSqFt > 0
-                            ? aiResult.EstimatedCurrentPricePerSqFt
-                            : Math.Round(aiResult.EstimatedCurrentPricePerCent / LandArea.SqFtPerCent, 2);
-
-                        var estCent = aiResult.EstimatedCurrentPricePerCent > 0
-                            ? aiResult.EstimatedCurrentPricePerCent
-                            : Math.Round(aiResult.EstimatedCurrentPricePerSqFt * LandArea.SqFtPerCent, 2);
-
-                        // Automatically persist the AI synthesis to PostgreSQL DB as ClientResearch for future pinpoints
-                        try
-                        {
-                            var autoPersistedRecord = new LandPriceRecord(
-                                id: Guid.NewGuid(),
-                                country: "India",
-                                state: "Tamil Nadu",
-                                district: resolvedDistrict ?? "Coimbatore",
-                                taluk: null,
-                                locality: resolvedVillage ?? guidelineBenchmark?.Locality ?? "Tamil Nadu Corridor",
-                                streetOrLandmark: guidelineBenchmark?.Locality,
-                                surveyNumber: guidelineBenchmark?.SurveyNumber,
-                                coordinates: targetCoord,
-                                landUsage: request.LandUsage,
-                                area: new LandArea(1.0m, AreaUnit.Cent),
-                                originalPrice: estCent,
-                                sourceCategory: SourceCategory.ClientResearch,
-                                sourceReference: $"AI Corridor Synthesis ({aiResult.Model}) [{request.RoadFrontage ?? "Standard"}]",
-                                observationDate: DateTime.UtcNow,
-                                verificationStatus: VerificationStatus.Unverified,
-                                isSynthetic: false,
-                                notes: $"AI Market Estimate: {aiResult.PriceRangeSummary}. Road: {request.RoadFrontage}. Amenities: {request.SurroundingAmenities}. Sentiment: {aiResult.MarketSentiment}"
-                            );
-
-                            await _repository.AddAsync(autoPersistedRecord, cancellationToken);
-                        }
-                        catch
-                        {
-                            // Non-blocking: background save failure shouldn't disrupt client response
-                        }
-
-                        var minSqFt = Math.Round(estSqFt * 0.88m, 2);
-                        var maxSqFt = Math.Round(estSqFt * 1.15m, 2);
-                        var p25SqFt = Math.Round(minSqFt + (estSqFt - minSqFt) * 0.5m, 2);
-                        var p75SqFt = Math.Round(estSqFt + (maxSqFt - estSqFt) * 0.5m, 2);
-
-                        var minCent = Math.Round(estCent * 0.88m, 2);
-                        var maxCent = Math.Round(estCent * 1.15m, 2);
-                        var p25Cent = Math.Round(minCent + (estCent - minCent) * 0.5m, 2);
-                        var p75Cent = Math.Round(estCent + (maxCent - estCent) * 0.5m, 2);
-
-                        var aiPriceRangePerSqFt = new PriceRangeDto(
-                            minSqFt, p25SqFt, estSqFt, p75SqFt, maxSqFt, "₹ / Sq.Ft",
-                            GreenotValuationEngine.CalculateMarketRateBuffer(estSqFt, "Sq.Ft"));
-                        var aiPriceRangePerCent = new PriceRangeDto(
-                            minCent, p25Cent, estCent, p75Cent, maxCent, "₹ / Cent",
-                            GreenotValuationEngine.CalculateMarketRateBuffer(estCent, "Cent"));
-
-                        var aiSourceBreakdown = new List<SourceCategoryBreakdownDto>
-                        {
-                            new("Gemini_AI_Synthesis", 1)
-                        };
-                        if (guidelineBenchmark != null)
-                        {
-                            aiSourceBreakdown.Add(new("GovernmentGuideline_TNREGINET", 1));
-                        }
-                        if (askingPriceReference != null)
-                        {
-                            aiSourceBreakdown.Add(new("AdvertisedAskingPrice_Listings", askingPriceReference.ListingCount));
-                        }
-
-                        var driversSummary = aiResult.GrowthDrivers != null && aiResult.GrowthDrivers.Count > 0
-                            ? string.Join(", ", aiResult.GrowthDrivers.Take(2))
-                            : "Micro-market momentum";
-
-                        var aiExplanation = $"Synthesized via Google Gemini AI ({aiResult.Model}) leveraging verified TNREGINET statutory benchmarks (₹{guidelineBenchmark?.GuidelineRatePerSqFt:N0}/sq.ft), micro-market growth drivers ({driversSummary}), and current sentiment ({aiResult.MarketSentiment}).";
-
-                        return new EstimateSuccessResponse(
-                            Status: "Success",
-                            TargetCoordinates: targetCoordDto,
-                            SearchRadiusMeters: radiusMeters,
-                            ComparableRecordCount: eligibleCompletedSales.Count,
-                            Confidence: "AI-Synthesized",
-                            PriceRangePerCent: aiPriceRangePerCent,
-                            PriceRangePerSqFt: aiPriceRangePerSqFt,
-                            EarliestRecordDate: DateTime.UtcNow.AddMonths(-1),
-                            LatestRecordDate: DateTime.UtcNow,
-                            SourceBreakdown: aiSourceBreakdown,
-                            GovernmentGuidelineReference: guidelineBenchmark,
-                            Disclaimer: "AI-synthesized valuation based on micro-market sentiment, TNREGINET statutory benchmarks, and regional price indices. For legal or banking conveyance, obtain on-ground survey and encumbrance verification.",
-                            AskingPriceReference: askingPriceReference,
-                            TotalValuation: aiResult.TotalValuation,
-                            CalculationExplanation: aiExplanation,
-                            FactorBreakdown: aiResult.FactorBreakdown
-                        );
-                    }
-                }
-                catch
-                {
-                    // Non-blocking: fall back to standard InsufficientDataResponse if AI service encounters error
-                }
-            }
-
             decimal? totalGuidelineValuation = null;
             if (guidelineBenchmark != null && request.TargetArea.HasValue && request.TargetArea.Value > 0)
             {
@@ -427,7 +183,9 @@ public class EstimationEngine : IEstimationEngine
                 },
                 GovernmentGuidelineReference: guidelineBenchmark,
                 AskingPriceReference: askingPriceReference,
-                TotalGuidelineValuation: totalGuidelineValuation
+                TotalGuidelineValuation: totalGuidelineValuation,
+                FactorBreakdown: null,
+                SectionLabel: "Completed Transaction Evidence"
             );
         }
 
@@ -481,23 +239,13 @@ public class EstimationEngine : IEstimationEngine
         }
 
         // 10. Transparent Calculation Explanation
-        var explanation = $"Calculated from {eligibleCompletedSales.Count} verified completed-sale deed(s) within {radiusMeters:N0}m radius for {request.LandUsage} classification. " +
+        var explanation = $"Completed Transaction Evidence: Calculated from {eligibleCompletedSales.Count} verified completed-sale deed(s) within {radiusMeters:N0}m radius for {request.LandUsage} classification. " +
             $"Outlier evaluation: {outlierAudit}. " +
             $"Primary market estimate uses the median rate of ₹{priceRangePerSqFt.MedianRate:N2}/sq.ft (₹{priceRangePerCent.MedianRate:N2}/cent) to eliminate skew from high/low extremes. " +
             $"The interquartile range spans from ₹{priceRangePerSqFt.Percentile25:N2} (P25) to ₹{priceRangePerSqFt.Percentile75:N2} (P75)/sq.ft. " +
-            (guidelineBenchmark != null ? $"TNREGINET statutory guideline rate of ₹{guidelineBenchmark.GuidelineRatePerSqFt:N2}/sq.ft is kept strictly in a separate benchmark layer. " : "") +
-            (askingPriceReference != null ? $"Advertised asking prices ({askingPriceReference.ListingCount} listing(s) at median ₹{askingPriceReference.MedianRatePerSqFt:N2}/sq.ft) are tracked as an independent seller-sentiment layer without arbitrary negotiation discounts applied. " : "") +
+            (guidelineBenchmark != null ? $"Government Guideline Benchmark: TNREGINET statutory guideline rate of ₹{guidelineBenchmark.GuidelineRatePerSqFt:N2}/sq.ft is kept strictly in a separate benchmark layer. " : "") +
+            (askingPriceReference != null ? $"Asking Price Benchmark: Advertised asking prices ({askingPriceReference.ListingCount} listing(s) at median ₹{askingPriceReference.MedianRatePerSqFt:N2}/sq.ft) are tracked as an independent seller-sentiment layer without arbitrary negotiation discounts applied. " : "") +
             (totalValuation != null ? $"For the requested area of {totalValuation.AreaValue} {totalValuation.AreaUnit} ({totalValuation.EquivalentSqFt:N0} sq.ft / {totalValuation.EquivalentCents:N2} cents), total indicative market valuation is ₹{totalValuation.TotalEstimatedPrice:N0}." : "");
-
-        var completedDeedFactor = new ValuationFactorBreakdownDto(
-            BaseLocalityRatePerCent: Math.Round(priceRangePerCent.MedianRate * 0.70m, 2),
-            RoadFrontageAdjustmentPerCent: Math.Round(priceRangePerCent.MedianRate * 0.20m, 2),
-            AmenitiesAdjustmentPerCent: Math.Round(priceRangePerCent.MedianRate * 0.10m, 2),
-            RoadFrontageType: request.RoadFrontage ?? "Standard Layout Road",
-            SurroundingAmenitiesType: request.SurroundingAmenities ?? "Standard Residential Colony",
-            RoadAdjustmentReason: "Registered SRO conveyance deed distribution reflects local road access.",
-            AmenityAdjustmentReason: "Registered sales deeds within 1,000m cluster of civic infrastructure."
-        );
 
         return new EstimateSuccessResponse(
             Status: "Success",
@@ -515,7 +263,8 @@ public class EstimationEngine : IEstimationEngine
             AskingPriceReference: askingPriceReference,
             TotalValuation: totalValuation,
             CalculationExplanation: explanation,
-            FactorBreakdown: completedDeedFactor
+            FactorBreakdown: null,
+            SectionLabel: "Completed Transaction Evidence"
         );
     }
 

@@ -40,7 +40,8 @@ public record GuidelineReferenceDto(
     decimal GuidelineRatePerSqFt,
     string Locality,
     string? SurveyNumber,
-    string LegalNotice
+    string LegalNotice,
+    string SectionLabel = "Government Guideline Benchmark"
 );
 
 public record AskingPriceReferenceDto(
@@ -49,7 +50,8 @@ public record AskingPriceReferenceDto(
     decimal MedianRatePerCent,
     decimal MinRatePerSqFt,
     decimal MaxRatePerSqFt,
-    string Notice
+    string Notice,
+    string SectionLabel = "Asking Price Benchmark"
 );
 
 public record TotalValuationDto(
@@ -79,7 +81,8 @@ public record EstimateSuccessResponse(
     AskingPriceReferenceDto? AskingPriceReference = null,
     TotalValuationDto? TotalValuation = null,
     string? CalculationExplanation = null,
-    ValuationFactorBreakdownDto? FactorBreakdown = null
+    ValuationFactorBreakdownDto? FactorBreakdown = null,
+    string SectionLabel = "Completed Transaction Evidence"
 );
 
 public record EstimateInsufficientDataResponse(
@@ -93,5 +96,6 @@ public record EstimateInsufficientDataResponse(
     GuidelineReferenceDto? GovernmentGuidelineReference = null,
     AskingPriceReferenceDto? AskingPriceReference = null,
     decimal? TotalGuidelineValuation = null,
-    ValuationFactorBreakdownDto? FactorBreakdown = null
+    ValuationFactorBreakdownDto? FactorBreakdown = null,
+    string SectionLabel = "Completed Transaction Evidence"
 );

@@ -489,66 +489,15 @@ public class EstimationEngineTests
     }
 
     [Fact]
-    public async Task WhenEligibleRecordsLessThanThresholdAndGeminiConfigured_ShouldReturn_AiSynthesizedEstimate()
-    {
-        // Only 1 deed available (< 3 threshold)
-        var records = new List<LandPriceRecord>
-        {
-            CreateVerifiedDeed(11.0010, 77.0870, 950000m)
-        };
-        var repo = new MockLandPriceRepository(records);
-
-        var mockAiResponse = new AiLandPriceIntelligenceResponse(
-            Status: "Success",
-            TargetCoordinates: new CoordinatesDto(11.0012, 77.0874),
-            Locality: "Kannampalayam",
-            District: "Coimbatore",
-            LandUsage: "Residential",
-            EstimatedCurrentPricePerCent: 1050000m,
-            EstimatedCurrentPricePerSqFt: 2410m,
-            PriceRangeSummary: "AI-Synthesized estimate",
-            MarketSentiment: "Bullish",
-            GrowthDrivers: new List<string> { "L&T Bypass corridor connectivity" },
-            NegotiationTips: new List<string> { "Verify road frontage" },
-            DueDiligenceChecklist: new List<string> { "EC verification" },
-            GovernmentGuidelineReference: null,
-            TotalValuation: null,
-            Model: "gemini-3-flash-preview",
-            GeneratedAtUtc: DateTime.UtcNow
-        );
-
-        var geminiMock = new MockGeminiLandIntelligenceService(mockAiResponse, isConfigured: true);
-        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
-
-        var request = new CalculateEstimateRequest(
-            Latitude: 11.0012,
-            Longitude: 77.0874,
-            LandUsage: LandUsageType.Residential,
-            RadiusMeters: 1000
-        );
-
-        var response = await engine.EstimateMarketPriceAsync(request);
-
-        var success = Assert.IsType<EstimateSuccessResponse>(response);
-        Assert.Equal("Success", success.Status);
-        Assert.Equal("AI-Synthesized", success.Confidence);
-        Assert.Equal(1050000m, success.PriceRangePerCent.MedianRate);
-        Assert.Equal(2410m, success.PriceRangePerSqFt.MedianRate);
-        Assert.Contains("Gemini_AI_Synthesis", success.SourceBreakdown.Select(s => s.Category));
-        Assert.Contains("gemini-3-flash-preview", success.CalculationExplanation);
-    }
-
-    [Fact]
-    public async Task WhenEligibleRecordsLessThanThresholdAndGeminiReturnsNull_ShouldFallbackTo_InsufficientData()
+    public async Task WhenEligibleRecordsLessThanThreshold_ShouldReturnInsufficientData_AndNeverPersistAiRecord()
     {
         var records = new List<LandPriceRecord>
         {
             CreateVerifiedDeed(11.0010, 77.0870, 950000m)
         };
+        var initialCount = records.Count;
         var repo = new MockLandPriceRepository(records);
-
-        var geminiMock = new MockGeminiLandIntelligenceService(null, isConfigured: true);
-        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
+        var engine = new EstimationEngine(repo, landLensClient: null);
 
         var request = new CalculateEstimateRequest(
             Latitude: 11.0012,
@@ -562,96 +511,76 @@ public class EstimationEngineTests
         var insufficient = Assert.IsType<EstimateInsufficientDataResponse>(response);
         Assert.Equal("InsufficientData", insufficient.Status);
         Assert.Equal(1, insufficient.ComparableRecordsFound);
+        Assert.Null(insufficient.FactorBreakdown);
+        Assert.Equal("Completed Transaction Evidence", insufficient.SectionLabel);
+
+        // Core principle verification: AI output is never persisted as land data
+        var allRecords = await repo.GetAllAsync();
+        Assert.Equal(initialCount, allRecords.Count);
+        Assert.DoesNotContain(allRecords, r => r.SourceCategory == SourceCategory.ClientResearch);
     }
 
     [Fact]
-    public async Task WhenGeminiSynthesizesEstimate_ShouldPersistToDatabase_AndSubsequentQueryReusesCache()
+    public async Task WhenZeroEligibleRecords_ShouldReturnInsufficientData_AndNeverPersistAiRecord()
     {
-        var records = new List<LandPriceRecord>
-        {
-            CreateVerifiedDeed(11.0010, 77.0870, 950000m)
-        };
+        var records = new List<LandPriceRecord>();
         var repo = new MockLandPriceRepository(records);
+        var engine = new EstimationEngine(repo, landLensClient: null);
 
-        var mockAiResponse = new AiLandPriceIntelligenceResponse(
-            Status: "Success",
-            TargetCoordinates: new CoordinatesDto(11.0012, 77.0874),
-            Locality: "Pollachi",
-            District: "Coimbatore",
-            LandUsage: "Residential",
-            EstimatedCurrentPricePerCent: 650000m,
-            EstimatedCurrentPricePerSqFt: 1492.20m,
-            PriceRangeSummary: "AI-Synthesized estimate for Pollachi",
-            MarketSentiment: "Steady",
-            GrowthDrivers: new List<string> { "Highway connectivity" },
-            NegotiationTips: new List<string> { "Check road width" },
-            DueDiligenceChecklist: new List<string> { "EC verification" },
-            GovernmentGuidelineReference: null,
-            TotalValuation: null,
-            Model: "gemini-3-flash-preview",
-            GeneratedAtUtc: DateTime.UtcNow
-        );
-
-        var geminiMock = new MockGeminiLandIntelligenceService(mockAiResponse, isConfigured: true);
-        var engine = new EstimationEngine(repo, landLensClient: null, geminiService: geminiMock);
-
-        var request1 = new CalculateEstimateRequest(
+        var request = new CalculateEstimateRequest(
             Latitude: 11.0012,
             Longitude: 77.0874,
             LandUsage: LandUsageType.Residential,
             RadiusMeters: 1000
         );
 
-        // First call triggers Gemini and persists to DB
-        var response1 = await engine.EstimateMarketPriceAsync(request1);
-        var success1 = Assert.IsType<EstimateSuccessResponse>(response1);
-        Assert.Equal(650000m, success1.PriceRangePerCent.MedianRate);
+        var response = await engine.EstimateMarketPriceAsync(request);
 
-        // Verify the record was persisted into repository
+        var insufficient = Assert.IsType<EstimateInsufficientDataResponse>(response);
+        Assert.Equal("InsufficientData", insufficient.Status);
+        Assert.Equal(0, insufficient.ComparableRecordsFound);
+        Assert.Null(insufficient.FactorBreakdown);
+
         var allRecords = await repo.GetAllAsync();
-        var persistedAiRecord = allRecords.FirstOrDefault(r => r.SourceCategory == SourceCategory.ClientResearch);
-        Assert.NotNull(persistedAiRecord);
-        Assert.Equal(650000m, persistedAiRecord.NormalizedRatePerCent);
-        Assert.StartsWith("AI Corridor Synthesis", persistedAiRecord.SourceReference);
+        Assert.Empty(allRecords);
+    }
 
-        // Second call with a FAILING Gemini mock (returning null) reuses the cached record from DB
-        var failingGeminiMock = new MockGeminiLandIntelligenceService(null, isConfigured: true);
-        var engineWithCachedDb = new EstimationEngine(repo, landLensClient: null, geminiService: failingGeminiMock);
+    [Fact]
+    public async Task WhenThreeOrMoreEligibleRecords_ShouldReturnSuccessWithCorrectMedianAndNoFakeFactorBreakdown()
+    {
+        var records = new List<LandPriceRecord>
+        {
+            CreateVerifiedDeed(11.0010, 77.0870, 900000m),
+            CreateVerifiedDeed(11.0012, 77.0872, 1000000m),
+            CreateVerifiedDeed(11.0014, 77.0874, 1100000m)
+        };
+        var initialCount = records.Count;
+        var repo = new MockLandPriceRepository(records);
+        var engine = new EstimationEngine(repo, landLensClient: null);
 
-        var request2 = new CalculateEstimateRequest(
-            Latitude: 11.0014,
-            Longitude: 77.0876,
+        var request = new CalculateEstimateRequest(
+            Latitude: 11.0012,
+            Longitude: 77.0874,
             LandUsage: LandUsageType.Residential,
             RadiusMeters: 1000
         );
 
-        var response2 = await engineWithCachedDb.EstimateMarketPriceAsync(request2);
-        var success2 = Assert.IsType<EstimateSuccessResponse>(response2);
-        Assert.Equal(650000m, success2.PriceRangePerCent.MedianRate);
-        Assert.Contains("ClientResearch_DatabaseCache", success2.SourceBreakdown.Select(s => s.Category));
-    }
+        var response = await engine.EstimateMarketPriceAsync(request);
 
-    private class MockGeminiLandIntelligenceService : IGeminiLandIntelligenceService
-    {
-        private readonly AiLandPriceIntelligenceResponse? _response;
-        public bool IsConfigured { get; }
+        var success = Assert.IsType<EstimateSuccessResponse>(response);
+        Assert.Equal("Success", success.Status);
+        Assert.NotEqual("AI-Synthesized", success.Confidence);
+        Assert.Equal(1000000m, success.PriceRangePerCent.MedianRate);
+        Assert.Equal(900000m, success.PriceRangePerCent.MinRate);
+        Assert.Equal(950000m, success.PriceRangePerCent.Percentile25);
+        Assert.Equal(1050000m, success.PriceRangePerCent.Percentile75);
+        Assert.Equal(1100000m, success.PriceRangePerCent.MaxRate);
+        Assert.Null(success.FactorBreakdown);
+        Assert.Equal("Completed Transaction Evidence", success.SectionLabel);
 
-        public MockGeminiLandIntelligenceService(AiLandPriceIntelligenceResponse? response, bool isConfigured = true)
-        {
-            _response = response;
-            IsConfigured = isConfigured;
-        }
-
-        public Task<AiLandPriceIntelligenceResponse?> AnalyzeLandPriceAsync(
-            AiLandPriceIntelligenceRequest request,
-            GuidelineReferenceDto? guidelineBenchmark,
-            PriceRangeDto? marketObservedPerCent,
-            PriceRangeDto? marketObservedPerSqFt,
-            AskingPriceReferenceDto? askingPriceReference,
-            CancellationToken ct = default)
-        {
-            return Task.FromResult(_response);
-        }
+        // Verify repository was not modified
+        var allRecords = await repo.GetAllAsync();
+        Assert.Equal(initialCount, allRecords.Count);
     }
 
     // =========================================================================
