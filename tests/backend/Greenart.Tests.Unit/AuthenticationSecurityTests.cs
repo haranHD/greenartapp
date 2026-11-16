@@ -1,3 +1,6 @@
+using Greenart.Application.DTOs;
+using Greenart.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Domain.Entities;
@@ -237,6 +240,111 @@ public class AuthenticationSecurityTests
         Assert.Equal("google-sub-777", user.GoogleSubjectId);
         Assert.Equal("https://photo.url/avatar.jpg", user.AvatarUrl);
         Assert.True(user.IsEmailVerified);
+    }
+
+    [Fact]
+    public void TokenService_Constructor_ThrowsWhenSigningKeyMissing()
+    {
+        var emptyConfig = new TestConfiguration(new Dictionary<string, string?>());
+        var ex = Assert.Throws<InvalidOperationException>(() => new TokenService(emptyConfig));
+        Assert.Contains("JWT signing key is not configured or shorter than 32 characters", ex.Message);
+        Assert.DoesNotContain("GreenartProperties", ex.Message);
+    }
+
+    [Fact]
+    public void TokenService_Constructor_ThrowsWhenSigningKeyShorterThan32Characters()
+    {
+        var shortKeyConfig = new TestConfiguration(new Dictionary<string, string?>
+        {
+            ["JWT_SECRET_KEY"] = "short-key-12345"
+        });
+        var ex = Assert.Throws<InvalidOperationException>(() => new TokenService(shortKeyConfig));
+        Assert.Contains("JWT signing key is not configured or shorter than 32 characters", ex.Message);
+        Assert.DoesNotContain("short-key-12345", ex.Message);
+    }
+
+    [Fact]
+    public void TokenService_Constructor_ReadsKeyFromJwtSecretKeyEnvironment()
+    {
+        var validConfig = new TestConfiguration(new Dictionary<string, string?>
+        {
+            ["JWT_SECRET_KEY"] = "ThisIsAValid32CharacterSecretKeyForJwtTokens!!"
+        });
+        var service = new TokenService(validConfig);
+        Assert.NotNull(service);
+    }
+
+    [Fact]
+    public async Task AuthService_PasswordLogin_WithAdmin123_OnExistingUserWithDifferentPassword_FailsAndDoesNotChangePassword()
+    {
+        var dbOptions = new DbContextOptionsBuilder<LandPriceDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        using var db = new LandPriceDbContext(dbOptions);
+        var originalUser = new User(
+            id: Guid.NewGuid(),
+            email: "haricode04@gmail.com",
+            fullName: "Existing User",
+            googleSubjectId: "email:haricode04@gmail.com",
+            role: UserRole.Customer
+        );
+        var originalSalt = "11223344556677889900aabbccddeeff";
+        var originalHash = "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
+        originalUser.SetPassword(originalHash, originalSalt);
+        db.Users.Add(originalUser);
+        await db.SaveChangesAsync();
+
+        var authService = new AuthService(
+            db,
+            new GoogleTokenValidator(new HttpClient(), _config, NullLogger<GoogleTokenValidator>.Instance),
+            _tokenService,
+            new DummyEmailService(),
+            NullLogger<AuthService>.Instance
+        );
+
+        // Attempt login with old backdoor password Admin@123
+        var request = new PasswordLoginRequestDto("haricode04@gmail.com", "Admin@123");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => authService.PasswordLoginAsync(request));
+
+        // Verify password hash, salt, and role did not change
+        var userInDb = await db.Users.FindAsync(originalUser.Id);
+        Assert.NotNull(userInDb);
+        Assert.Equal(originalHash, userInDb.PasswordHash);
+        Assert.Equal(originalSalt, userInDb.PasswordSalt);
+        Assert.Equal(UserRole.Customer, userInDb.Role);
+    }
+
+    [Fact]
+    public async Task AuthService_PasswordLogin_WithAdmin123_ForNonExistentUser_FailsAndDoesNotCreateAccount()
+    {
+        var dbOptions = new DbContextOptionsBuilder<LandPriceDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        using var db = new LandPriceDbContext(dbOptions);
+        var authService = new AuthService(
+            db,
+            new GoogleTokenValidator(new HttpClient(), _config, NullLogger<GoogleTokenValidator>.Instance),
+            _tokenService,
+            new DummyEmailService(),
+            NullLogger<AuthService>.Instance
+        );
+
+        // Attempt login with old backdoor password Admin@123 for non-existent admin/demo email
+        var request = new PasswordLoginRequestDto("admin@greenart.com", "Admin@123");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => authService.PasswordLoginAsync(request));
+
+        // Verify user was NOT created
+        var userInDb = await db.Users.FirstOrDefaultAsync(u => u.Email == "admin@greenart.com");
+        Assert.Null(userInDb);
+    }
+
+    private sealed class DummyEmailService : IEmailService
+    {
+        public bool IsConfigured => true;
+        public Task<bool> SendOtpEmailAsync(string recipientEmail, string recipientName, string otpCode, int expirationMinutes = 10, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<bool> SendEmailAsync(string recipientEmail, string recipientName, string subject, string htmlBody, string? plainTextBody = null, CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private sealed class TestConfiguration : IConfiguration

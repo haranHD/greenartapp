@@ -118,6 +118,5 @@ Configure these under **Environment Variables**:
 | Variable Name | Required | Purpose |
 | :--- | :--- | :--- |
 | `VITE_API_BASE_URL` | Yes | HTTPS endpoint of the deployed backend API (`https://greenartapp-1.onrender.com/api/v1`). |
-| `VITE_ADMIN_API_KEY` | Optional | Default session key fallback for admin panel. |
 | `VITE_GOOGLE_MAPS_API_KEY` | Yes | Google Maps JavaScript API key for admin parcel boundaries. |
 

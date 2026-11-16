@@ -28,4 +28,9 @@
     <ProjectReference Include="..\..\..\backend\Greenart.Infrastructure\Greenart.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Microsoft.EntityFrameworkCore.InMemory">
+      <HintPath>/home/haran/.nuget/packages/microsoft.entityframeworkcore.inmemory/8.0.8/lib/net8.0/Microsoft.EntityFrameworkCore.InMemory.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 </Project>

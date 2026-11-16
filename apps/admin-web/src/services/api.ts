@@ -267,6 +267,11 @@ class ApiClient {
       ...((options.headers as Record<string, string>) || {}),
     };
 
+    const authToken = this.getAuthToken();
+    if (authToken && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
@@ -351,7 +356,7 @@ class ApiClient {
       const stored = sessionStorage.getItem('greenart_admin_api_key');
       if (stored) return stored;
     }
-    return (import.meta as any).env?.VITE_ADMIN_API_KEY || '';
+    return '';
   }
 
   setAdminKey(key: string): void {
@@ -362,6 +367,57 @@ class ApiClient {
         sessionStorage.removeItem('greenart_admin_api_key');
       }
     }
+  }
+
+  // User Authentication Token Management (Stored strictly in SessionStorage)
+  getAuthToken(): string {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('greenart_auth_token') || '';
+    }
+    return '';
+  }
+
+  setAuthToken(token: string | null): void {
+    if (typeof sessionStorage !== 'undefined') {
+      if (token && token.trim()) {
+        sessionStorage.setItem('greenart_auth_token', token.trim());
+      } else {
+        sessionStorage.removeItem('greenart_auth_token');
+        sessionStorage.removeItem('greenart_auth_user');
+      }
+    }
+  }
+
+  getCurrentUser(): any {
+    if (typeof sessionStorage !== 'undefined') {
+      const userStr = sessionStorage.getItem('greenart_auth_user');
+      if (userStr) {
+        try {
+          return JSON.parse(userStr);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  async login(emailOrUsername: string, password: string): Promise<any> {
+    const res = await this.request<any>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ emailOrUsername, password }),
+    });
+    if (res?.accessToken) {
+      this.setAuthToken(res.accessToken);
+      if (res.user && typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('greenart_auth_user', JSON.stringify(res.user));
+      }
+    }
+    return res;
+  }
+
+  logout(): void {
+    this.setAuthToken(null);
   }
 
   // 6. Create and Persist New Land Record

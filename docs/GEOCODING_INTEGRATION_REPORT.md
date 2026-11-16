@@ -31,7 +31,7 @@ To prevent security risks and Google API billing abuse, **the API key is NEVER e
    # Geocoding & Locality Search Proxy (Google Maps Places API New)
    # Kept server-side only in ASP.NET Core backend to prevent frontend leakage
    GEOCODING_API_BASE_URL=https://places.googleapis.com/v1
-   GEOCODING_API_KEY=AIzaSyDKrt9ASjIhRsooi4DpFmGCP6qJoKWoFT0
+   GEOCODING_API_KEY=XXXX
    GEOCODING_DEFAULT_REGION=in
    ```
 
@@ -41,7 +41,7 @@ To prevent security risks and Google API billing abuse, **the API key is NEVER e
    ```json
    "GeocodingSettings": {
      "BaseUrl": "https://places.googleapis.com/v1",
-     "ApiKey": "AIzaSyDKrt9ASjIhRsooi4DpFmGCP6qJoKWoFT0",
+     "ApiKey": "XXXX",
      "DefaultRegion": "in",
      "TimeoutSeconds": 5
    }

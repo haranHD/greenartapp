@@ -19,12 +19,14 @@ public class TokenService : ITokenService
     public TokenService(IConfiguration configuration)
     {
         var signingKey = configuration["Authentication:Jwt:SigningKey"]
+            ?? configuration["JWT_SECRET_KEY"]
             ?? configuration["JWT_SIGNING_KEY"]
-            ?? "GreenartProperties-LandMarketRateAnalyst-SecureSigningKey-2026-TamilNadu!";
+            ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+            ?? Environment.GetEnvironmentVariable("JWT_SIGNING_KEY");
 
         if (string.IsNullOrWhiteSpace(signingKey) || signingKey.Length < 32)
         {
-            throw new InvalidOperationException("Authentication:Jwt:SigningKey must be configured with at least 32 characters.");
+            throw new InvalidOperationException("CRITICAL CONFIGURATION ERROR: JWT signing key is not configured or shorter than 32 characters. Set JWT_SECRET_KEY in the environment.");
         }
 
         _keyBytes = Encoding.UTF8.GetBytes(signingKey);

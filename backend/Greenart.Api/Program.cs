@@ -279,6 +279,19 @@ if (string.IsNullOrWhiteSpace(adminApiKey))
     }
 }
 
+// Validate JWT signing key configuration (refuse to start if missing or shorter than 32 characters)
+var jwtSigningKey = builder.Configuration["Authentication:Jwt:SigningKey"]
+    ?? builder.Configuration["JWT_SECRET_KEY"]
+    ?? builder.Configuration["JWT_SIGNING_KEY"]
+    ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+    ?? Environment.GetEnvironmentVariable("JWT_SIGNING_KEY");
+
+if (string.IsNullOrWhiteSpace(jwtSigningKey) || jwtSigningKey.Length < 32)
+{
+    app.Logger.LogCritical("CRITICAL SECURITY: JWT signing key (JWT_SECRET_KEY) is missing or shorter than 32 characters. Application startup aborted.");
+    throw new InvalidOperationException("CRITICAL CONFIGURATION ERROR: JWT signing key (JWT_SECRET_KEY) is not configured or shorter than 32 characters. Application startup aborted.");
+}
+
 // 1. Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
 app.UseForwardedHeaders();
 
