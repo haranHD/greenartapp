@@ -19,21 +19,21 @@ export const Colors = {
   goldText: '#92400E',
 
   // Crisp White & Neutral Backgrounds
-  background: '#FAF8FC',
+  background: '#F6F7FB',
   surface: '#FFFFFF',
-  surfaceSubtle: '#FAF5FF',
+  surfaceSubtle: '#F8FAFC',
   surfaceMuted: '#F3E8FF',
 
   // Borders & Dividers
-  border: '#E9D5FF',
-  borderLight: '#F3E8FF',
+  border: '#E2E8F0',
+  borderLight: '#EEF2F6',
   borderMuted: '#E2E8F0',
   borderGold: '#FDE68A',
 
   // Typography
-  textPrimary: '#1E1B4B',
+  textPrimary: '#182230',
   textSecondary: '#475569',
-  textMuted: '#8B5CF6',
+  textMuted: '#64748B',
   textGold: '#B45309',
   textInverse: '#FFFFFF',
 
@@ -51,9 +51,9 @@ export const Colors = {
   askingPriceBorder: '#FDE68A',
 
   // Feedback & Alert
-  success: '#D4AF37',
-  successBg: '#FEFCE8',
-  successBorder: '#FDE68A',
+  success: '#15803D',
+  successBg: '#F0FDF4',
+  successBorder: '#BBF7D0',
   warning: '#F59E0B',
   warningBg: '#FEF3C7',
   danger: '#DC2626',

@@ -1,4 +1,5 @@
 using Greenart.Application.Common.Interfaces;
+using Greenart.Application.Common.Exceptions;
 using Greenart.Application.DTOs;
 using Greenart.Domain.Entities;
 using Greenart.Domain.Enums;
@@ -45,8 +46,12 @@ public class EstimationEngine : IEstimationEngine
 
         // 2. LAYER 3: Government Guideline Benchmark (Statutory baseline)
         // Rule: Guideline values must NEVER be blended into the market transaction pool
-        var guidelineRecord = candidates.FirstOrDefault(r => r.SourceCategory == SourceCategory.GovernmentGuideline);
+        var guidelineRecord = candidates.FirstOrDefault(r => r.SourceCategory == SourceCategory.GovernmentGuideline &&
+            r.VerificationStatus == VerificationStatus.Verified && !r.IsSynthetic &&
+            r.NormalizedRatePerSqFt > 0 && r.NormalizedRatePerCent > 0);
         GuidelineReferenceDto? guidelineBenchmark = null;
+        string? guidelineLookupStatus = _landLensClient?.IsConfigured == true ? "NotFound" : "NotConfigured";
+        string? guidelineLookupMessage = null;
         string? resolvedDistrict = request.District;
         string? resolvedVillage = request.Locality;
 
@@ -64,10 +69,15 @@ public class EstimationEngine : IEstimationEngine
         }
         else if (_landLensClient != null && _landLensClient.IsConfigured)
         {
+            // Bound both optional provider calls together, independently of client cancellation.
+            using var guidelineBudget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            guidelineBudget.CancelAfter(TimeSpan.FromSeconds(20));
             try
             {
                 // Step A: Resolve parcel to extract revenue village/district/survey
-                var parcel = await _landLensClient.ResolveParcelAsync(targetCoord.Latitude, targetCoord.Longitude, cancellationToken);
+                var parcel = await _landLensClient.ResolveParcelAsync(targetCoord.Latitude, targetCoord.Longitude, guidelineBudget.Token);
+                if (parcel?.IdentityAmbiguous == true || parcel?.IsParcel == false)
+                    throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
                 resolvedDistrict ??= parcel?.DistrictName;
                 resolvedVillage ??= parcel?.VillageName;
 
@@ -81,8 +91,14 @@ public class EstimationEngine : IEstimationEngine
                     SurveyNumber = parcel?.SurveyNumber,
                     RuralUrban = parcel?.RuralUrban,
                     UrbanBlockNumber = parcel?.UrbanBlockNumber,
-                    FirkaWardNumber = parcel?.FirkaWardNumber
-                }, cancellationToken);
+                    FirkaWardNumber = parcel?.FirkaWardNumber,
+                    SubDivision = parcel?.SubDivision,
+                    TalukName = parcel?.TalukName,
+                    RevDistrictCode = parcel?.DistrictCode,
+                    RevTalukCode = parcel?.TalukCode,
+                    RevVillageCode = parcel?.VillageCode,
+                    LandUsage = request.LandUsage
+                }, guidelineBudget.Token);
 
                 if (gl != null && ((gl.GuidelineRatePerCent.HasValue && gl.GuidelineRatePerCent > 0) ||
                                   (gl.GuidelineRatePerSqFt.HasValue && gl.GuidelineRatePerSqFt > 0)))
@@ -96,31 +112,26 @@ public class EstimationEngine : IEstimationEngine
                         SectionLabel: "Government Guideline Benchmark"
                     );
                 }
-                else if (parcel != null && !string.IsNullOrWhiteSpace(parcel.VillageName))
-                {
-                    // Step C: Fallback to village locality value distribution if specific survey is unrated / govt land
-                    var loc = await _landLensClient.GetLocalityValueContextAsync(parcel.VillageName, null, cancellationToken);
-                    if (loc != null && loc.MedianRatePerSqFt > 0)
-                    {
-                        var centRate = Math.Round(loc.MedianRatePerSqFt * LandArea.SqFtPerCent, 2);
-                        var localityLabel = loc.PricedStreetsCount > 0
-                            ? $"{loc.VillageName} (Benchmark: ₹{loc.MedianRatePerSqFt:N0}/sq.ft across {loc.PricedStreetsCount} streets)"
-                            : loc.VillageName;
 
-                        guidelineBenchmark = new GuidelineReferenceDto(
-                            GuidelineRatePerCent: centRate,
-                            GuidelineRatePerSqFt: loc.MedianRatePerSqFt,
-                            Locality: localityLabel,
-                            SurveyNumber: parcel.SurveyNumber,
-                            LegalNotice: $"Government Guideline Benchmark: Statutory guideline benchmark for {loc.VillageName} from TNREGINET (via LandLens). Range: ₹{loc.MinRatePerSqFt:N0} - ₹{loc.MaxRatePerSqFt:N0}/sq.ft. Not an open-market transaction.",
-                            SectionLabel: "Government Guideline Benchmark"
-                        );
-                    }
-                }
             }
-            catch
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Non-blocking statutory benchmark fallback
+                throw;
+            }
+            catch (OperationCanceledException) when (guidelineBudget.IsCancellationRequested)
+            {
+                guidelineLookupStatus = "Timeout";
+                guidelineLookupMessage = "LandLens took too long to return the government guideline. You can retry; available sale evidence is shown separately.";
+            }
+            catch (LandLensUpstreamException ex)
+            {
+                guidelineLookupStatus = ex.Failure.ToString();
+                guidelineLookupMessage = "The government guideline lookup is temporarily unavailable. Market estimates still use verified sale evidence only.";
+            }
+            catch (Exception)
+            {
+                guidelineLookupStatus = "Unavailable";
+                guidelineLookupMessage = "The government guideline lookup is temporarily unavailable. Market estimates still use verified sale evidence only.";
             }
         }
 
@@ -185,7 +196,9 @@ public class EstimationEngine : IEstimationEngine
                 AskingPriceReference: askingPriceReference,
                 TotalGuidelineValuation: totalGuidelineValuation,
                 FactorBreakdown: null,
-                SectionLabel: "Completed Transaction Evidence"
+                SectionLabel: "Completed Transaction Evidence",
+                GuidelineLookupStatus: guidelineBenchmark != null ? "Available" : guidelineLookupStatus,
+                GuidelineLookupMessage: guidelineLookupMessage
             );
         }
 
@@ -259,12 +272,14 @@ public class EstimationEngine : IEstimationEngine
             LatestRecordDate: eligibleCompletedSales.Max(r => r.ObservationDate),
             SourceBreakdown: sourceBreakdown,
             GovernmentGuidelineReference: guidelineBenchmark,
-            Disclaimer: "This indicative land market estimate is calculated via statistical aggregation (Median & IQR/MAD) of verified registered completed-sale deeds within the search radius. It does not constitute a guaranteed sale price, official legal appraisal, or financial commitment by Greenart Properties.",
+            Disclaimer: "This indicative land market estimate is calculated via statistical aggregation (Median & IQR/MAD) of verified registered completed-sale deeds within the search radius. It does not constitute a guaranteed sale price, official legal appraisal, or financial commitment.",
             AskingPriceReference: askingPriceReference,
             TotalValuation: totalValuation,
             CalculationExplanation: explanation,
             FactorBreakdown: null,
-            SectionLabel: "Completed Transaction Evidence"
+            SectionLabel: "Completed Transaction Evidence",
+            GuidelineLookupStatus: guidelineBenchmark != null ? "Available" : guidelineLookupStatus,
+            GuidelineLookupMessage: guidelineLookupMessage
         );
     }
 

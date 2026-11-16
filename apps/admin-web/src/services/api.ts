@@ -153,6 +153,8 @@ export interface EstimateSuccessResponse {
   latestRecordDate: string;
   sourceBreakdown: SourceCategoryBreakdownDto[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  guidelineLookupStatus?: string | null;
+  guidelineLookupMessage?: string | null;
   disclaimer: string;
 }
 
@@ -165,6 +167,8 @@ export interface EstimateInsufficientDataResponse {
   message: string;
   recommendations: string[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  guidelineLookupStatus?: string | null;
+  guidelineLookupMessage?: string | null;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -259,7 +263,26 @@ export interface MlReadinessAuditReport {
   productionReadinessVerdict: string;
 }
 
+export interface PriceProposal {
+  provider: string; model: string; status: string; lowPerCent: number | null; highPerCent: number | null;
+  reasoning: string; sources: string[]; generatedAtUtc: string;
+}
+export interface PriceResearchItem {
+  id: string; version: string; locality: string; district: string; latitude: number; longitude: number;
+  landUsage: number; coverageRadiusMeters: number; roadAccess: string; context: string; status: string;
+  proposals: PriceProposal[]; brokerName: string; brokerEvidence: string; observationCount: number;
+  lowPerCent: number | null; highPerCent: number | null; brokerLowPerCent: number | null; brokerHighPerCent: number | null;
+  brokerReviewedAtUtc: string | null; validUntilUtc: string | null; reviewNotes: string; reviewedBy: string;
+}
 class ApiClient {
+  priceResearch<T>(path = '', body?: unknown): Promise<T> {
+    return this.request<T>(`/admin/price-research/${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'X-Admin-Key': this.getAdminKey() },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers: Record<string, string> = {
@@ -519,6 +542,10 @@ class ApiClient {
   }
 
   // 12. External Land Price Data Providers
+  async getLandLensConfiguration(): Promise<{ configured: boolean; status: string }> {
+    return this.request('/integrations/landlens/status');
+  }
+
   async getProviders(): Promise<ProviderSummary[]> {
     return this.request<ProviderSummary[]>('/providers');
   }

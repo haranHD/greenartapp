@@ -74,6 +74,14 @@ namespace Greenart.Infrastructure.Migrations
                     b.ToTable("audit_events", (string)null);
                 });
 
+
+
+
+
+
+
+
+
             modelBuilder.Entity("Greenart.Domain.Entities.HistoricalEstimate", b =>
                 {
                     b.Property<Guid>("Id")
@@ -735,6 +743,114 @@ namespace Greenart.Infrastructure.Migrations
                     b.ToTable("marketplace_listings", (string)null);
                 });
 
+            modelBuilder.Entity("Greenart.Domain.Entities.PriceResearch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BrokerEvidence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("BrokerHighPerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("BrokerLowPerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("BrokerName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTime?>("BrokerReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("CoverageRadiusMeters")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("District")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<decimal?>("HighPerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("LandUsage")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Locality")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<decimal?>("LowPerCent")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("ObservationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProposalsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResearchStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewNotes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReviewedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RoadAccess")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("ValidUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "LandUsage", "ValidUntilUtc");
+
+                    b.ToTable("price_research", (string)null);
+                });
+
             modelBuilder.Entity("Greenart.Domain.Entities.SourceDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -914,6 +1030,7 @@ namespace Greenart.Infrastructure.Migrations
                         .HasColumnName("otp_expires_at_utc");
 
                     b.Property<string>("OtpHash")
+                        .IsConcurrencyToken()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("otp_hash");

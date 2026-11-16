@@ -1,3 +1,11 @@
+import { PremiumPressable } from './PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Feather from '@expo/vector-icons/Feather';
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
+import { ScreenEntrance } from './ScreenEntrance';
+import { PremiumChoice } from './PremiumChoice';
+import { PropertyThumbnail } from './PropertyThumbnail';
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -8,6 +16,7 @@ import {
   Image,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { MarketplaceListing, LandUsageType } from '@greenart/shared-types';
 
@@ -22,7 +31,9 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
   onSelectListing,
   onRequestValuationForLocality,
 }) => {
+  const { reduced } = useReducedMotion();
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedDistrict, setSelectedDistrict] = useState<string>('All');
   const [selectedUsage, setSelectedUsage] = useState<string>('All');
   const [maxBudget, setMaxBudget] = useState<number | null>(null);
@@ -70,7 +81,8 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <ScreenEntrance>
       {/* Top Marketplace Header */}
       <View style={styles.headerBox}>
         <View style={styles.headerBadge}>
@@ -78,23 +90,26 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
         </View>
         <Text style={styles.headerTitle}>Tamil Nadu Land Listings</Text>
         <Text style={styles.headerSubtitle}>
-          Direct from verified individual owners and licensed promoters. Every listing displays registered guideline references alongside seller asking prices.
+          Browse land offered by owners and promoters. Compare asking prices and review the available property details.
         </Text>
       </View>
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputWrapper}>
+        <View style={[styles.searchInputWrapper, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 10 }} />
           <TextInput
-            style={styles.searchInput}
+            accessibilityLabel="Search land listings"
+            style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Search locality, taluk, or district (e.g. Saravanampatti)..."
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-              <Text style={styles.clearBtnText}>✕</Text>
+            <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear listing search" style={styles.clearBtn}>
+              <Feather accessible={false} name="x" size={17} color={P.secondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -107,14 +122,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
           {districts.map((d) => {
             const active = selectedDistrict === d;
             return (
-              <TouchableOpacity
-                key={d}
-                style={[styles.pill, active && styles.pillActive]}
-                onPress={() => setSelectedDistrict(d)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>{d}</Text>
-              </TouchableOpacity>
+              <PremiumChoice key={d} label={d} selected={active} onPress={() => setSelectedDistrict(d)} />
             );
           })}
         </ScrollView>
@@ -127,16 +135,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
           {usageTypes.map((u) => {
             const active = selectedUsage === u;
             return (
-              <TouchableOpacity
-                key={u}
-                style={[styles.pill, active && styles.pillActive]}
-                onPress={() => setSelectedUsage(u)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                  {u === 'AgriculturalWet' ? 'Agricultural' : u}
-                </Text>
-              </TouchableOpacity>
+              <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={active} onPress={() => setSelectedUsage(u)} />
             );
           })}
         </ScrollView>
@@ -147,17 +146,17 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
         <Text style={styles.resultsCountText}>
           Showing <Text style={styles.resultsCountHighlight}>{filteredListings.length}</Text> available plot{filteredListings.length === 1 ? '' : 's'}
         </Text>
-        <Text style={styles.resultsSubtext}>100% verified legal boundaries</Text>
+
       </View>
 
       {/* Listing Cards */}
       {filteredListings.length === 0 ? (
-        <View style={styles.emptyState}>
+        <View style={styles.emptyState}><View style={{ backgroundColor: P.lavender, padding: 14, borderRadius: 16, marginBottom: 14 }}><Feather accessible={false} name="map-pin" size={28} color={P.purple} /></View>
           <Text style={styles.emptyTitle}>No matching land listings</Text>
           <Text style={styles.emptyMessage}>
             No active listings found for the selected filters. Try broadening your district or land usage search.
           </Text>
-          <TouchableOpacity
+          <PremiumPressable reducedMotion={reduced}
             style={styles.resetFilterBtn}
             onPress={() => {
               setSearchQuery('');
@@ -167,31 +166,26 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
             }}
           >
             <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
-          </TouchableOpacity>
+          </PremiumPressable>
         </View>
       ) : (
         filteredListings.map((listing) => {
           return (
-            <TouchableOpacity
+            <PremiumPressable reducedMotion={reduced}
               key={listing.id}
               style={styles.card}
               onPress={() => onSelectListing(listing)}
-              activeOpacity={0.88}
             >
               {/* Plot Image Container */}
               <View style={styles.cardImageContainer}>
-                <Image
-                  source={{ uri: listing.images[0] || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800' }}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                />
+                <PropertyThumbnail uri={listing.images[0]} style={styles.cardImage} />
                 <View style={styles.cardBadgeOverlay}>
                   <View style={styles.usageTag}>
                     <Text style={styles.usageTagText}>{listing.landUsage}</Text>
                   </View>
                   {listing.isSellerVerified && (
                     <View style={styles.verifiedTag}>
-                      <Text style={styles.verifiedTagText}>✓ Verified Title</Text>
+                      <Text style={styles.verifiedTagText}>Seller verified</Text>
                     </View>
                   )}
                 </View>
@@ -239,7 +233,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
                   <View style={styles.benchmarkItem}>
                     <Text style={styles.benchmarkLabel}>Market Median Estimate</Text>
                     <Text style={styles.benchmarkValHighlight}>
-                      {listing.estimatedMarketMedianPerCent ? `${formatCurrency(listing.estimatedMarketMedianPerCent)}/cent` : 'Analyzing'}
+                      {listing.estimatedMarketMedianPerCent ? `${formatCurrency(listing.estimatedMarketMedianPerCent)}/cent` : 'Not available'}
                     </Text>
                   </View>
                 </View>
@@ -257,26 +251,30 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
 
                 {/* View Details Action Button */}
                 <View style={styles.actionBtn}>
-                  <Text style={styles.actionBtnText}>View Plot Details & Legal Audit →</Text>
+                  <Text style={styles.actionBtnText}>View property details →</Text>
                 </View>
               </View>
-            </TouchableOpacity>
+            </PremiumPressable>
           );
         })
       )}
+      </ScreenEntrance>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
   contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 96,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
   headerBox: {
     marginBottom: 16,
@@ -643,5 +641,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+}, {
+  container: ScreenUI.canvas,
+  headerBox: { marginBottom: 0 }, headerBadge: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', marginBottom: 8 },
+  headerBadgeText: ScreenUI.eyebrow, headerTitle: ScreenUI.heading, headerSubtitle: { ...ScreenUI.subtitle, marginTop: 8 },
+  searchContainer: { marginBottom: 0 }, searchInputWrapper: { borderRadius: 12, minHeight: 54, height: undefined, borderColor: P.border, shadowOpacity: 0 }, searchInput: { minWidth: 0, paddingVertical: 12, color: P.text, fontSize: 14 }, clearBtn: { minHeight: 44, minWidth: 36, alignItems: 'center', justifyContent: 'center' },
+  filterSection: { marginBottom: 0 }, filterSectionLabel: { ...ScreenUI.section, marginBottom: 9 }, pill: ScreenUI.chip, pillActive: ScreenUI.chipActive, pillText: ScreenUI.chipText, pillTextActive: ScreenUI.chipTextActive,
+  resultsCountRow: { marginTop: 0, marginBottom: 0, flexWrap: 'wrap', gap: 8 },
+  card: { borderRadius: 20, borderColor: P.border, backgroundColor: P.surface, marginBottom: 0, shadowOpacity: .04 },
+  cardTitle: { color: P.text, fontSize: 18, lineHeight: 25 }, cardBody: { padding: 18 }, locationText: { color: P.secondary, flex: 1 }, priceRow: { flexWrap: 'wrap', gap: 12 }, priceTotal: { color: P.violet }, rateValue: { color: P.purple },
+  emptyState: { ...ScreenUI.card, alignItems: 'center', marginTop: 0, padding: 24 }, emptyTitle: { color: P.text, fontSize: 18, lineHeight: 25, textAlign: 'center' }, emptyMessage: { ...ScreenUI.subtitle, textAlign: 'center', marginBottom: 18 }, resetFilterBtn: ScreenUI.primary, resetFilterBtnText: ScreenUI.primaryText,
+  actionBtn: ScreenUI.secondary, actionBtnText: ScreenUI.secondaryText,
 });
 

@@ -1,3 +1,10 @@
+import { PremiumPressable } from '../components/PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Feather from '@expo/vector-icons/Feather';
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
+import { ScreenEntrance } from '../components/ScreenEntrance';
+import { PremiumChoice } from '../components/PremiumChoice';
 import React, { useState } from 'react';
 import {
   View,
@@ -59,6 +66,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
   authError = null,
 }) => {
   // Profile Editing State
+  const { reduced } = useReducedMotion();
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editFullName, setEditFullName] = useState(currentUser?.fullName || '');
   const [editPhoneNumber, setEditPhoneNumber] = useState(currentUser?.phoneNumber || '');
@@ -137,71 +145,24 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
       year: 'numeric',
       month: 'long',
     })
-    : 'October 2026';
+    : 'Not available';
 
   return (
     <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      style={{ flex: 1, backgroundColor: P.background }}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       nestedScrollEnabled={true}
     >
+      <ScreenEntrance>
       <View style={styles.screenHeaderBox}>
         <Text style={styles.viewTitle}>Account & Settings</Text>
       </View>
 
-      {/* Sub-navigation Pills */}
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-        <TouchableOpacity
-          style={[
-            styles.historyModePill,
-            profileViewMode === 'overview' && styles.historyModePillActive,
-          ]}
-          onPress={() => setProfileViewMode('overview')}
-        >
-          <Text
-            style={[
-              styles.historyModePillText,
-              profileViewMode === 'overview' && styles.historyModePillTextActive,
-            ]}
-          >
-            Account Details
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.historyModePill,
-            profileViewMode === 'vault' && styles.historyModePillActive,
-          ]}
-          onPress={() => setProfileViewMode('vault')}
-        >
-          <Text
-            style={[
-              styles.historyModePillText,
-              profileViewMode === 'vault' && styles.historyModePillTextActive,
-            ]}
-          >
-            Title Vault ({vaultDocuments.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.historyModePill,
-            profileViewMode === 'enquiries' && styles.historyModePillActive,
-          ]}
-          onPress={() => setProfileViewMode('enquiries')}
-        >
-          <Text
-            style={[
-              styles.historyModePillText,
-              profileViewMode === 'enquiries' && styles.historyModePillTextActive,
-            ]}
-          >
-            My Enquiries ({submittedEnquiries.length})
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.accountSegments}>
+        <PremiumChoice variant="segment" label="Account Details" selected={profileViewMode === 'overview'} onPress={() => setProfileViewMode('overview')} />
+        <PremiumChoice variant="segment" label={`Title Vault (${vaultDocuments.length})`} selected={profileViewMode === 'vault'} onPress={() => setProfileViewMode('vault')} />
+        <PremiumChoice variant="segment" label={`My Enquiries (${submittedEnquiries.length})`} selected={profileViewMode === 'enquiries'} onPress={() => setProfileViewMode('enquiries')} />
       </View>
 
       {profileViewMode === 'vault' ? (
@@ -213,19 +174,19 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
         <View style={styles.card}>
           <Text style={styles.cardTitle}>My Direct Land Enquiries</Text>
           <Text style={styles.cardSubtitle}>
-            Verified property enquiries submitted directly to land owners:
+            Your enquiries sent directly to property owners:
           </Text>
           {submittedEnquiries.length === 0 ? (
             <View style={{ paddingVertical: 24, alignItems: 'center' }}>
               <Text style={{ fontSize: 13, color: '#64748B' }}>
                 No plot enquiries submitted yet.
               </Text>
-              <TouchableOpacity
+              <PremiumPressable reducedMotion={reduced}
                 style={[styles.primaryActionBtn, { marginTop: 14 }]}
                 onPress={() => setActiveTab('marketplace')}
               >
                 <Text style={styles.primaryActionBtnText}>Browse Available Plots</Text>
-              </TouchableOpacity>
+              </PremiumPressable>
             </View>
           ) : (
             <View style={{ gap: 12, marginTop: 10 }}>
@@ -282,7 +243,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   <Text style={styles.profileRoleTitle}>{currentUser.email}</Text>
                   <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
                     <View style={styles.statusPill}>
-                      <Text style={styles.statusPillText}>✓ Verified Client</Text>
+                      <Text style={styles.statusPillText}>Signed in</Text>
                     </View>
                   </View>
                 </View>
@@ -296,7 +257,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
               )}
               {profileErrorMsg && (
                 <View style={[styles.alertBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
-                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>⚠️ {profileErrorMsg}</Text>
+                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}> {profileErrorMsg}</Text>
                 </View>
               )}
               {passwordSuccessMsg && (
@@ -306,7 +267,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
               )}
               {passwordErrorMsg && (
                 <View style={[styles.alertBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
-                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}>⚠️ {passwordErrorMsg}</Text>
+                  <Text style={{ color: '#991B1B', fontSize: 12, fontWeight: '600' }}> {passwordErrorMsg}</Text>
                 </View>
               )}
 
@@ -319,6 +280,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     <Text style={styles.inputLabel}>Full Name</Text>
                     <TextInput
                       style={styles.textInput}
+                      accessibilityLabel="Account full name"
                       value={editFullName}
                       onChangeText={setEditFullName}
                       placeholder="Your full legal name"
@@ -330,6 +292,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     <Text style={styles.inputLabel}>Phone Number</Text>
                     <TextInput
                       style={styles.textInput}
+                      accessibilityLabel="Account phone number"
                       value={editPhoneNumber}
                       onChangeText={setEditPhoneNumber}
                       placeholder="e.g. +91 98765 43210"
@@ -339,27 +302,26 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.primaryActionBtn, { flex: 1 }]}
                       onPress={handleSaveProfile}
+                      accessibilityState={{ disabled: isSavingProfile, busy: isSavingProfile }}
                       disabled={isSavingProfile}
-                      activeOpacity={0.85}
                     >
                       {isSavingProfile ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <Text style={styles.primaryActionBtnText}>Save Changes</Text>
                       )}
-                    </TouchableOpacity>
+                    </PremiumPressable>
 
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.secondaryActionBtn, { flex: 1 }]}
                       onPress={() => setIsEditingProfile(false)}
                       disabled={isSavingProfile}
-                      activeOpacity={0.8}
                     >
                       <Text style={styles.secondaryActionBtnText}>Cancel</Text>
-                    </TouchableOpacity>
+                    </PremiumPressable>
                   </View>
                 </View>
               ) : isChangingPassword ? (
@@ -370,6 +332,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     <Text style={styles.inputLabel}>Current Password (if set)</Text>
                     <TextInput
                       style={styles.textInput}
+                      accessibilityLabel="Current password"
                       value={currentPassword}
                       onChangeText={setCurrentPassword}
                       placeholder="Enter current password"
@@ -382,6 +345,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     <Text style={styles.inputLabel}>New Password (min 6 characters)</Text>
                     <TextInput
                       style={styles.textInput}
+                      accessibilityLabel="New password"
                       value={newPassword}
                       onChangeText={setNewPassword}
                       placeholder="Enter new password"
@@ -394,6 +358,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                     <Text style={styles.inputLabel}>Confirm New Password</Text>
                     <TextInput
                       style={styles.textInput}
+                      accessibilityLabel="Confirm new password"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       placeholder="Re-enter new password"
@@ -403,27 +368,26 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.primaryActionBtn, { flex: 1 }]}
                       onPress={handleChangePassword}
+                      accessibilityState={{ disabled: isSavingPassword, busy: isSavingPassword }}
                       disabled={isSavingPassword}
-                      activeOpacity={0.85}
                     >
                       {isSavingPassword ? (
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <Text style={styles.primaryActionBtnText}>Update Password</Text>
                       )}
-                    </TouchableOpacity>
+                    </PremiumPressable>
 
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.secondaryActionBtn, { flex: 1 }]}
                       onPress={() => setIsChangingPassword(false)}
                       disabled={isSavingPassword}
-                      activeOpacity={0.8}
                     >
                       <Text style={styles.secondaryActionBtnText}>Cancel</Text>
-                    </TouchableOpacity>
+                    </PremiumPressable>
                   </View>
                 </View>
               ) : (
@@ -442,25 +406,23 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                   </View>
 
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.secondaryActionBtn, { flex: 1 }]}
                       onPress={handleStartEdit}
-                      activeOpacity={0.8}
                     >
                       <Text style={styles.secondaryActionBtnText}>Edit Profile</Text>
-                    </TouchableOpacity>
+                    </PremiumPressable>
 
-                    <TouchableOpacity
+                    <PremiumPressable reducedMotion={reduced}
                       style={[styles.secondaryActionBtn, { flex: 1 }]}
                       onPress={() => {
                         setPasswordErrorMsg(null);
                         setPasswordSuccessMsg(null);
                         setIsChangingPassword(true);
                       }}
-                      activeOpacity={0.8}
                     >
                       <Text style={styles.secondaryActionBtnText}>Change Password</Text>
-                    </TouchableOpacity>
+                    </PremiumPressable>
                   </View>
                 </View>
               )}
@@ -474,11 +436,12 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
               onPress={() => setActiveTab('sell')}
               activeOpacity={0.75}
             >
+              <Feather accessible={false} name="briefcase" size={21} color={P.purple} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.navRowTitle}>Land Owner & Seller Workspace</Text>
                 <Text style={styles.navRowSub}>Manage plot listings, title documents, or list a property</Text>
               </View>
-              <Text style={styles.navRowChevron}>→</Text>
+              <Feather accessible={false} name="chevron-right" size={19} color={P.secondary} />
             </TouchableOpacity>
 
             <View style={styles.navRowDivider} />
@@ -491,11 +454,12 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
               }}
               activeOpacity={0.75}
             >
+              <Feather accessible={false} name="book-open" size={21} color={P.purple} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.navRowTitle}>Methodology & Statutory Benchmarks</Text>
                 <Text style={styles.navRowSub}>TNREGINET guideline rate principles and 1km spatial engine</Text>
               </View>
-              <Text style={styles.navRowChevron}>→</Text>
+              <Feather accessible={false} name="chevron-right" size={19} color={P.secondary} />
             </TouchableOpacity>
           </View>
 
@@ -516,13 +480,18 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
           )}
         </>
       )}
+      </ScreenEntrance>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
+  accountSegments: { ...ScreenUI.segments },
   scrollBody: {
-    padding: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
     gap: 16,
   },
   screenHeaderBox: {
@@ -543,7 +512,7 @@ const styles = StyleSheet.create({
   historyModePill: {
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 20,
+    borderRadius: 8,
     backgroundColor: '#FAF5FF',
     borderWidth: 1,
     borderColor: '#E9D5FF',
@@ -563,7 +532,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 16,
     borderWidth: 1,
     borderColor: '#E9D5FF',
@@ -754,4 +723,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '700',
   },
+}, {
+  scrollBody: { ...ScreenUI.content }, screenHeaderBox: { marginBottom: 0 }, viewTitle: ScreenUI.heading,
+  card: ScreenUI.card, cardTitle: { color: P.text, fontSize: 18, lineHeight: 25 }, cardSubtitle: ScreenUI.subtitle,
+  profileHeroRow: { gap: 14, alignItems: 'center' }, profileHeroAvatar: { backgroundColor: P.violet, width: 56, height: 56, borderRadius: 18 }, profileOrgName: { color: P.text, fontSize: 19, lineHeight: 27 }, profileRoleTitle: { ...ScreenUI.subtitle, fontSize: 13 },
+  detailsList: { borderTopColor: P.border, marginTop: 20, paddingTop: 12 }, detailRow: { flexWrap: 'wrap', gap: 8, paddingVertical: 10 }, detailKey: { color: P.secondary, fontSize: 13 }, detailVal: { color: P.text, fontSize: 13, flexShrink: 1 },
+  textInput: ScreenUI.input, inputLabel: { ...ScreenUI.section, fontSize: 12 }, editSection: { borderTopColor: P.border, marginTop: 18, paddingTop: 18, gap: 14 }, sectionHeader: { fontSize: 16, lineHeight: 24, color: P.violet },
+  primaryActionBtn: ScreenUI.primary, primaryActionBtnText: ScreenUI.primaryText, secondaryActionBtn: ScreenUI.secondary, secondaryActionBtnText: ScreenUI.secondaryText,
+  navRowItem: { minHeight: 76, paddingVertical: 14, gap: 13 }, navRowTitle: { color: P.text, fontSize: 14, lineHeight: 21 }, navRowSub: { color: P.secondary, fontSize: 12, lineHeight: 19, marginTop: 4 }, navRowDivider: { backgroundColor: P.border },
+  statusPill: { backgroundColor: P.lavender, borderColor: P.border, borderRadius: 6, paddingVertical: 4, paddingHorizontal: 8 }, statusPillText: { color: P.purple, fontSize: 10, fontWeight: '600' }, alertBanner: { padding: 13, borderRadius: 12 },
 });

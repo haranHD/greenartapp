@@ -1,3 +1,4 @@
+using Greenart.Api.Pricing;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -6,7 +7,9 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
 using Greenart.Api.Authentication;
+using Greenart.Api.Configuration;
 using Greenart.Application.Common.Interfaces;
+using Greenart.Application.Common.Exceptions;
 using Greenart.Application.DTOs;
 using Greenart.Application.Estimation;
 using Greenart.Application.Services;
@@ -69,6 +72,8 @@ foreach (var envPath in envCandidatePaths)
     }
 }
 
+EnvironmentConfiguration.RefreshEnvironmentProviders((IConfigurationRoot)builder.Configuration);
+
 // Helper to normalize postgres:// and postgresql:// URIs into standard ADO.NET connection strings
 static string NormalizePostgresConnectionString(string connection)
 {
@@ -130,6 +135,7 @@ builder.Services.AddDbContext<LandPriceDbContext>(options =>
 
 // Register application and infrastructure services
 builder.Services.AddScoped<ILandPriceRepository, EfLandPriceRepository>();
+builder.Services.AddHttpClient<IPriceResearchModels, PriceResearchModels>(client => client.Timeout = TimeSpan.FromSeconds(40));
 builder.Services.AddScoped<IEstimationEngine, EstimationEngine>();
 builder.Services.AddScoped<IEstimationService, EstimationService>();
 builder.Services.AddScoped<ICsvLandPriceImporter, CsvLandPriceImporter>();
@@ -142,7 +148,7 @@ builder.Services.AddScoped<IMlReadinessService, MlReadinessService>();
 // Register Authentication & Token Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddHttpClient<IGoogleTokenValidator, GoogleTokenValidator>();
-builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddHttpClient<IEmailService, SmtpEmailService>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Configure Bearer Authentication & Authorization Policies
@@ -171,9 +177,24 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        var configuredOrigins = builder.Configuration["ALLOWED_CORS_ORIGINS"]
+            ?? Environment.GetEnvironmentVariable("ALLOWED_CORS_ORIGINS");
+        var origins = (configuredOrigins ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (origins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+                                  (uri.Scheme != "https" && uri.Scheme != "http") ||
+                                  uri.GetLeftPart(UriPartial.Authority) != origin))
+        {
+            throw new InvalidOperationException("ALLOWED_CORS_ORIGINS must contain comma-separated HTTP(S) origins without paths or wildcards.");
+        }
+        if (origins.Length == 0 && builder.Environment.IsDevelopment())
+        {
+            origins = new[] { "http://localhost:5173", "http://localhost:8081", "http://localhost:19006" };
+        }
+        if (origins.Length > 0)
+        {
+            policy.WithOrigins(origins).AllowAnyMethod().AllowAnyHeader();
+        }
     });
 });
 
@@ -239,6 +260,16 @@ builder.Services.AddRateLimiter(options =>
         context.HttpContext.Response.ContentType = "application/json";
         await context.HttpContext.Response.WriteAsync("{\"error\":\"Too many requests. Please slow down and try again shortly.\"}", token);
     };
+    options.AddPolicy("AuthenticationRateLimit", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
     options.AddPolicy("EstimatesRateLimit", httpContext =>
     {
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -295,22 +326,54 @@ if (string.IsNullOrWhiteSpace(jwtSigningKey) || jwtSigningKey.Length < 32)
 // 1. Forwarded Headers for Cloud PaaS (Render, Cloudflare, etc.)
 app.UseForwardedHeaders();
 
-// 2. Resilient Global CORS & Error Handling Middleware (Always active, attaches CORS headers to all responses)
+// Return generic errors; CORS is applied by the configured origin policy.
+app.UseCors();
 app.Use(async (context, next) =>
 {
-    context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-    context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
-    context.Response.Headers["Access-Control-Allow-Headers"] = "*";
-
-    if (HttpMethods.IsOptions(context.Request.Method))
-    {
-        context.Response.StatusCode = StatusCodes.Status204NoContent;
-        return;
-    }
-
     try
     {
         await next();
+    }
+    catch (EmailDeliveryException ex)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "email_delivery_unavailable" });
+        }
+    }
+    catch (GeocodingException ex)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = ex.Failure switch
+            {
+                GeocodingFailure.NotConfigured or GeocodingFailure.RateLimited => StatusCodes.Status503ServiceUnavailable,
+                GeocodingFailure.Timeout => StatusCodes.Status504GatewayTimeout,
+                _ => StatusCodes.Status502BadGateway
+            };
+            await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = $"geocoding_{ex.Failure.ToString().ToLowerInvariant()}" });
+        }
+    }
+    catch (LandLensUpstreamException ex)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = ex.Failure switch
+            {
+                LandLensFailure.Timeout => StatusCodes.Status504GatewayTimeout,
+                LandLensFailure.RateLimited => StatusCodes.Status503ServiceUnavailable,
+                _ => StatusCodes.Status502BadGateway
+            };
+            if (ex.RetryAfterSeconds.HasValue)
+                context.Response.Headers.RetryAfter = ex.RetryAfterSeconds.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = ex.Message,
+                code = $"landlens_{ex.Failure.ToString().ToLowerInvariant()}",
+                chargeOutcomeUnknown = ex.ChargeOutcomeUnknown
+            });
+        }
     }
     catch (Exception ex)
     {
@@ -321,18 +384,14 @@ app.Use(async (context, next) =>
         {
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json; charset=utf-8";
-            context.Response.Headers["Access-Control-Allow-Origin"] = "*";
             await context.Response.WriteAsJsonAsync(new
             {
                 status = "error",
-                message = "An error occurred while processing your request.",
-                detail = ex.Message
+                message = "An error occurred while processing your request."
             });
         }
     }
 });
-
-app.UseCors();
 
 // Rate limiting (evaluated after ForwardedHeaders so RemoteIpAddress represents the client)
 app.UseRateLimiter();
@@ -412,6 +471,7 @@ app.MapGet("/api/v1", () => Results.Ok(new
 app.MapGet("/api", () => Results.Redirect("/api/v1")).ExcludeFromDescription();
 
 // Controlled database startup migration and health diagnostic
+if (app.Configuration.GetValue<bool>("Database:InitializeOnStartup", true))
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -431,7 +491,8 @@ using (var scope = app.Services.CreateScope())
                 {
                     logger.LogInformation("Applying {Count} pending database migration(s)...", pendingMigrations.Count);
                     await dbContext.Database.MigrateAsync();
-                    await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                    if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
+                        await LandPriceDataSeeder.SeedAsync(dbContext, logger);
                 }
                 else
                 {
@@ -448,7 +509,8 @@ using (var scope = app.Services.CreateScope())
                 logger.LogInformation("Database schema is up to date. No pending migrations.");
                 if (isDev || autoMigrateConfigured)
                 {
-                    await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                    if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
+                        await LandPriceDataSeeder.SeedAsync(dbContext, logger);
                 }
             }
 
@@ -517,7 +579,8 @@ app.MapPost("/api/v1/auth/google", async (
 })
 .WithName("GoogleLogin")
 .WithSummary("Authenticates a user via Google OAuth2 ID token, provisioning or retrieving their account.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapPost("/api/v1/auth/refresh", async (
     [FromBody] RefreshTokenRequestDto request,
@@ -541,7 +604,8 @@ app.MapPost("/api/v1/auth/refresh", async (
 })
 .WithName("RefreshToken")
 .WithSummary("Rotates an active refresh token and returns a new access token and refresh token.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapPost("/api/v1/auth/revoke", async (
     [FromBody] RevokeTokenRequestDto request,
@@ -556,7 +620,8 @@ app.MapPost("/api/v1/auth/revoke", async (
 })
 .WithName("RevokeToken")
 .WithSummary("Revokes an active refresh token session.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapGet("/api/v1/me", [Authorize] async (
     ClaimsPrincipal principal,
@@ -651,27 +716,18 @@ app.MapPost("/api/v1/auth/change-password", [Authorize] async (
 })
 .WithName("ChangePassword")
 .WithSummary("Updates or configures the authenticated user's account password.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapGet("/api/v1/auth/diagnostic/email", (
     IEmailService emailService) =>
 {
-    var smtpUser = Environment.GetEnvironmentVariable("SMTP_USERNAME") ?? Environment.GetEnvironmentVariable("GMAIL_ADDRESS");
-    var hasSmtpPass = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SMTP_PASSWORD") ?? Environment.GetEnvironmentVariable("GMAIL_APP_PASSWORD"));
-    var resendKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
-    var brevoKey = Environment.GetEnvironmentVariable("BREVO_API_KEY");
-
+    var configured = emailService as SmtpEmailService;
     return Results.Ok(new
     {
         serviceConfigured = emailService.IsConfigured,
-        provider = !string.IsNullOrWhiteSpace(resendKey) ? "Resend (HTTPS Port 443)" :
-                   !string.IsNullOrWhiteSpace(brevoKey) ? "Brevo (HTTPS Port 443)" :
-                   (hasSmtpPass ? "Gmail/SMTP (Port 587)" : "None"),
-        smtpUsernamePresent = !string.IsNullOrWhiteSpace(smtpUser),
-        smtpPasswordPresent = hasSmtpPass,
-        resendConfigured = !string.IsNullOrWhiteSpace(resendKey),
-        brevoConfigured = !string.IsNullOrWhiteSpace(brevoKey),
-        note = "If using Render free tier, ports 25, 465, and 587 are blocked by Render. Configure RESEND_API_KEY or BREVO_API_KEY to send emails via HTTPS port 443 without blocks."
+        provider = configured?.Provider ?? "Custom",
+        note = "Configured settings do not confirm inbox delivery. A real send and receipt check is required."
     });
 })
 .WithName("EmailDiagnostic")
@@ -704,7 +760,8 @@ app.MapPost("/api/v1/auth/register/request-otp", async (
 })
 .WithName("RequestOtp")
 .WithSummary("Requests a 6-digit verification OTP sent to the user's email address.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapPost("/api/v1/auth/register/verify-otp", async (
     [FromBody] VerifyOtpRequestDto request,
@@ -736,7 +793,8 @@ app.MapPost("/api/v1/auth/register/verify-otp", async (
 })
 .WithName("VerifyOtp")
 .WithSummary("Verifies the 6-digit OTP code sent to the user's email.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapPost("/api/v1/auth/register/complete", async (
     [FromBody] CompleteRegistrationRequestDto request,
@@ -764,7 +822,8 @@ app.MapPost("/api/v1/auth/register/complete", async (
 })
 .WithName("CompleteRegistration")
 .WithSummary("Completes registration with verified email and password setup, issuing auth tokens.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapPost("/api/v1/auth/login", async (
     [FromBody] PasswordLoginRequestDto request,
@@ -792,7 +851,8 @@ app.MapPost("/api/v1/auth/login", async (
 })
 .WithName("PasswordLogin")
 .WithSummary("Authenticates a user using their email/username and password.")
-.WithTags("Authentication");
+.WithTags("Authentication")
+.RequireRateLimiting("AuthenticationRateLimit");
 
 app.MapGet("/api/v1/admin/users", async (
     [FromQuery] string? search,
@@ -1901,20 +1961,6 @@ app.MapGet("/api/v1/reference/localities", async (
 
     if (records.Count == 0)
     {
-        // Only provide baseline fallback if no district was specified or Coimbatore was specifically queried
-        if (string.IsNullOrWhiteSpace(district) || district.Equals("Coimbatore", StringComparison.OrdinalIgnoreCase))
-        {
-            var fallback = new List<LocalityReferenceDto>
-            {
-                new("Kannampalayam", "Coimbatore", 11.0012, 77.0874, 650000m, 1492.20m, 0),
-                new("Sulur", "Coimbatore", 11.0264, 77.1275, 800000m, 1836.55m, 0),
-                new("Saravanampatti", "Coimbatore", 11.0805, 76.9976, 1200000m, 2754.82m, 0),
-                new("Pollachi", "Coimbatore", 10.6609, 77.0089, 450000m, 1033.06m, 0)
-            };
-            return Results.Ok(fallback);
-        }
-
-        // Return empty list if a specific district filter yielded zero records
         return Results.Ok(Array.Empty<LocalityReferenceDto>());
     }
 
@@ -2092,7 +2138,7 @@ app.MapPost("/api/v1/land-records/import/csv", async (
     catch (Exception ex)
     {
         logger.LogError(ex, "Unexpected error during batch CSV ingestion");
-        return Results.Json(new { Error = $"CSV Ingestion error: {ex.Message}" }, statusCode: StatusCodes.Status500InternalServerError);
+        return Results.Json(new { Error = "CSV import failed. Please try again later." }, statusCode: StatusCodes.Status500InternalServerError);
     }
 })
 .DisableAntiforgery()
@@ -2197,7 +2243,7 @@ landlensGroup.MapGet("/status", (
         Configured: client.IsConfigured,
         BaseUrl: baseUrl,
         TimeoutSeconds: timeout,
-        Status: client.IsConfigured ? "Ready" : "Unconfigured"
+        Status: client.IsConfigured ? "Configured" : "Unconfigured"
     ));
 })
 .WithName("GetLandLensStatus")
@@ -2267,7 +2313,7 @@ landlensGroup.MapGet("/tools", async (
 })
 .WithName("GetLandLensTools")
 .WithSummary("LandLens Tools Catalog")
-.WithDescription("Lists all ~130 available tools, categories, and credit pricing.")
+.WithDescription("Lists the current tool catalog and credit pricing from the configured account.")
 .WithOpenApi();
 
 landlensGroup.MapPost("/resolve-parcel", async (
@@ -2365,6 +2411,8 @@ landlensGroup.MapPost("/guideline-history", async (
 .WithSummary("Historical Guideline Value Series")
 .WithDescription("Returns year-by-year guideline series from 2002 to 2024 (Free endpoint).")
 .WithOpenApi();
+
+app.MapPriceResearch(IsAuthorizedAdmin);
 
 app.Run();
 

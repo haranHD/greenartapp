@@ -19,16 +19,16 @@ export interface SelectionOption {
 }
 
 export const ROAD_FRONTAGE_OPTIONS: SelectionOption[] = [
-  { id: 'Main Road / Highway (40ft-100ft)', label: '🛣️ Main Road / Highway (40ft+)' },
-  { id: 'Standard Layout Road (24ft-30ft)', label: '🏘️ Layout Road (24ft-30ft)' },
-  { id: 'Interior / Village Lane (<20ft)', label: '🚜 Village / Interior (<20ft)' },
+  { id: 'Main Road / Highway (40ft-100ft)', label: 'Main Road / Highway (40ft+)' },
+  { id: 'Standard Layout Road (24ft-30ft)', label: 'Layout Road (24ft-30ft)' },
+  { id: 'Interior / Village Lane (<20ft)', label: 'Village / Interior (<20ft)' },
 ];
 
 export const AMENITY_OPTIONS: SelectionOption[] = [
-  { id: 'Near Bus Stand / Commercial Transit Apex', label: '🚏 Near Bus Stand / Transit' },
-  { id: 'Near Hospitals & Schools', label: '🏥 Near Hospital & Schools' },
-  { id: 'Standard Residential Colony', label: '🏡 Residential Colony' },
-  { id: 'Rural Outskirts', label: '🌾 Rural / Village Outskirts' },
+  { id: 'Near Bus Stand / Commercial Transit Apex', label: 'Near Bus Stand / Transit' },
+  { id: 'Near Hospitals & Schools', label: 'Near Hospital & Schools' },
+  { id: 'Standard Residential Colony', label: 'Residential Colony' },
+  { id: 'Rural Outskirts', label: 'Rural / Village Outskirts' },
 ];
 
 /**

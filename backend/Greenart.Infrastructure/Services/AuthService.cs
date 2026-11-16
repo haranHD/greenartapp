@@ -1,4 +1,5 @@
 using Greenart.Application.Common.Interfaces;
+using Greenart.Application.Common.Exceptions;
 using Greenart.Application.DTOs;
 using Greenart.Domain.Entities;
 using Greenart.Domain.Enums;
@@ -12,6 +13,9 @@ namespace Greenart.Infrastructure.Services;
 
 public class AuthService : IAuthService
 {
+    private const int OtpLifetimeMinutes = 5;
+    private const int MaximumOtpAttempts = 3;
+    private const string RegistrationTokenPrefix = "registration:";
     private readonly LandPriceDbContext _dbContext;
     private readonly IGoogleTokenValidator _googleTokenValidator;
     private readonly ITokenService _tokenService;
@@ -249,9 +253,9 @@ public class AuthService : IAuthService
             throw new ArgumentException("Full name is required.", nameof(request.FullName));
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var randomCode = RandomNumberGenerator.GetInt32(100000, 999999).ToString("D6");
+        var randomCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString("D6");
         var otpHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(randomCode)));
-        var expiresAtUtc = DateTime.UtcNow.AddMinutes(10);
+        var expiresAtUtc = DateTime.UtcNow.AddMinutes(OtpLifetimeMinutes);
 
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, cancellationToken);
         if (user != null)
@@ -261,6 +265,17 @@ public class AuthService : IAuthService
                 _logger.LogWarning("OTP request rejected for non-active user {Email}", normalizedEmail);
                 throw new InvalidOperationException($"This account is {user.AccountStatus}. Please contact support.");
             }
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+                throw new InvalidOperationException("An account already exists for this email. Please sign in.");
+
+            var lastRequest = await _dbContext.AuditEvents
+                .Where(e => e.EntityId == user.Id && e.Action == "OtpRequested")
+                .OrderByDescending(e => e.TimestampUtc)
+                .Select(e => (DateTime?)e.TimestampUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (lastRequest.HasValue && DateTime.UtcNow - lastRequest.Value < TimeSpan.FromSeconds(60))
+                throw new InvalidOperationException("Please wait 60 seconds before requesting another code.");
+
             user.SetOtp(otpHash, expiresAtUtc);
         }
         else
@@ -289,7 +304,7 @@ public class AuthService : IAuthService
             user.Id,
             "OtpRequested",
             normalizedEmail,
-            $"Registration/verification OTP generated for {normalizedEmail}. Valid for 10 minutes.");
+            $"Registration/verification OTP generated for {normalizedEmail}. Valid for 5 minutes.");
         _dbContext.AuditEvents.Add(audit);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -299,24 +314,22 @@ public class AuthService : IAuthService
             normalizedEmail,
             request.FullName.Trim(),
             randomCode,
-            expirationMinutes: 10,
+            expirationMinutes: OtpLifetimeMinutes,
             cancellationToken: cancellationToken);
 
-        _logger.LogInformation("Security OTP processed for {Email} [Development Code: {Code}]. Real email dispatched via SMTP: {Dispatched}",
-            normalizedEmail, randomCode, emailDispatched);
+        _logger.LogInformation("Verification email delivery completed: {Dispatched}", emailDispatched);
 
-        var responseMessage = emailDispatched
-            ? $"A 6-digit verification code has been dispatched to {normalizedEmail}. Please check your inbox or spam folder."
-            : "Verification code generated. (SMTP email dispatch pending or development mode).";
-
-        // In production when email is sent, DevOtpHint is suppressed.
-        // If email failed or in development without SMTP, expose hint for ergonomic testing.
-        var devHint = emailDispatched ? null : randomCode;
+        if (!emailDispatched)
+        {
+            user.ClearOtp();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            throw new EmailDeliveryException();
+        }
 
         return new RequestOtpResponseDto(
-            responseMessage,
+            "A 6-digit verification code has been sent. Please check your inbox or spam folder.",
             normalizedEmail,
-            devHint
+            null
         );
     }
 
@@ -339,20 +352,46 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Verification code has expired. Please request a new code.");
         }
 
+        if (user.AccountStatus != AccountStatus.Active || !string.IsNullOrWhiteSpace(user.PasswordHash))
+            throw new UnauthorizedAccessException("Registration is not available for this account. Please sign in.");
+        if (request.Otp.Trim().Length != 6 || request.Otp.Trim().Any(c => c < '0' || c > '9'))
+            throw new ArgumentException("Enter the 6-digit verification code.", nameof(request.Otp));
+        if (user.OtpHash?.StartsWith(RegistrationTokenPrefix, StringComparison.Ordinal) == true)
+            throw new InvalidOperationException("This code has already been verified. Continue with password setup or request a new code.");
+
+        var lastRequest = await _dbContext.AuditEvents
+            .Where(e => e.EntityId == user.Id && e.Action == "OtpRequested")
+            .OrderByDescending(e => e.TimestampUtc)
+            .Select(e => (DateTime?)e.TimestampUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        var attempts = await _dbContext.AuditEvents.CountAsync(e => e.EntityId == user.Id &&
+            e.Action == "OtpVerificationFailed" && (!lastRequest.HasValue || e.TimestampUtc >= lastRequest.Value), cancellationToken);
+        if (attempts >= MaximumOtpAttempts)
+        {
+            user.ClearOtp();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            throw new UnauthorizedAccessException("Too many incorrect codes. Please request a new code.");
+        }
+
         var inputHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.Otp.Trim())));
         if (string.IsNullOrWhiteSpace(user.OtpHash) ||
             !CryptographicOperations.FixedTimeEquals(Convert.FromHexString(inputHash), Convert.FromHexString(user.OtpHash)))
         {
             _dbContext.AuditEvents.Add(new AuditEvent(
                 Guid.NewGuid(), "UserAuth", user.Id, "OtpVerificationFailed", normalizedEmail, "Invalid OTP code attempted."));
+            if (attempts + 1 >= MaximumOtpAttempts)
+                user.ClearOtp();
             await _dbContext.SaveChangesAsync(cancellationToken);
-            throw new UnauthorizedAccessException("Invalid verification code. Please check your email and try again.");
+            throw new UnauthorizedAccessException(attempts + 1 >= MaximumOtpAttempts
+                ? "Too many incorrect codes. Please request a new code."
+                : "Invalid verification code. Please check your email and try again.");
         }
 
         user.VerifyEmail();
 
-        var tempVerificationToken = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes($"{user.Id}:{user.Email}:{DateTime.UtcNow:yyyyMMddHH}:{_tokenService.HashToken(user.Id.ToString())}")));
+        var tempVerificationToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        // The existing challenge columns hold only a hash, tagged to distinguish it from a 6-digit OTP.
+        user.SetOtp(RegistrationTokenPrefix + HashRegistrationToken(tempVerificationToken), DateTime.UtcNow.AddMinutes(10));
 
         _dbContext.AuditEvents.Add(new AuditEvent(
             Guid.NewGuid(), "UserAuth", user.Id, "OtpVerified", normalizedEmail, "Email successfully verified via OTP."));
@@ -375,16 +414,18 @@ public class AuthService : IAuthService
         if (user == null)
             throw new ArgumentException("Account not found.");
 
-        var expectedToken = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes($"{user.Id}:{user.Email}:{DateTime.UtcNow:yyyyMMddHH}:{_tokenService.HashToken(user.Id.ToString())}")));
-
-        if (!CryptographicOperations.FixedTimeEquals(
-            Convert.FromHexString(request.TempVerificationToken),
-            Convert.FromHexString(expectedToken)))
+        if (user.AccountStatus != AccountStatus.Active || !user.IsEmailVerified ||
+            !string.IsNullOrWhiteSpace(user.PasswordHash) ||
+            user.OtpExpiresAtUtc == null || user.OtpExpiresAtUtc <= DateTime.UtcNow ||
+            user.OtpHash == null || !user.OtpHash.StartsWith(RegistrationTokenPrefix, StringComparison.Ordinal) ||
+            !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(user.OtpHash),
+                Encoding.UTF8.GetBytes(RegistrationTokenPrefix + HashRegistrationToken(request.TempVerificationToken))))
         {
-            throw new UnauthorizedAccessException("Verification token is invalid or expired. Please verify OTP again.");
+            throw new UnauthorizedAccessException("Verification token is invalid or expired. Please verify a new code.");
         }
 
+        user.ClearOtp(); // Consume the challenge in the same save as the password and session.
         var (hash, salt) = HashPassword(request.Password);
         user.SetPassword(hash, salt);
         if (!string.IsNullOrWhiteSpace(request.FullName))
@@ -614,6 +655,9 @@ public class AuthService : IAuthService
             ))
             .ToListAsync(cancellationToken);
     }
+
+    private static string HashRegistrationToken(string token) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     private static (string Hash, string Salt) HashPassword(string password)
     {

@@ -1,4 +1,12 @@
+import Feather from '@expo/vector-icons/Feather';
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
+import { ScreenEntrance } from '../components/ScreenEntrance';
+import { PremiumChoice } from '../components/PremiumChoice';
+import { PremiumPressable } from '../components/PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import React from 'react';
+import { BrokerPriceRangeCard } from '../components/BrokerPriceRangeCard';
 import {
   View,
   Text,
@@ -29,6 +37,7 @@ export interface ValuationScreenProps {
   estimateStep: EstimateStep;
   setEstimateStep: (step: EstimateStep) => void;
   activeLocality: string;
+  activeDistrict?: string;
   targetLat: number;
   targetLng: number;
   landUsage: number;
@@ -61,6 +70,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   estimateStep,
   setEstimateStep,
   activeLocality,
+  activeDistrict,
   targetLat,
   targetLng,
   landUsage,
@@ -87,46 +97,21 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   setActiveTab,
   setPreviousTab,
 }) => {
+  const { reduced } = useReducedMotion();
+  const [showEvidenceDetails, setShowEvidenceDetails] = React.useState(false);
+  React.useEffect(() => setShowEvidenceDetails(false), [estimate]);
   return (
     <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      style={{ flex: 1, backgroundColor: P.background }}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
-      {/* Step Segment Control */}
+      <ScreenEntrance>
       <View style={styles.stepTabsRow}>
-        <TouchableOpacity
-          style={[styles.stepTabBtn, estimateStep === 'selection' && styles.stepTabBtnActive]}
-          onPress={() => setEstimateStep('selection')}
-        >
-          <Text
-            style={[
-              styles.stepTabText,
-              estimateStep === 'selection' && styles.stepTabTextActive,
-            ]}
-          >
-            1. Location & Zoning
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.stepTabBtn, estimateStep === 'result' && styles.stepTabBtnActive]}
-          onPress={() => {
-            if (estimate) setEstimateStep('result');
-            else executeCalculation(targetLat, targetLng, landUsage);
-          }}
-        >
-          <Text
-            style={[
-              styles.stepTabText,
-              estimateStep === 'result' && styles.stepTabTextActive,
-            ]}
-          >
-            2. Valuation Result
-          </Text>
-        </TouchableOpacity>
+        <PremiumChoice variant="segment" label="1. Location & Zoning" selected={estimateStep === 'selection'} onPress={() => setEstimateStep('selection')} />
+        <PremiumChoice variant="segment" label="2. Valuation Result" selected={estimateStep === 'result'} onPress={() => { if (estimate) setEstimateStep('result'); else executeCalculation(targetLat, targetLng, landUsage); }} />
       </View>
 
       {/* STEP 1: SELECTION */}
@@ -135,10 +120,10 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
           {/* Target Location Header */}
           <View style={styles.cardHeaderRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardSectionLabel}>TARGET LOCATION</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Feather accessible={false} name="map-pin" size={15} color={P.purple} /><Text style={styles.cardSectionLabel}>TARGET LOCATION</Text></View>
               <Text style={styles.cardTitle}>{activeLocality}</Text>
               <Text style={styles.cardSubtitle}>
-                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • Coimbatore
+                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E{activeDistrict ? ` · ${activeDistrict}` : ''}
               </Text>
             </View>
             <TouchableOpacity
@@ -146,7 +131,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
               onPress={() => setActiveTab('search')}
               activeOpacity={0.8}
             >
-              <Text style={styles.changeLocBtnText}>Change on Map 📍</Text>
+              <Text style={styles.changeLocBtnText}>Change on Map </Text>
             </TouchableOpacity>
           </View>
 
@@ -160,21 +145,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
             {LAND_USAGES.map((u) => {
               const isSelected = landUsage === u.id;
               return (
-                <TouchableOpacity
-                  key={u.id}
-                  style={[styles.usageChipBtn, isSelected && styles.usageChipBtnActive]}
-                  onPress={() => setLandUsage(u.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.usageChipBtnText,
-                      isSelected && styles.usageChipBtnTextActive,
-                    ]}
-                  >
-                    {u.label}
-                  </Text>
-                </TouchableOpacity>
+                <PremiumChoice key={u.id} label={u.label} selected={isSelected} onPress={() => setLandUsage(u.id)} />
               );
             })}
           </View>
@@ -183,27 +154,13 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
 
           {/* Road Frontage & Width Multiplier */}
           <Text style={styles.cardSectionLabel}>ROAD FRONTAGE & ACCESS WIDTH</Text>
-          <Text style={styles.cardSubtitle}>Commercial and main road frontage commands significant premiums:</Text>
+          <Text style={styles.cardSubtitle}>Choose the access type that matches the property and its supporting records:</Text>
 
           <View style={styles.optionsWrapRow}>
             {ROAD_FRONTAGE_OPTIONS.map((opt) => {
               const isSelected = selectedRoadFrontage === opt.id;
               return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.factorChipBtn, isSelected && styles.factorChipBtnActive]}
-                  onPress={() => setSelectedRoadFrontage(opt.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.factorChipText,
-                      isSelected && styles.factorChipTextActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
+                <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedRoadFrontage(opt.id)} />
               );
             })}
           </View>
@@ -218,21 +175,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
             {AMENITY_OPTIONS.map((opt) => {
               const isSelected = selectedAmenities === opt.id;
               return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.factorChipBtn, isSelected && styles.factorChipBtnActive]}
-                  onPress={() => setSelectedAmenities(opt.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.factorChipText,
-                      isSelected && styles.factorChipTextActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
+                <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedAmenities(opt.id)} />
               );
             })}
           </View>
@@ -243,42 +186,19 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
           <View style={styles.unitToggleRow}>
             <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
             <View style={styles.unitPillBox}>
-              <TouchableOpacity
-                style={[styles.unitPill, displayUnit === 'Cent' && styles.unitPillActive]}
-                onPress={() => setDisplayUnit('Cent')}
-              >
-                <Text
-                  style={[
-                    styles.unitPillText,
-                    displayUnit === 'Cent' && styles.unitPillTextActive,
-                  ]}
-                >
-                  Per Cent
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.unitPill, displayUnit === 'SqFt' && styles.unitPillActive]}
-                onPress={() => setDisplayUnit('SqFt')}
-              >
-                <Text
-                  style={[
-                    styles.unitPillText,
-                    displayUnit === 'SqFt' && styles.unitPillTextActive,
-                  ]}
-                >
-                  Per Sq.Ft
-                </Text>
-              </TouchableOpacity>
+              <PremiumChoice variant="segment" label="Per Cent" selected={displayUnit === 'Cent'} onPress={() => setDisplayUnit('Cent')} />
+              <PremiumChoice variant="segment" label="Per Sq.Ft" selected={displayUnit === 'SqFt'} onPress={() => setDisplayUnit('SqFt')} />
             </View>
           </View>
 
           {/* Collapsible Advanced Coordinates Drawer */}
           <TouchableOpacity
+            accessibilityRole="button" accessibilityState={{ expanded: showAdvancedCoords }}
             style={styles.advancedDrawerToggle}
             onPress={() => setShowAdvancedCoords(!showAdvancedCoords)}
           >
             <Text style={styles.advancedDrawerText}>
-              {showAdvancedCoords ? '▲ Hide Coordinate Inputs' : '▼ Manual Coordinate Override'}
+              {showAdvancedCoords ? 'Hide coordinate inputs' : 'Manual coordinate override'}
             </Text>
           </TouchableOpacity>
 
@@ -288,6 +208,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.inputMiniLabel}>Latitude</Text>
                   <TextInput
+                    accessibilityLabel="Override latitude"
                     style={styles.coordTextInput}
                     value={latInput}
                     onChangeText={setLatInput}
@@ -298,6 +219,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.inputMiniLabel}>Longitude</Text>
                   <TextInput
+                    accessibilityLabel="Override longitude"
                     style={styles.coordTextInput}
                     value={lngInput}
                     onChangeText={setLngInput}
@@ -316,25 +238,30 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
           )}
 
           {/* Primary Calculate Valuation CTA */}
-          <TouchableOpacity
+          <PremiumPressable reducedMotion={reduced}
             style={[styles.primaryActionBtn, { marginTop: 16 }]}
             onPress={() => executeCalculation(targetLat, targetLng, landUsage, selectedRoadFrontage, selectedAmenities)}
-            activeOpacity={0.85}
           >
-            <Text style={styles.primaryActionBtnText}>Calculate Land Valuation →</Text>
-          </TouchableOpacity>
+            <Text style={styles.primaryActionBtnText}>Calculate Land Valuation</Text>
+          </PremiumPressable>
         </View>
       )}
 
       {/* STEP 2: VALUATION RESULTS */}
       {estimateStep === 'result' && (
         <>
+          {!loadingEstimate && <BrokerPriceRangeCard latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
+          {!loadingEstimate && !estimateError && estimate?.guidelineLookupMessage && (
+            <View accessibilityRole="alert" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, lineHeight: 20, color: '#92400E' }}>{estimate.guidelineLookupMessage}</Text>
+            </View>
+          )}
           {loadingEstimate ? (
             <View style={styles.loadingCard}>
               <ActivityIndicator size="large" color={Colors.primary} />
               <Text style={styles.loadingCardTitle}>Analyzing Verified Comparables...</Text>
               <Text style={styles.loadingCardSub}>
-                Server is waking up, please wait (Render cloud server may take up to 30 seconds to wake up)...
+                Checking nearby sale evidence and the available guideline benchmark. This may take a moment.
               </Text>
               <Text style={[styles.loadingCardSub, { fontSize: 11, color: '#94A3B8', marginTop: 4 }]}>
                 Filtering strictly verified completed-sale records. No artificial or guessed prices.
@@ -476,7 +403,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                   {estSuccess.factorBreakdown && (
                     <View style={styles.breakdownCard}>
                       <View style={styles.breakdownHeaderRow}>
-                        <Text style={styles.breakdownTitle}>📍 Micro-Location Context</Text>
+                        <Text style={styles.breakdownTitle}> Micro-Location Context</Text>
                         <View style={styles.breakdownBadgePill}>
                           <Text style={styles.breakdownBadgeText}>Attributes</Text>
                         </View>
@@ -524,7 +451,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                                 {estSuccess.factorBreakdown.surroundingAmenitiesType}
                               </Text>
                             </View>
-                            <Text style={[styles.breakdownVal, { color: '#15803D' }]}>
+                            <Text style={[styles.breakdownVal, { color: '#805A13' }]}>
                               +{formatLakhs(estSuccess.factorBreakdown.amenitiesAdjustmentPerCent)} / Cent
                             </Text>
                           </View>
@@ -615,7 +542,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                       activeOpacity={0.85}
                     >
                       <Text style={styles.exportPdfBtnText}>
-                        📄 Export Official Valuation PDF Report
+                         Export valuation report
                       </Text>
                     </TouchableOpacity>
 
@@ -668,15 +595,18 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                       </Text>
                     </View>
                     <Text style={styles.insufficientTitle}>
-                      Insufficient Verified Comparable Sales
+                      {insuff.comparableRecordsFound} comparable sales found
                     </Text>
                     <Text style={styles.insufficientSub}>
-                      {insuff.message ||
-                        `Only ${insuff.comparableRecordsFound} verified completed-sale transaction(s) found within ${insuff.searchRadiusMeters || 1000} meters for ${currentUsageObj.label} land classification. A minimum of ${insuff.minimumRequiredRecords || 3} verified completed sales is strictly required to compute an evidence-based market valuation.`}
+                      At least {insuff.minimumRequiredRecords || 3} verified sales are needed for a registered-sale estimate.
                     </Text>
-
+                    <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: showEvidenceDetails }} style={styles.evidenceDetailsButton} onPress={() => setShowEvidenceDetails((value: boolean) => !value)}>
+                      <Text style={styles.evidenceDetailsText}>{showEvidenceDetails ? 'Hide details −' : 'Why this estimate is unavailable +'}</Text>
+                    </TouchableOpacity>
+                    {showEvidenceDetails && <View>
+                      <Text style={styles.insufficientSub}>{insuff.message || `Search radius: ${insuff.searchRadiusMeters || 1000} metres · ${currentUsageObj.label} land.`}</Text>
                     <Text style={styles.insufficientNoticeHighlight}>
-                      Greenart market valuations are calculated strictly from registered conveyance deed evidence. No artificial or guessed price is produced when evidence is insufficient.
+                      Registered-sale estimates require enough verified deed evidence. Any broker-reviewed range is shown separately above.
                     </Text>
 
                     {insuff.recommendations && insuff.recommendations.length > 0 && (
@@ -690,6 +620,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                         ))}
                       </View>
                     )}
+                    </View>}
                   </View>
 
                   {/* Section 2: Asking Price Benchmark */}
@@ -780,19 +711,25 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
           ) : null}
         </>
       )}
+      </ScreenEntrance>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
+  evidenceDetailsButton: { minHeight: 44, justifyContent: 'center', marginTop: 4 },
+  evidenceDetailsText: { fontSize: 13, fontWeight: '700', color: Colors.goldText },
   scrollBody: {
-    padding: 16,
-    gap: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
+    gap: 18,
   },
   stepTabsRow: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 12,
+    backgroundColor: '#EDEBF0',
+    borderRadius: 6,
     padding: 3,
     gap: 3,
   },
@@ -806,7 +743,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0,
     shadowRadius: 2,
     elevation: 2,
   },
@@ -820,7 +757,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 16,
     borderWidth: 1,
     borderColor: '#E9D5FF',
@@ -987,15 +924,15 @@ const styles = StyleSheet.create({
   },
   primaryActionBtn: {
     backgroundColor: '#240046',
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#D4AF37',
+    borderColor: '#240046',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -1007,7 +944,7 @@ const styles = StyleSheet.create({
   },
   secondaryActionBtn: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1021,7 +958,7 @@ const styles = StyleSheet.create({
   },
   exportPdfBtn: {
     backgroundColor: '#240046',
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1029,7 +966,7 @@ const styles = StyleSheet.create({
     borderColor: '#D4AF37',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0,
     shadowRadius: 4,
     elevation: 3,
   },
@@ -1041,7 +978,7 @@ const styles = StyleSheet.create({
   },
   loadingCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 28,
     alignItems: 'center',
     borderWidth: 1,
@@ -1063,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     backgroundColor: '#FEF2F2',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 20,
     borderWidth: 1,
     borderColor: '#FECACA',
@@ -1081,7 +1018,7 @@ const styles = StyleSheet.create({
   },
   valuationHeroCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 8,
     padding: 20,
     borderWidth: 1.5,
     borderColor: '#D4AF37',
@@ -1213,73 +1150,52 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   guidelineCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 14,
+    backgroundColor: '#F7F3FB',
+    borderRadius: 8,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#DED4EB',
   },
   guidelineTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 10,
+    alignItems: 'flex-start',
   },
   guidelineTag: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#1E40AF',
+    color: '#3B0764',
     textTransform: 'uppercase',
   },
   guidelineSubTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#3B0764',
     marginTop: 1,
   },
   guidelineRateVal: {
-    fontSize: 14,
+    fontSize: 23,
     fontWeight: '800',
-    color: '#1D4ED8',
+    color: '#3B0764',
   },
   guidelineNotice: {
-    fontSize: 10.5,
-    color: '#1E40AF',
+    fontSize: 12,
+    color: '#3B0764',
     marginTop: 8,
-    lineHeight: 14,
+    lineHeight: 19,
   },
-  insufficientDataCard: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  insufficientBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-    marginBottom: 8,
-  },
-  insufficientBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B45309',
-    textTransform: 'uppercase',
-  },
+  insufficientDataCard: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 18, borderWidth: 1, borderColor: '#E5E2E9', borderLeftWidth: 2, borderLeftColor: '#D4AF37' },
+  insufficientBadge: { alignSelf: 'flex-start', marginBottom: 10 },
+  insufficientBadgeText: { fontSize: 10, fontWeight: '600', color: '#79717F', letterSpacing: .5, textTransform: 'uppercase' },
   insufficientTitle: {
-    fontSize: 15,
+    fontSize: 19,
     fontWeight: '800',
     color: '#92400E',
     marginBottom: 4,
   },
   insufficientSub: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#78350F',
-    lineHeight: 17,
+    lineHeight: 21,
   },
   insufficientAdvice: {
     fontSize: 11.5,
@@ -1330,39 +1246,38 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   askingCard: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 14,
+    backgroundColor: '#FFFDF5',
+    borderRadius: 8,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#EFE2B2',
   },
   askingTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 10,
+    alignItems: 'flex-start',
   },
   askingTag: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#15803D',
+    color: '#805A13',
     textTransform: 'uppercase',
   },
   askingSubTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#166534',
+    color: '#805A13',
     marginTop: 1,
   },
   askingRateVal: {
-    fontSize: 14,
+    fontSize: 23,
     fontWeight: '800',
-    color: '#15803D',
+    color: '#805A13',
   },
   askingNotice: {
-    fontSize: 10.5,
-    color: '#166534',
+    fontSize: 12,
+    color: '#805A13',
     marginTop: 8,
-    lineHeight: 14,
+    lineHeight: 19,
   },
   optionsWrapRow: {
     flexDirection: 'row',
@@ -1393,7 +1308,7 @@ const styles = StyleSheet.create({
   },
   breakdownCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 8,
     padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -1472,5 +1387,15 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#7E22CE',
   },
+}, {
+  card: ScreenUI.card, cardHeaderRow: { flexWrap: 'wrap', gap: 14 }, cardTitle: { color: P.text, fontSize: 20, lineHeight: 28 }, cardSubtitle: { ...ScreenUI.subtitle, marginTop: 5 }, cardSectionLabel: { ...ScreenUI.section, marginBottom: 4 }, cardDivider: { backgroundColor: P.border, marginVertical: 22 },
+  stepTabsRow: ScreenUI.segments, stepTabBtn: ScreenUI.segment, stepTabBtnActive: ScreenUI.segmentActive, stepTabText: ScreenUI.segmentText, stepTabTextActive: ScreenUI.segmentTextActive,
+  changeLocBtn: ScreenUI.secondary, changeLocBtnText: ScreenUI.secondaryText,
+  unitToggleRow: { flexWrap: 'wrap', gap: 12, borderTopColor: P.border }, unitPillBox: ScreenUI.segments, unitPill: ScreenUI.segment, unitPillActive: ScreenUI.segmentActive, unitPillText: ScreenUI.segmentText, unitPillTextActive: ScreenUI.segmentTextActive,
+  advancedDrawerToggle: { minHeight: 46, paddingVertical: 12, borderColor: P.border }, advancedDrawerText: { color: P.purple, fontSize: 13 }, advancedDrawerContent: { backgroundColor: P.lavender, borderRadius: 14, padding: 14 }, coordInputsRow: { flexWrap: 'wrap', gap: 12 }, coordTextInput: ScreenUI.input, applyCoordBtn: ScreenUI.secondary, applyCoordBtnText: ScreenUI.secondaryText,
+  primaryActionBtn: ScreenUI.primary, primaryActionBtnText: ScreenUI.primaryText, secondaryActionBtn: ScreenUI.secondary, secondaryActionBtnText: ScreenUI.secondaryText,
+  valuationHeroCard: { ...ScreenUI.card, borderTopWidth: 2, borderTopColor: P.gold }, valHeaderRow: { flexWrap: 'wrap', gap: 12 }, valLocalityTitle: { color: P.text, fontSize: 20 }, estimatedRangeBanner: { flexWrap: 'wrap', gap: 12, borderRadius: 14, backgroundColor: P.lavender, borderColor: P.border },
+  guidelineCard: { ...ScreenUI.card, backgroundColor: P.lavender }, askingCard: { ...ScreenUI.card, backgroundColor: '#FFFCF4' }, insufficientDataCard: { ...ScreenUI.card, borderLeftWidth: 2, borderLeftColor: P.gold },
+  guidelineSubTitle: { color: P.violet, fontSize: 13, lineHeight: 20 }, askingSubTitle: { fontSize: 13, lineHeight: 20 }, estimateDisclaimer: { ...ScreenUI.subtitle, fontSize: 12 }, breakdownCard: ScreenUI.card, loadingCard: ScreenUI.card,
 });
 

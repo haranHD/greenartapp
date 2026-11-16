@@ -212,7 +212,7 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
 
               <View style={styles.priceCompRow}>
                 <View>
-                  <Text style={styles.compLabel}>3. Greenart Algorithmic Median</Text>
+                  <Text style={styles.compLabel}>3. Registered-sale median</Text>
                   <Text style={styles.compSub}>Calculated from verified deed evidence</Text>
                 </View>
                 <View style={styles.compValBox}>
@@ -226,7 +226,7 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
 
             <View style={styles.legalDisclaimerBox}>
               <Text style={styles.legalDisclaimerText}>
-                Statutory Notice: Government guideline values represent minimum statutory valuations for stamp duty registration under the Indian Stamp Act (Tamil Nadu). They are independent of seller asking prices and actual market considerations. Greenart maintains strict segregation between asking rates and registered transactions.
+                Statutory Notice: Government guideline values represent minimum statutory valuations for stamp duty registration under the Indian Stamp Act (Tamil Nadu). They are independent of seller asking prices and actual market considerations. The app keeps asking rates separate from registered transactions.
               </Text>
             </View>
 

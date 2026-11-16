@@ -37,7 +37,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       nestedScrollEnabled={true}
     >
@@ -138,7 +138,10 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 
 const styles = StyleSheet.create({
   scrollBody: {
-    padding: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
     gap: 16,
   },
   screenHeaderBox: {

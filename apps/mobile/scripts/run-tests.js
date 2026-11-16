@@ -1,4 +1,3 @@
-const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,15 +9,25 @@ if (!fs.existsSync(outDir)) {
 
 const mockReactNative = path.join(mobileDir, 'scripts', 'mock-react-native.js');
 const mockExpoConstants = path.join(mobileDir, 'scripts', 'mock-expo-constants.js');
-const testBundle = path.join(outDir, 'valuationApi.test.cjs');
+const esbuild = require('esbuild');
+const testFiles = fs.readdirSync(path.join(mobileDir, 'src', '__tests__'))
+  .filter((file) => file.endsWith('.test.ts'));
 
-console.log('[Test Runner] Bundling test suite with esbuild...');
-const esbuildCmd = `npx esbuild "${path.join(mobileDir, 'src', '__tests__', 'valuationApi.test.ts')}" ` +
-  `--bundle --platform=node --format=cjs --outfile="${testBundle}" ` +
-  `--alias:react-native="${mockReactNative}" ` +
-  `--alias:expo-constants="${mockExpoConstants}"`;
+console.log('[Test Runner] Bundling test suites with esbuild...');
+for (const file of testFiles) {
+  esbuild.buildSync({
+    entryPoints: [path.join(mobileDir, 'src', '__tests__', file)],
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    outfile: path.join(outDir, file.replace(/\.ts$/, '.cjs')),
+    alias: { 'react-native': mockReactNative, 'expo-constants': mockExpoConstants },
+  });
+}
 
-execSync(esbuildCmd, { cwd: mobileDir, stdio: 'inherit' });
-
-console.log('[Test Runner] Executing node:test suite...');
-execSync(`node --test "${testBundle}"`, { cwd: mobileDir, stdio: 'inherit' });
+console.log('[Test Runner] Executing node:test suites...');
+const { execFileSync } = require('child_process');
+for (const file of testFiles) {
+  execFileSync(process.execPath, [path.join(outDir, file.replace(/\.ts$/, '.cjs'))],
+    { cwd: mobileDir, stdio: 'inherit' });
+}

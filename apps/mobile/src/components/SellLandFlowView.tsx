@@ -1,3 +1,10 @@
+import { PremiumPressable } from './PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import Feather from '@expo/vector-icons/Feather';
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
+import { ScreenEntrance } from './ScreenEntrance';
+import { PremiumChoice } from './PremiumChoice';
 import React, { useState } from 'react';
 import {
   View,
@@ -27,6 +34,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
   onSaveListing,
   onSelectListing,
 }) => {
+  const { reduced } = useReducedMotion();
   const [activeSubTab, setActiveSubTab] = useState<'create' | 'workspace'>('workspace');
 
   // Form States for New Listing
@@ -117,7 +125,8 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <ScreenEntrance>
       {/* Top Header */}
       <View style={styles.header}>
         <View style={styles.badge}>
@@ -129,42 +138,26 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
         </Text>
       </View>
 
-      {/* Mode Switcher Tabs */}
       <View style={styles.subTabRow}>
-        <TouchableOpacity
-          style={[styles.subTabBtn, activeSubTab === 'workspace' && styles.subTabBtnActive]}
-          onPress={() => setActiveSubTab('workspace')}
-        >
-          <Text style={[styles.subTabBtnText, activeSubTab === 'workspace' && styles.subTabBtnTextActive]}>
-            My Listings ({userListings.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.subTabBtn, activeSubTab === 'create' && styles.subTabBtnActive]}
-          onPress={() => setActiveSubTab('create')}
-        >
-          <Text style={[styles.subTabBtnText, activeSubTab === 'create' && styles.subTabBtnTextActive]}>
-            + Post New Plot
-          </Text>
-        </TouchableOpacity>
+        <PremiumChoice variant="segment" label={`My Listings (${userListings.length})`} selected={activeSubTab === 'workspace'} onPress={() => setActiveSubTab('workspace')} />
+        <PremiumChoice variant="segment" label="Post New Plot" selected={activeSubTab === 'create'} onPress={() => setActiveSubTab('create')} />
       </View>
 
       {activeSubTab === 'workspace' ? (
         /* Workspace Screen */
         <View style={styles.workspaceBox}>
           {userListings.length === 0 ? (
-            <View style={styles.emptyWorkspace}>
+            <View style={styles.emptyWorkspace}><View style={{ backgroundColor: P.lavender, padding: 15, borderRadius: 16, marginBottom: 14 }}><Feather accessible={false} name="file-plus" size={29} color={P.purple} /></View>
               <Text style={styles.emptyTitle}>No land plots listed yet</Text>
               <Text style={styles.emptyMsg}>
                 Post your land plot with survey numbers and title documents to connect with serious institutional and retail buyers.
               </Text>
-              <TouchableOpacity
+              <PremiumPressable reducedMotion={reduced}
                 style={styles.ctaButton}
                 onPress={() => setActiveSubTab('create')}
               >
-                <Text style={styles.ctaButtonText}>+ Create First Plot Listing</Text>
-              </TouchableOpacity>
+                <Text style={styles.ctaButtonText}>Create First Plot Listing</Text>
+              </PremiumPressable>
             </View>
           ) : (
             <View style={styles.listingStack}>
@@ -253,7 +246,8 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
               <Text style={styles.inputLabel}>DISTRICT (TAMIL NADU) *</Text>
               <TextInput
                 style={styles.textInput}
-                value={district}
+                accessibilityLabel="Listing district"
+                  value={district}
                 onChangeText={setDistrict}
                 placeholder="e.g. Coimbatore, Erode, Tiruppur"
                 placeholderTextColor="#94A3B8"
@@ -265,6 +259,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>LOCALITY / VILLAGE *</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Listing locality"
                   value={locality}
                   onChangeText={setLocality}
                   placeholder="e.g. Saravanampatti"
@@ -275,6 +270,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>TALUK</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Listing taluk"
                   value={taluk}
                   onChangeText={setTaluk}
                   placeholder="e.g. Annur"
@@ -288,6 +284,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>REVENUE SURVEY NUMBER</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Listing survey number"
                   value={surveyNumber}
                   onChangeText={setSurveyNumber}
                   placeholder="e.g. 318/2B"
@@ -298,6 +295,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>STREET / LANDMARK</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Listing street or landmark"
                   value={streetAddress}
                   onChangeText={setStreetAddress}
                   placeholder="e.g. Near Bus Stand"
@@ -315,15 +313,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
               <Text style={styles.inputLabel}>LAND USAGE TYPE</Text>
               <View style={styles.usagePills}>
                 {[LandUsageType.Residential, LandUsageType.Commercial, LandUsageType.AgriculturalWet].map((u) => (
-                  <TouchableOpacity
-                    key={u}
-                    style={[styles.usagePill, landUsage === u && styles.usagePillActive]}
-                    onPress={() => setLandUsage(u)}
-                  >
-                    <Text style={[styles.usagePillText, landUsage === u && styles.usagePillTextActive]}>
-                      {u === 'AgriculturalWet' ? 'Agricultural' : u}
-                    </Text>
-                  </TouchableOpacity>
+                  <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={landUsage === u} onPress={() => setLandUsage(u)} />
                 ))}
               </View>
             </View>
@@ -333,6 +323,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>EXTENT IN CENTS *</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Land extent in cents"
                   value={extentCent}
                   onChangeText={setExtentCent}
                   placeholder="e.g. 5.5"
@@ -348,6 +339,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.inputLabel}>ROAD WIDTH (FEET)</Text>
                 <TextInput
                   style={styles.textInput}
+                  accessibilityLabel="Road width in feet"
                   value={roadWidthFeet}
                   onChangeText={setRoadWidthFeet}
                   placeholder="e.g. 30"
@@ -360,13 +352,14 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
 
           {/* Section 3: Commercial Pricing */}
           <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>3. Pricing Architecture</Text>
+            <Text style={styles.formSectionTitle}>3. Asking price</Text>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>TOTAL SELLER ASKING PRICE (INR) *</Text>
               <TextInput
                 style={styles.textInput}
-                value={askingPriceTotal}
+                accessibilityLabel="Total asking price in rupees"
+                  value={askingPriceTotal}
                 onChangeText={setAskingPriceTotal}
                 placeholder="e.g. 4950000 (49.5 Lakhs)"
                 placeholderTextColor="#94A3B8"
@@ -389,7 +382,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
           <View style={styles.formSection}>
             <Text style={styles.formSectionTitle}>4. Title & Revenue Proof Documents</Text>
             <Text style={styles.docNotice}>
-              Select the documents you are attaching. Uploading valid Patta and Sale Deed records speeds up verification from 48h to under 4h.
+              Record which ownership documents are available. Document review is required before relying on them as title evidence.
             </Text>
 
             <View style={styles.docCheckboxList}>
@@ -403,6 +396,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 return (
                   <TouchableOpacity
                     key={doc.type}
+                    accessibilityRole="checkbox" accessibilityState={{ checked: isSelected }}
                     style={[styles.docCheckRow, isSelected && styles.docCheckRowSelected]}
                     onPress={() => handleToggleDoc(doc.type)}
                     activeOpacity={0.7}
@@ -424,7 +418,8 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
             <Text style={styles.formSectionTitle}>5. Description & Highlights</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
-              value={description}
+              accessibilityLabel="Listing description"
+                  value={description}
               onChangeText={setDescription}
               placeholder="Mention proximity to arterial roads, water source, zoning clearance..."
               placeholderTextColor="#94A3B8"
@@ -435,37 +430,39 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
 
           {/* Action Buttons */}
           <View style={styles.buttonStack}>
-            <TouchableOpacity
+            <PremiumPressable reducedMotion={reduced}
               style={styles.submitBtn}
               onPress={() => handleSubmitListing(ListingStatus.PendingReview)}
-              activeOpacity={0.85}
             >
               <Text style={styles.submitBtnText}>Submit for Title Verification & Publish →</Text>
-            </TouchableOpacity>
+            </PremiumPressable>
 
-            <TouchableOpacity
+            <PremiumPressable reducedMotion={reduced}
               style={styles.draftBtn}
               onPress={() => handleSubmitListing(ListingStatus.Draft)}
-              activeOpacity={0.8}
             >
               <Text style={styles.draftBtnText}>Save as Private Draft</Text>
-            </TouchableOpacity>
+            </PremiumPressable>
           </View>
         </View>
       )}
+      </ScreenEntrance>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
   contentContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 96,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
   },
   header: {
     marginBottom: 16,
@@ -877,5 +874,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+}, {
+  container: ScreenUI.canvas, header: { marginBottom: 0 }, badge: { backgroundColor: 'transparent', borderWidth: 0, padding: 0, marginBottom: 8 }, badgeText: ScreenUI.eyebrow, title: ScreenUI.heading, subtitle: { ...ScreenUI.subtitle, marginTop: 8 },
+  subTabRow: ScreenUI.segments, workspaceBox: { marginTop: 0 }, emptyWorkspace: { ...ScreenUI.card, alignItems: 'center', padding: 24 }, emptyTitle: { color: P.text, fontSize: 18, lineHeight: 25, textAlign: 'center' }, emptyMsg: { ...ScreenUI.subtitle, textAlign: 'center', marginBottom: 20 }, ctaButton: ScreenUI.primary, ctaButtonText: ScreenUI.primaryText,
+  listingCard: ScreenUI.card, listingTopRow: { flexWrap: 'wrap', gap: 10 }, listingLocality: { color: P.secondary }, listingTitle: { color: P.text, fontSize: 18, lineHeight: 25 }, listingMetricsRow: { flexWrap: 'wrap', gap: 18 }, listingFooterRow: { flexWrap: 'wrap', gap: 10 },
+  formContainer: { gap: 18 }, formSection: ScreenUI.card, formSectionTitle: { color: P.violet, fontSize: 16, lineHeight: 24, fontWeight: '700', marginBottom: 16 }, inputLabel: { ...ScreenUI.section, fontSize: 11, marginBottom: 7 }, textInput: { ...ScreenUI.input, minWidth: 0 }, twoColRow: { flexWrap: 'wrap', gap: 12 }, inputGroup: { minWidth: 0, marginBottom: 16 }, helperText: { ...ScreenUI.subtitle, fontSize: 12 },
+  usagePill: ScreenUI.chip, usagePillActive: ScreenUI.chipActive, usagePillText: ScreenUI.chipText, usagePillTextActive: ScreenUI.chipTextActive,
+  calculatedRateCard: { backgroundColor: P.lavender, borderColor: P.border, borderRadius: 14, padding: 16 }, calcRateValue: { color: P.violet, fontSize: 23, lineHeight: 31 }, calcRateSub: { ...ScreenUI.subtitle, fontSize: 12 },
+  docNotice: { ...ScreenUI.subtitle, marginBottom: 14 }, docCheckRow: { minHeight: 50, borderRadius: 12, borderColor: P.border, backgroundColor: P.surface, padding: 12 }, docCheckRowSelected: { borderColor: '#D9C4E9', backgroundColor: P.lavender }, docCheckLabel: { color: P.secondary, flex: 1, fontSize: 13, lineHeight: 20 }, docCheckLabelSelected: { color: P.violet },
+  submitBtn: ScreenUI.primary, submitBtnText: ScreenUI.primaryText, draftBtn: ScreenUI.secondary, draftBtnText: ScreenUI.secondaryText,
 });
 

@@ -26,15 +26,25 @@ public class SmtpEmailService : IEmailService
   private readonly string _fromName;
   private readonly string? _resendApiKey;
   private readonly string? _brevoApiKey;
-  private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+  private readonly string _resendFromEmail;
+  public string Provider { get; }
+  private readonly HttpClient _httpClient;
+  private static readonly HttpClient DefaultHttpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
 
-  public bool IsConfigured =>
-      !string.IsNullOrWhiteSpace(_resendApiKey) ||
-      !string.IsNullOrWhiteSpace(_brevoApiKey) ||
-      (!string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password));
+  private bool HasValidResendSender => MailAddress.TryCreate(_resendFromEmail, out var address) &&
+      !address.Host.Equals("gmail.com", StringComparison.OrdinalIgnoreCase);
 
-  public SmtpEmailService(IConfiguration configuration, ILogger<SmtpEmailService> logger)
+  public bool IsConfigured => Provider switch
   {
+      "Resend" => !string.IsNullOrWhiteSpace(_resendApiKey) && HasValidResendSender,
+      "Brevo" => !string.IsNullOrWhiteSpace(_brevoApiKey) && MailAddress.TryCreate(_fromEmail, out _),
+      "Smtp" => !string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password) && MailAddress.TryCreate(_fromEmail, out _),
+      _ => false
+  };
+
+  public SmtpEmailService(IConfiguration configuration, ILogger<SmtpEmailService> logger, HttpClient? httpClient = null)
+  {
+    _httpClient = httpClient ?? DefaultHttpClient;
     _configuration = configuration;
     _logger = logger;
 
@@ -83,11 +93,25 @@ public class SmtpEmailService : IEmailService
         ?? _configuration["EmailSettings:FromName"]
         ?? "Greenart Properties").Trim();
 
+    _resendFromEmail = (Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL")
+        ?? _configuration["EmailSettings:ResendFromEmail"]
+        ?? _fromEmail).Trim();
+
+    var selectedProvider = (_configuration["EMAIL_PROVIDER"]
+        ?? Environment.GetEnvironmentVariable("EMAIL_PROVIDER")
+        ?? _configuration["EmailSettings:Provider"] ?? "Auto").Trim();
+    Provider = selectedProvider.ToLowerInvariant() switch
+    {
+        "auto" or "" => !string.IsNullOrWhiteSpace(_resendApiKey) ? "Resend" : !string.IsNullOrWhiteSpace(_brevoApiKey) ? "Brevo" : "Smtp",
+        "smtp" or "gmail" => "Smtp",
+        "resend" => "Resend",
+        "brevo" => "Brevo",
+        _ => "Invalid"
+    };
+
     if (IsConfigured)
     {
-      var providerType = !string.IsNullOrWhiteSpace(_resendApiKey) ? "Resend (HTTPS)" :
-                         !string.IsNullOrWhiteSpace(_brevoApiKey) ? "Brevo (HTTPS)" :
-                         $"SMTP ({_host}:{_port})";
+      var providerType = Provider == "Smtp" ? $"SMTP ({_host}:{_port})" : $"{Provider} (HTTPS)";
 
       _logger.LogInformation(
           "EmailService initialized using {Provider} with sender identity {SenderEmail}.",
@@ -95,8 +119,7 @@ public class SmtpEmailService : IEmailService
     }
     else
     {
-      _logger.LogWarning(
-          "EmailService is not fully configured. Set RESEND_API_KEY, BREVO_API_KEY, or SMTP_USERNAME/SMTP_PASSWORD to enable email delivery.");
+      _logger.LogWarning("Email delivery is not ready. Check the selected provider credentials and sender address. Resend requires RESEND_FROM_EMAIL on your verified domain for general recipients.");
     }
   }
 
@@ -133,19 +156,19 @@ public class SmtpEmailService : IEmailService
     if (!IsConfigured)
     {
       _logger.LogWarning(
-          "Email dispatch to {Recipient} skipped: No email provider configured (Set RESEND_API_KEY, BREVO_API_KEY, or SMTP_USERNAME/SMTP_PASSWORD).",
+          "Email dispatch to {Recipient} skipped: Provider credentials or sender configuration are not ready.",
           recipientEmail);
       return false;
     }
 
     // 1. Dispatch via Resend HTTP API (HTTPS port 443 - unblocked on cloud free tiers)
-    if (!string.IsNullOrWhiteSpace(_resendApiKey))
+    if (Provider == "Resend")
     {
       return await SendViaResendAsync(recipientEmail, recipientName, subject, htmlBody, plainTextBody, cancellationToken);
     }
 
     // 2. Dispatch via Brevo HTTP API (HTTPS port 443 - unblocked on cloud free tiers)
-    if (!string.IsNullOrWhiteSpace(_brevoApiKey))
+    if (Provider == "Brevo")
     {
       return await SendViaBrevoAsync(recipientEmail, recipientName, subject, htmlBody, plainTextBody, cancellationToken);
     }
@@ -181,8 +204,10 @@ public class SmtpEmailService : IEmailService
       };
 
       _logger.LogInformation("Dispatching SMTP email to {Recipient} via {Host}:{Port}...", recipientEmail, _host, _port);
-      await client.SendMailAsync(message, cancellationToken);
-      _logger.LogInformation("SMTP email successfully delivered to {Recipient}.", recipientEmail);
+      using var sendTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+      sendTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+      await client.SendMailAsync(message, sendTimeout.Token);
+      _logger.LogInformation("SMTP relay accepted email for {Recipient}; inbox delivery is not yet confirmed.", recipientEmail);
       return true;
     }
     catch (SmtpException smtpEx)
@@ -213,9 +238,14 @@ public class SmtpEmailService : IEmailService
       using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
       req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _resendApiKey);
 
-      var sender = !string.IsNullOrWhiteSpace(_fromEmail) && _fromEmail.EndsWith("@resend.dev", StringComparison.OrdinalIgnoreCase)
-          ? $"Greenart Properties <{_fromEmail}>"
-          : "Greenart Properties <onboarding@resend.dev>";
+      if (!MailAddress.TryCreate(_resendFromEmail, out var fromAddress) ||
+          fromAddress.Host.Equals("gmail.com", StringComparison.OrdinalIgnoreCase))
+      {
+        _logger.LogError("Resend requires a sender on your verified domain. Configure RESEND_FROM_EMAIL; a Gmail sender cannot be used with Resend. No email was sent.");
+        return false;
+      }
+      // A test-domain sender is used only when explicitly configured, never as a silent substitute.
+      var sender = new MailAddress(fromAddress.Address, _fromName).ToString();
 
       var payload = new
       {
@@ -229,15 +259,14 @@ public class SmtpEmailService : IEmailService
       var json = System.Text.Json.JsonSerializer.Serialize(payload);
       req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-      var resp = await _httpClient.SendAsync(req, cancellationToken);
+      using var resp = await _httpClient.SendAsync(req, cancellationToken);
       if (resp.IsSuccessStatusCode)
       {
-        _logger.LogInformation("Email successfully delivered to {Recipient} via Resend.", recipientEmail);
+        _logger.LogInformation("Email accepted by Resend for {Recipient}; inbox delivery is not yet confirmed.", recipientEmail);
         return true;
       }
 
-      var errBody = await resp.Content.ReadAsStringAsync(cancellationToken);
-      _logger.LogError("Resend API error for {Recipient}: {StatusCode} - {Body}", recipientEmail, resp.StatusCode, errBody);
+      _logger.LogError("Resend rejected email dispatch with HTTP {StatusCode}. Check the provider's email logs and sender-domain verification.", (int)resp.StatusCode);
       return false;
     }
     catch (Exception ex)
@@ -273,15 +302,14 @@ public class SmtpEmailService : IEmailService
       var json = System.Text.Json.JsonSerializer.Serialize(payload);
       req.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
-      var resp = await _httpClient.SendAsync(req, cancellationToken);
+      using var resp = await _httpClient.SendAsync(req, cancellationToken);
       if (resp.IsSuccessStatusCode)
       {
-        _logger.LogInformation("Email successfully delivered to {Recipient} via Brevo.", recipientEmail);
+        _logger.LogInformation("Email accepted by Brevo for {Recipient}; inbox delivery is not yet confirmed.", recipientEmail);
         return true;
       }
 
-      var errBody = await resp.Content.ReadAsStringAsync(cancellationToken);
-      _logger.LogError("Brevo API error for {Recipient}: {StatusCode} - {Body}", recipientEmail, resp.StatusCode, errBody);
+      _logger.LogError("Brevo rejected email dispatch with HTTP {StatusCode}. Check the provider's email logs and sender verification.", (int)resp.StatusCode);
       return false;
     }
     catch (Exception ex)

@@ -25,9 +25,8 @@ import {
   LocalitySuggestionDto,
   NearbyLandRecordDto,
   HealthStatusResponse,
-  DEFAULT_FALLBACK_LOCALITIES,
 } from './src/services/api';
-import { FloatingBottomNav, MobileTab } from './src/components/FloatingBottomNav';
+import { FloatingBottomNav, MobileTab, getBottomNavClearance } from './src/components/FloatingBottomNav';
 import { AppHeader } from './src/components/AppHeader';
 import { PlotMarketplaceView } from './src/components/PlotMarketplaceView';
 import { PlotDetailModal } from './src/components/PlotDetailModal';
@@ -55,7 +54,7 @@ import {
   ListingEnquiry,
 } from './src/types';
 import { LAND_USAGES } from './src/utils/formatters';
-import { INITIAL_MOCK_LISTINGS, INITIAL_MOCK_DOCUMENTS } from './src/data/mockListings';
+import { useLocalitySearch } from './src/hooks/useLocalitySearch';
 import { geocodingService } from './src/services/geocoding';
 
 // Safe insets hook for web and native
@@ -134,6 +133,7 @@ function GreenartMobileApp() {
   const [targetLat, setTargetLat] = useState<number>(11.0012);
   const [targetLng, setTargetLng] = useState<number>(77.0874);
   const [activeLocality, setActiveLocality] = useState<string>('Kannampalayam');
+  const [activeDistrict, setActiveDistrict] = useState<string>('Coimbatore');
   const [landUsage, setLandUsage] = useState<number>(1);
   const [displayUnit, setDisplayUnit] = useState<'Cent' | 'SqFt'>('Cent');
 
@@ -239,7 +239,7 @@ function GreenartMobileApp() {
   // Backend Data State (Clean state strictly loaded from verified backend)
   const [records, setRecords] = useState<LandRecordDto[]>([]);
   const [, setLoadingRecords] = useState<boolean>(false);
-  const [localities, setLocalities] = useState<LocalityReference[]>(DEFAULT_FALLBACK_LOCALITIES);
+  const [localities, setLocalities] = useState<LocalityReference[]>([]);
   const [loadingLocalities, setLoadingLocalities] = useState<boolean>(false);
   const [backendHealth, setBackendHealth] = useState<HealthStatusResponse | null>(null);
 
@@ -250,19 +250,19 @@ function GreenartMobileApp() {
   const [loadingNearby, setLoadingNearby] = useState<boolean>(false);
   const [nearbyError, setNearbyError] = useState<string | null>(null);
 
-  // Google Places Geocoding Autocomplete State
-  const [homeGeocodingSuggestions, setHomeGeocodingSuggestions] = useState<LocalitySuggestionDto[]>([]);
-  const [searchTabGeocodingSuggestions, setSearchTabGeocodingSuggestions] = useState<LocalitySuggestionDto[]>([]);
-  const [isSearchingHomeGeocode, setIsSearchingHomeGeocode] = useState<boolean>(false);
-  const [isSearchingTabGeocode, setIsSearchingTabGeocode] = useState<boolean>(false);
+  const { suggestions: homeGeocodingSuggestions, isLoading: isSearchingHomeGeocode, error: homeSearchError, retry: retryHomeSearch } = useLocalitySearch(homeSearchQuery);
+  const { suggestions: searchTabGeocodingSuggestions, isLoading: isSearchingTabGeocode, error: tabSearchError, retry: retryTabSearch } = useLocalitySearch(searchTabQuery);
   const [resolvingPlaceId, setResolvingPlaceId] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<{ tab: 'home' | 'search'; message: string } | null>(null);
+  const selectionSequence = useRef(0);
+  useEffect(() => setSelectionError(null), [homeSearchQuery, searchTabQuery]);
 
   // Request sequence trackers to discard stale responses and prevent duplicate submissions
   const calculationSeqRef = useRef<number>(0);
   const nearbySeqRef = useRef<number>(0);
 
   // Marketplace, Document Vault & Valuation PDF State
-  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>(INITIAL_MOCK_LISTINGS);
+  const [marketplaceListings, setMarketplaceListings] = useState<MarketplaceListing[]>([]);
   const [userSubmittedListings, setUserSubmittedListings] = useState<MarketplaceListing[]>([]);
   const [vaultDocuments, setVaultDocuments] = useState<DocumentSubmission[]>([]);
   const [selectedListing, setSelectedListing] = useState<MarketplaceListing | null>(null);
@@ -344,7 +344,7 @@ function GreenartMobileApp() {
       generatedAt: new Date().toISOString(),
       targetLocation: {
         locality: activeLocality,
-        district: 'Coimbatore',
+        district: activeDistrict || 'Not specified',
         state: 'Tamil Nadu',
         coordinates: { latitude: targetLat, longitude: targetLng },
       },
@@ -425,7 +425,7 @@ function GreenartMobileApp() {
       setLoadingLocalities(true);
       try {
         const locs = await mobileApi.getLocalities();
-        if (isMounted && locs && locs.length > 0) {
+        if (isMounted && locs) {
           setLocalities(locs);
         }
       } catch (err: any) {
@@ -449,11 +449,11 @@ function GreenartMobileApp() {
       // Live Marketplace Listings
       try {
         const liveListings = await mobileApi.getMarketplaceListings();
-        if (isMounted && liveListings && liveListings.length > 0) {
+        if (isMounted && liveListings) {
           setMarketplaceListings(liveListings);
         }
       } catch (err: any) {
-        console.log('[App] Marketplace listings fallback active:', err?.message || err);
+        console.log('[App] Marketplace listings unavailable:', err?.message || err);
       }
     };
 
@@ -520,79 +520,33 @@ function GreenartMobileApp() {
     }
   }, [activeTab, targetLat, targetLng, recordsRadiusScope]);
 
-  // Debounced Google Places Autocomplete for Home Search
-  useEffect(() => {
-    if (!homeSearchQuery || homeSearchQuery.trim().length < 2) {
-      setHomeGeocodingSuggestions([]);
-      setIsSearchingHomeGeocode(false);
-      return;
-    }
-
-    setIsSearchingHomeGeocode(true);
-    const timer = setTimeout(async () => {
-      try {
-        const results = await mobileApi.searchLocalities(homeSearchQuery);
-        setHomeGeocodingSuggestions(results);
-      } catch (err) {
-        console.warn('Geocoding search failed:', err);
-        setHomeGeocodingSuggestions([]);
-      } finally {
-        setIsSearchingHomeGeocode(false);
-      }
-    }, 450);
-
-    return () => clearTimeout(timer);
-  }, [homeSearchQuery]);
-
-  // Debounced Google Places Autocomplete for Search Tab
-  useEffect(() => {
-    if (!searchTabQuery || searchTabQuery.trim().length < 2) {
-      setSearchTabGeocodingSuggestions([]);
-      setIsSearchingTabGeocode(false);
-      return;
-    }
-
-    setIsSearchingTabGeocode(true);
-    const timer = setTimeout(async () => {
-      try {
-        const results = await mobileApi.searchLocalities(searchTabQuery);
-        setSearchTabGeocodingSuggestions(results);
-      } catch (err) {
-        console.warn('Geocoding tab search failed:', err);
-        setSearchTabGeocodingSuggestions([]);
-      } finally {
-        setIsSearchingTabGeocode(false);
-      }
-    }, 450);
-
-    return () => clearTimeout(timer);
-  }, [searchTabQuery]);
-
-  // Handle selecting a Google Places Geocoding suggestion
-  const handleSelectGeocodingSuggestion = async (
-    suggestion: LocalitySuggestionDto,
-    fromTab: 'home' | 'search'
-  ) => {
+  const handleSelectGeocodingSuggestion = async (suggestion: LocalitySuggestionDto, fromTab: 'home' | 'search') => {
+    const sequence = ++selectionSequence.current;
     setResolvingPlaceId(suggestion.placeId);
+    setSelectionError(null);
     try {
       const details = await mobileApi.getLocalityDetails(suggestion.placeId);
-      if (details) {
-        handleSelectCoordinates(details.latitude, details.longitude, details.name);
-      } else {
-        setActiveLocality(suggestion.mainText);
-      }
-    } catch (err) {
-      console.warn('Failed to resolve place details:', err);
-      setActiveLocality(suggestion.mainText);
+      if (sequence !== selectionSequence.current) return;
+      if (!details) throw new Error('This place could not be located. Choose another result or place the pin on the map.');
+      handleSelectCoordinates(details.latitude, details.longitude, details.name);
+      setActiveDistrict(details.district || '');
+      setHomeSearchQuery('');
+      setSearchTabQuery('');
+    } catch (error: any) {
+      if (sequence === selectionSequence.current)
+        setSelectionError({ tab: fromTab, message: error?.message || 'Could not locate this place. Please try again.' });
     } finally {
-      setResolvingPlaceId(null);
-      if (fromTab === 'home') setHomeSearchQuery('');
-      if (fromTab === 'search') setSearchTabQuery('');
+      if (sequence === selectionSequence.current) setResolvingPlaceId(null);
     }
   };
 
   // Coordinate & Locality Selection Handlers
   const handleSelectCoordinates = (lat: number, lng: number, localityName: string) => {
+    setActiveDistrict('');
+    calculationSeqRef.current++;
+    setLoadingEstimate(false);
+    setEstimate(null);
+    setEstimateStep('selection');
     setTargetLat(lat);
     setTargetLng(lng);
     setLatInput(lat.toFixed(4));
@@ -618,15 +572,16 @@ function GreenartMobileApp() {
       const resolved = await geocodingService.geocodeAddress(rawAddress.trim());
       if (resolved) {
         handleSelectCoordinates(resolved.latitude, resolved.longitude, resolved.name);
+        setActiveDistrict(resolved.district || '');
         setMapZoom(16); // Focus directly on the resolved address
         setAddressLocateStatus(`📍 Pin placed at: ${resolved.name} (${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)})`);
-        setSearchTabGeocodingSuggestions([]);
-        setHomeGeocodingSuggestions([]);
+        setSearchTabQuery('');
+        setHomeSearchQuery('');
       } else {
         setAddressLocateStatus(`Could not resolve "${rawAddress}". Try entering the nearby town or landmark.`);
       }
     } catch (err: any) {
-      setAddressLocateStatus('Geocoding request failed. Please check network connection.');
+      setAddressLocateStatus(err?.message || 'Location search is unavailable. Please try again.');
     } finally {
       setIsLocatingAddress(false);
       setTimeout(() => setAddressLocateStatus(null), 6000);
@@ -635,6 +590,9 @@ function GreenartMobileApp() {
 
   const handleSelectLocalityRef = (loc: LocalityReference) => {
     handleSelectCoordinates(loc.latitude, loc.longitude, loc.name);
+    setActiveDistrict(loc.district);
+    setHomeSearchQuery('');
+    setSearchTabQuery('');
   };
 
   const handleManualCoordSubmit = () => {
@@ -645,7 +603,7 @@ function GreenartMobileApp() {
       return;
     }
     handleSelectCoordinates(lat, lng, 'Custom Coordinates');
-    executeCalculation(lat, lng, landUsage);
+    executeCalculation(lat, lng, landUsage, undefined, undefined, { locality: 'Custom Coordinates' });
   };
 
   // Valuation Calculation Action
@@ -654,7 +612,8 @@ function GreenartMobileApp() {
     lng: number = targetLng,
     usage: number = landUsage,
     road: string = selectedRoadFrontage,
-    amenities: string = selectedAmenities
+    amenities: string = selectedAmenities,
+    subject: { locality: string; district?: string } = { locality: activeLocality, district: activeDistrict }
   ) => {
     if (loadingEstimate) return;
     const currentSeq = ++calculationSeqRef.current;
@@ -669,8 +628,8 @@ function GreenartMobileApp() {
         lng,
         usage,
         1000,
-        activeLocality,
-        undefined,
+        subject.locality,
+        subject.district || undefined,
         road,
         amenities
       );
@@ -682,8 +641,8 @@ function GreenartMobileApp() {
         const usageLabel = LAND_USAGES.find((u) => u.id === usage)?.label || 'Residential';
         const newHistoryItem: ValuationHistoryItem = {
           id: `${Date.now()}_${lat.toFixed(3)}_${lng.toFixed(3)}`,
-          locality: activeLocality,
-          district: 'Coimbatore',
+          locality: subject.locality,
+          district: subject.district || 'Not specified',
           targetLat: lat,
           targetLng: lng,
           landUsage: usage,
@@ -801,7 +760,7 @@ function GreenartMobileApp() {
         />
 
         {/* Screen Viewport Container */}
-        <View style={styles.screenContainer}>
+        <View style={[styles.screenContainer, { marginBottom: getBottomNavClearance(insets.bottom) }]}>
           {activeTab === 'home' && (
             <HomeScreen
               bottomInset={insets.bottom}
@@ -809,6 +768,8 @@ function GreenartMobileApp() {
               setHomeSearchQuery={setHomeSearchQuery}
               isSearchingHomeGeocode={isSearchingHomeGeocode}
               homeGeocodingSuggestions={homeGeocodingSuggestions}
+              searchError={selectionError?.tab === 'home' ? selectionError.message : homeSearchError}
+              onRetrySearch={retryHomeSearch}
               homeFilteredSuggestions={homeFilteredSuggestions}
               resolvingPlaceId={resolvingPlaceId}
               handleSelectGeocodingSuggestion={handleSelectGeocodingSuggestion}
@@ -831,6 +792,8 @@ function GreenartMobileApp() {
               setSearchTabQuery={setSearchTabQuery}
               isSearchingTabGeocode={isSearchingTabGeocode}
               searchTabGeocodingSuggestions={searchTabGeocodingSuggestions}
+              searchError={selectionError?.tab === 'search' ? selectionError.message : tabSearchError}
+              onRetrySearch={retryTabSearch}
               searchTabFilteredSuggestions={searchTabFilteredSuggestions}
               resolvingPlaceId={resolvingPlaceId}
               handleSelectGeocodingSuggestion={handleSelectGeocodingSuggestion}
@@ -865,6 +828,7 @@ function GreenartMobileApp() {
               estimateStep={estimateStep}
               setEstimateStep={setEstimateStep}
               activeLocality={activeLocality}
+              activeDistrict={activeDistrict}
               targetLat={targetLat}
               targetLng={targetLng}
               landUsage={landUsage}

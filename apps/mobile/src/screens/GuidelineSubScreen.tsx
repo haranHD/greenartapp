@@ -27,7 +27,7 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -122,7 +122,10 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
 
 const styles = StyleSheet.create({
   scrollBody: {
-    padding: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
     gap: 16,
   },
   subBackBtn: {

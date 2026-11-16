@@ -17,6 +17,7 @@ public class LandPriceDbContext : DbContext
     public DbSet<HistoricalEstimate> HistoricalEstimates => Set<HistoricalEstimate>();
     public DbSet<HistoricalEstimateObservation> HistoricalEstimateObservations => Set<HistoricalEstimateObservation>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<PriceResearch> PriceResearch => Set<PriceResearch>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<User> Users => Set<User>();
     public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();

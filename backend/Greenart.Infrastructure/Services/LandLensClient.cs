@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
+using Greenart.Application.Common.Exceptions;
+using Greenart.Domain.Enums;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -73,100 +76,36 @@ public class LandLensClient : ILandLensClient
 
     public async Task<LandLensAccountResponse?> GetAccountStatusAsync(CancellationToken ct = default)
     {
-        EnsureConfigured();
-        var sw = Stopwatch.StartNew();
-
-        try
+        var root = await SendJsonAsync(HttpMethod.Get, "me", null, ct);
+        var data = UnwrapData(root);
+        if (data.ValueKind != JsonValueKind.Object)
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        var balance = GetIntProp(data, "balance");
+        if (!balance.HasValue)
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        var credential = GetStringProp(data, "credential");
+        decimal? dailyCap = null;
+        IReadOnlyList<string>? allowedTools = null;
+        if (data.TryGetProperty("credential", out var details) && details.ValueKind == JsonValueKind.Object)
         {
-            using var request = CreateAuthorizedRequest(HttpMethod.Get, "me");
-            using var response = await _httpClient.SendAsync(request, ct);
-            sw.Stop();
-
-            _logger.LogInformation("LandLens GET /me completed with HTTP {StatusCode} in {ElapsedMs}ms",
-                (int)response.StatusCode, sw.ElapsedMilliseconds);
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogWarning("LandLens authentication failed: Invalid or expired API key (HTTP {StatusCode})", (int)response.StatusCode);
-                throw new UnauthorizedAccessException("LandLens authentication failed: Invalid or expired API key.");
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("LandLens GET /me returned non-success HTTP {StatusCode}", (int)response.StatusCode);
-                return null;
-            }
-
-            var envelope = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOpts, ct);
-
-            // Account can be returned directly or wrapped in envelope
-            if (envelope.ValueKind == JsonValueKind.Object)
-            {
-                string credential = envelope.TryGetProperty("credential", out var c) ? c.GetString() ?? "Unknown" : "Unknown";
-                int balance = envelope.TryGetProperty("balance", out var b) ? b.GetInt32() : 0;
-                decimal spentToday = envelope.TryGetProperty("spent_today", out var s) ? s.GetDecimal() : 0m;
-
-                return new LandLensAccountResponse(credential, balance, spentToday);
-            }
-
-            return null;
+            credential = GetStringProp(details, "name");
+            dailyCap = GetDecimalProp(details, "daily_credit_cap");
+            if (details.TryGetProperty("tools", out var tools) && tools.ValueKind == JsonValueKind.Array)
+                allowedTools = tools.EnumerateArray().Where(tool => tool.ValueKind == JsonValueKind.String)
+                    .Select(tool => tool.GetString()!).ToList();
         }
-        catch (Exception ex) when (ex is not UnauthorizedAccessException && ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Error communicating with LandLens GET /me");
-            return null;
-        }
+        return new LandLensAccountResponse(credential ?? "Configured account", balance.Value,
+            GetDecimalProp(data, "spent_today_by_this_credential") ?? GetDecimalProp(data, "spent_today") ?? 0m,
+            DailyCreditCap: dailyCap, AllowedTools: allowedTools);
     }
 
     public async Task<IReadOnlyList<LandLensToolDefinition>> GetToolsAsync(CancellationToken ct = default)
     {
-        EnsureConfigured();
-        var sw = Stopwatch.StartNew();
-
-        try
-        {
-            using var request = CreateAuthorizedRequest(HttpMethod.Get, "tools");
-            using var response = await _httpClient.SendAsync(request, ct);
-            sw.Stop();
-
-            _logger.LogInformation("LandLens GET /tools completed with HTTP {StatusCode} in {ElapsedMs}ms",
-                (int)response.StatusCode, sw.ElapsedMilliseconds);
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                throw new UnauthorizedAccessException("LandLens authentication failed: Invalid or expired API key.");
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return Array.Empty<LandLensToolDefinition>();
-            }
-
-            var root = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOpts, ct);
-            var tools = new List<LandLensToolDefinition>();
-
-            if (root.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in root.EnumerateArray())
-                {
-                    tools.Add(ParseTool(el));
-                }
-            }
-            else if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("tools", out var toolsArr) && toolsArr.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var el in toolsArr.EnumerateArray())
-                {
-                    tools.Add(ParseTool(el));
-                }
-            }
-
-            return tools;
-        }
-        catch (Exception ex) when (ex is not UnauthorizedAccessException && ex is not OperationCanceledException)
-        {
-            _logger.LogError(ex, "Error communicating with LandLens GET /tools");
-            return Array.Empty<LandLensToolDefinition>();
-        }
+        var root = UnwrapData(await SendJsonAsync(HttpMethod.Get, "tools", null, ct));
+        if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("tools", out var tools)) root = tools;
+        if (root.ValueKind != JsonValueKind.Array)
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        return root.EnumerateArray().Select(ParseTool).ToList();
     }
 
     public async Task<ResolveParcelResult?> ResolveParcelAsync(double lat, double lng, CancellationToken ct = default)
@@ -175,7 +114,7 @@ public class LandLensClient : ILandLensClient
         var payload = new { lat, lng };
         var envelope = await PostToolAsync<JsonElement>("resolve_parcel", payload, ct);
 
-        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object)
+        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object || IsNotFound(envelope.Data))
         {
             return null;
         }
@@ -183,7 +122,9 @@ public class LandLensClient : ILandLensClient
         var d = envelope.Data;
         var ld = d.TryGetProperty("land_data", out var landData) && landData.ValueKind == JsonValueKind.Object ? landData : d;
 
-        var extentAcres = GetDecimalProp(d, "extent_acres") ?? GetDecimalProp(ld, "extent_acres");
+        var extentHectares = GetDecimalProp(d, "extent_hectares") ?? GetDecimalProp(ld, "extent_hectares");
+        var extentAcres = GetDecimalProp(d, "extent_acres") ?? GetDecimalProp(ld, "extent_acres")
+            ?? (extentHectares.HasValue ? extentHectares.Value * 2.4710538147m : null);
         var extentSqFt = GetDecimalProp(d, "extent_sqft") ?? GetDecimalProp(ld, "extent_sqft")
             ?? (extentAcres.HasValue ? Math.Round(extentAcres.Value * 43560m, 2) : null);
         var extentCents = GetDecimalProp(d, "extent_cents") ?? GetDecimalProp(ld, "extent_cents")
@@ -192,7 +133,8 @@ public class LandLensClient : ILandLensClient
         object? boundary = null;
         if (ld.TryGetProperty("geojson_geom", out var gj) && gj.ValueKind == JsonValueKind.String)
         {
-            boundary = gj.GetString();
+            try { using var geometry = JsonDocument.Parse(gj.GetString()!); boundary = geometry.RootElement.Clone(); }
+            catch (JsonException) { /* Preserve identity fields without claiming a valid boundary. */ }
         }
         else if (d.TryGetProperty("boundary", out var b))
         {
@@ -211,7 +153,13 @@ public class LandLensClient : ILandLensClient
             ExtentCents: extentCents,
             BoundaryGeoJson: boundary,
             FirkaWardNumber: GetStringProp(d, "firka_ward_number") ?? GetStringProp(ld, "firka_ward_number"),
-            UrbanBlockNumber: GetStringProp(d, "urban_block_number") ?? GetStringProp(ld, "urban_block_number")
+            UrbanBlockNumber: GetStringProp(d, "urban_block_number") ?? GetStringProp(ld, "urban_block_number"),
+            DistrictCode: GetStringProp(d, "district_code") ?? GetStringProp(ld, "district_code"),
+            TalukCode: GetStringProp(d, "taluk_code") ?? GetStringProp(ld, "taluk_code"),
+            VillageCode: GetStringProp(d, "village_code") ?? GetStringProp(ld, "village_code"),
+            IsParcel: GetBoolProp(d, "is_parcel"),
+            IdentityAmbiguous: GetBoolProp(d, "identity_ambiguous") ?? false,
+            IdentityWarning: GetStringProp(d, "identity_warning")
         );
     }
 
@@ -232,60 +180,56 @@ public class LandLensClient : ILandLensClient
             sro = request.Sro,
             urban_block_number = request.UrbanBlockNumber,
             firka_ward_number = request.FirkaWardNumber,
-            taluk_name = request.TalukName
+            taluk_name = request.TalukName,
+            rev_district_code = request.RevDistrictCode,
+            rev_taluk_code = request.RevTalukCode,
+            rev_village_code = request.RevVillageCode
         };
 
         var envelope = await PostToolAsync<JsonElement>("guideline_value", payload, ct);
-        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object)
+        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object || IsNotFound(envelope.Data))
         {
             return null;
         }
 
         var d = envelope.Data;
 
-        // Check if rate is nested in guideline array
         JsonElement targetElement = d;
-        if (d.TryGetProperty("guideline", out var gArr) && gArr.ValueKind == JsonValueKind.Array && gArr.GetArrayLength() > 0)
+        if (d.TryGetProperty("guideline", out var entries) && entries.ValueKind == JsonValueKind.Array)
         {
-            // Pick first item with non-zero rate, or first item
-            JsonElement? positiveItem = null;
-            foreach (var item in gArr.EnumerateArray())
+            var candidates = entries.EnumerateArray().Where(item =>
+                (GetNormalizedSqFtRate(item) ?? GetDecimalProp(item, "rate_per_cent")) > 0).ToList();
+            if (candidates.Count == 0) return null;
+            if (request.LandUsage.HasValue)
             {
-                var testRate = GetDecimalProp(item, "rate_per_sqft")
-                    ?? GetDecimalProp(item, "val_per_sqft")
-                    ?? GetDecimalProp(item, "value_per_sqft")
-                    ?? GetDecimalProp(item, "value_2024")
-                    ?? GetDecimalProp(item, "val_original");
-
-                if (testRate.HasValue && testRate.Value > 0)
-                {
-                    positiveItem = item;
-                    break;
-                }
+                var matches = candidates.Where(item => MatchesUsage(item, request.LandUsage.Value)).ToList();
+                // Do not select an unrelated rate from a different land classification.
+                if (matches.Count == 1) candidates = matches;
+                else if (matches.Count > 1 || candidates.Count > 1 || HasClassification(candidates[0])) return null;
             }
-
-            targetElement = positiveItem ?? gArr[0];
+            if (candidates.Count != 1) return null; // An administrator must disambiguate multiple entries.
+            targetElement = candidates[0];
         }
 
-        var rateSqFt = GetDecimalProp(targetElement, "guideline_rate_per_sqft")
-            ?? GetDecimalProp(targetElement, "rate_per_sqft")
-            ?? GetDecimalProp(targetElement, "val_per_sqft")
-            ?? GetDecimalProp(targetElement, "value_per_sqft")
-            ?? GetDecimalProp(targetElement, "value_2024")
-            ?? GetDecimalProp(targetElement, "val_original");
-
+        var rateSqFt = GetNormalizedSqFtRate(targetElement);
         var rateCent = GetDecimalProp(targetElement, "guideline_rate_per_cent")
-            ?? GetDecimalProp(targetElement, "rate_per_cent")
-            ?? (rateSqFt.HasValue && rateSqFt.Value > 0 ? Math.Round(rateSqFt.Value * 435.6m, 2) : null);
+            ?? GetDecimalProp(targetElement, "rate_per_cent");
+        // Only documented normalized units are converted; val_original/value_2024 have no assumed unit.
+        rateSqFt ??= rateCent.HasValue ? Math.Round(rateCent.Value / 435.6m, 4) : null;
+        rateCent ??= rateSqFt.HasValue ? Math.Round(rateSqFt.Value * 435.6m, 2) : null;
+        if (rateSqFt is not > 0 || rateCent is not > 0) return null;
 
         return new GuidelineValueResult(
             GuidelineRatePerSqFt: rateSqFt,
             GuidelineRatePerCent: rateCent,
             Classification: GetStringProp(targetElement, "classification") ?? GetStringProp(targetElement, "category_name") ?? GetStringProp(targetElement, "land_type"),
             StreetName: GetStringProp(targetElement, "street_name") ?? GetStringProp(targetElement, "road_name"),
-            Unit: GetStringProp(targetElement, "unit") ?? "sq.ft",
+            Unit: "sq.ft",
             Zone: GetStringProp(targetElement, "zone_name") ?? GetStringProp(targetElement, "zone"),
-            Sro: GetStringProp(targetElement, "sro_name") ?? GetStringProp(targetElement, "sro")
+            Sro: GetStringProp(targetElement, "sro_name") ?? GetStringProp(targetElement, "sro"),
+            MatchType: GetStringProp(d, "match_type"),
+            RevisionDate: GetStringProp(d, "revision_date"),
+            RateBasis: GetStringProp(targetElement, "rate_basis")
         );
     }
 
@@ -297,7 +241,7 @@ public class LandLensClient : ILandLensClient
             : new { village, zone };
         var envelope = await PostToolAsync<JsonElement>("locality_value_context", payload, ct);
 
-        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object)
+        if (envelope?.Ok != true || envelope.Data.ValueKind != JsonValueKind.Object || IsNotFound(envelope.Data))
         {
             return null;
         }
@@ -333,11 +277,10 @@ public class LandLensClient : ILandLensClient
         EnsureConfigured();
         var payload = new
         {
-            survey_number = request.SurveyNumber,
-            sub_division = request.SubDivision,
-            village_name = request.VillageName,
-            district_name = request.DistrictName,
-            rural_urban = request.RuralUrban
+            lat = request.Lat, lng = request.Lng,
+            village = request.Village ?? request.VillageName,
+            sro = request.Sro, street = request.Street,
+            classification = request.Classification, current_value = request.CurrentValue
         };
 
         var envelope = await PostToolAsync<JsonElement>("guideline_history", payload, ct);
@@ -346,17 +289,26 @@ public class LandLensClient : ILandLensClient
             return null;
         }
 
+        if (envelope.Data.ValueKind == JsonValueKind.Object && IsNotFound(envelope.Data)) return null;
         var entries = new List<GuidelineHistoryEntry>();
-        if (envelope.Data.ValueKind == JsonValueKind.Array)
+        var data = envelope.Data;
+        var unit = GetStringProp(data, "unit");
+        var classification = GetStringProp(data, "classification");
+        var series = data.ValueKind == JsonValueKind.Object && data.TryGetProperty("series", out var values) ? values : data;
+        if (series.ValueKind != JsonValueKind.Array)
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        foreach (var item in series.EnumerateArray())
         {
-            foreach (var item in envelope.Data.EnumerateArray())
-            {
-                int year = item.TryGetProperty("year", out var y) ? y.GetInt32() : 0;
-                decimal sqft = GetDecimalProp(item, "rate_per_sqft") ?? 0m;
-                decimal cent = GetDecimalProp(item, "rate_per_cent") ?? 0m;
-                string? cls = GetStringProp(item, "classification");
-                entries.Add(new GuidelineHistoryEntry(year, sqft, cent, cls));
-            }
+            var year = GetIntProp(item, "year");
+            if (year is not > 0) continue;
+            decimal? sqft = GetDecimalProp(item, "rate_per_sqft");
+            decimal? cent = GetDecimalProp(item, "rate_per_cent");
+            var registered = GetDecimalProp(item, "value");
+            if (sqft > 0) cent ??= Math.Round(sqft.Value * 435.6m, 2);
+            if (cent > 0) sqft ??= Math.Round(cent.Value / 435.6m, 4);
+            // A historical 'value' in an unspecified register unit is never relabelled as INR/sq.ft.
+            entries.Add(new GuidelineHistoryEntry(year.Value, sqft, cent,
+                GetStringProp(item, "classification") ?? classification, registered, unit));
         }
 
         return new GuidelineHistoryResult(entries);
@@ -367,8 +319,9 @@ public class LandLensClient : ILandLensClient
         EnsureConfigured();
 
         // Guard against initiating paid request if balance is known to be depleted
-        var account = await GetAccountStatusAsync(ct);
-        if (account != null && account.Balance < 4)
+        var account = await GetAccountStatusAsync(ct)
+            ?? throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        if (account.Balance < 4)
         {
             _logger.LogWarning("Refusing Price Map request: account credit balance ({Balance}) is less than required (4 credits).",
                 account.Balance);
@@ -392,17 +345,6 @@ public class LandLensClient : ILandLensClient
         // Note: strictly zero auto-retry policy on paid endpoints to prevent duplicate credit deduction
         var envelope = await PostToolAsync<JsonElement>("pricemap", payload, ct, isPaidRequest: true);
 
-        if (envelope == null)
-        {
-            return new PriceMapInitiationResult(
-                Initiated: false,
-                JobId: null,
-                Message: "Failed to initiate Price Map report due to upstream error.",
-                CreditsCharged: 0,
-                BalanceAfter: account?.Balance ?? 0
-            );
-        }
-
         string? jobId = null;
         if (envelope.Data.ValueKind == JsonValueKind.Object && envelope.Data.TryGetProperty("job_id", out var j))
         {
@@ -410,7 +352,7 @@ public class LandLensClient : ILandLensClient
         }
 
         return new PriceMapInitiationResult(
-            Initiated: envelope.Ok,
+            Initiated: envelope.Ok && !string.IsNullOrWhiteSpace(jobId),
             JobId: jobId,
             Message: envelope.Message ?? envelope.Status,
             CreditsCharged: envelope.CreditsCharged,
@@ -452,76 +394,110 @@ public class LandLensClient : ILandLensClient
         return new PriceMapTransactionsResult(request.PriceMapId, request.SurveyNumber, deeds);
     }
 
-    private async Task<LandLensEnvelope<T>?> PostToolAsync<T>(string toolName, object payload, CancellationToken ct, bool isPaidRequest = false)
+    private async Task<LandLensEnvelope<T>> PostToolAsync<T>(string toolName, object payload, CancellationToken ct, bool isPaidRequest = false)
     {
-        var sw = Stopwatch.StartNew();
-
+        var root = await SendJsonAsync(HttpMethod.Post, $"tools/{toolName}", payload, ct, isPaidRequest);
         try
         {
-            using var request = CreateAuthorizedRequest(HttpMethod.Post, $"tools/{toolName}");
-            request.Content = JsonContent.Create(payload, options: JsonOpts);
-
-            using var response = await _httpClient.SendAsync(request, ct);
-            sw.Stop();
-
-            _logger.LogInformation("LandLens tool '{ToolName}' completed with HTTP {StatusCode} in {ElapsedMs}ms",
-                toolName, (int)response.StatusCode, sw.ElapsedMilliseconds);
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-            {
-                _logger.LogWarning("LandLens authentication failed on tool '{ToolName}' (HTTP {StatusCode})",
-                    toolName, (int)response.StatusCode);
-                throw new UnauthorizedAccessException($"LandLens authorization failed for tool '{toolName}'.");
-            }
-
-            if (response.StatusCode == (HttpStatusCode)402) // Payment Required
-            {
-                _logger.LogWarning("LandLens payment required on tool '{ToolName}': Not enough credits.", toolName);
-                return new LandLensEnvelope<T>
-                {
-                    Ok = false,
-                    Status = "PaymentRequired",
-                    Error = "Insufficient credits to execute this tool.",
-                    CreditsCharged = 0
-                };
-            }
-
-            if (response.StatusCode == (HttpStatusCode)429) // Rate limit
-            {
-                _logger.LogWarning("LandLens rate limit encountered on tool '{ToolName}'.", toolName);
-                return new LandLensEnvelope<T>
-                {
-                    Ok = false,
-                    Status = "RateLimited",
-                    Error = "Rate limit reached. Please wait before retrying."
-                };
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("LandLens tool '{ToolName}' returned HTTP error {StatusCode}",
-                    toolName, (int)response.StatusCode);
-                return null;
-            }
-
-            var envelope = await response.Content.ReadFromJsonAsync<LandLensEnvelope<T>>(JsonOpts, ct);
-            if (envelope != null && envelope.CreditsCharged > 0)
-            {
-                _logger.LogInformation("LandLens tool '{ToolName}' charged {Credits} credits (New balance: {BalanceAfter})",
-                    toolName, envelope.CreditsCharged, envelope.BalanceAfter);
-            }
-
+            var envelope = root.Deserialize<LandLensEnvelope<T>>(JsonOpts);
+            if (envelope == null || root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("ok", out _) ||
+                (envelope.Ok && !string.Equals(envelope.Status, "not_found", StringComparison.OrdinalIgnoreCase) &&
+                 (!root.TryGetProperty("data", out var payloadData) || payloadData.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)))
+                throw new LandLensUpstreamException(LandLensFailure.InvalidResponse, chargeOutcomeUnknown: isPaidRequest);
+            if (!envelope.Ok && !string.Equals(envelope.Status, "not_found", StringComparison.OrdinalIgnoreCase))
+                throw new LandLensUpstreamException(LandLensFailure.Unavailable, chargeOutcomeUnknown: isPaidRequest);
             return envelope;
         }
-        catch (Exception ex) when (ex is not UnauthorizedAccessException && ex is not OperationCanceledException)
+        catch (JsonException)
         {
-            _logger.LogError(ex, "Exception calling LandLens tool '{ToolName}'", toolName);
-            if (isPaidRequest)
-            {
-                _logger.LogWarning("Zero auto-retry policy strictly observed on paid tool '{ToolName}' to protect credits.", toolName);
-            }
-            return null;
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse, chargeOutcomeUnknown: isPaidRequest);
         }
+    }
+
+    private async Task<JsonElement> SendJsonAsync(HttpMethod method, string endpoint, object? payload,
+        CancellationToken ct, bool paid = false)
+    {
+        EnsureConfigured();
+        ct.ThrowIfCancellationRequested();
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var request = CreateAuthorizedRequest(method, endpoint);
+            if (payload != null) request.Content = JsonContent.Create(payload, options: JsonOpts);
+            using var response = await _httpClient.SendAsync(request, ct);
+            _logger.LogInformation("LandLens {Endpoint} returned HTTP {Status} in {ElapsedMs}ms", endpoint, (int)response.StatusCode, sw.ElapsedMilliseconds);
+            if (!response.IsSuccessStatusCode)
+            {
+                var retry = response.Headers.RetryAfter?.Delta?.TotalSeconds
+                    ?? (response.Headers.RetryAfter?.Date - DateTimeOffset.UtcNow)?.TotalSeconds;
+                var failure = response.StatusCode switch
+                {
+                    HttpStatusCode.Unauthorized => LandLensFailure.Authentication,
+                    HttpStatusCode.Forbidden => LandLensFailure.PermissionDenied,
+                    HttpStatusCode.TooManyRequests => LandLensFailure.RateLimited,
+                    HttpStatusCode.PaymentRequired => LandLensFailure.InsufficientCredits,
+                    _ => LandLensFailure.Unavailable
+                };
+                throw new LandLensUpstreamException(failure,
+                    retry.HasValue ? (int)Math.Clamp(Math.Ceiling(retry.Value), 0, 86400) : null,
+                    chargeOutcomeUnknown: paid && (int)response.StatusCode >= 500);
+            }
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+            var root = json.RootElement;
+            if (GetBoolProp(root, "ok") == false && !string.Equals(GetStringProp(root, "status"), "not_found", StringComparison.OrdinalIgnoreCase))
+            {
+                var failure = GetStringProp(root, "status")?.ToLowerInvariant() switch
+                {
+                    "rate_limited" => LandLensFailure.RateLimited,
+                    "unauthorized" => LandLensFailure.Authentication,
+                    "forbidden" => LandLensFailure.PermissionDenied,
+                    "insufficient_credits" => LandLensFailure.InsufficientCredits,
+                    _ => LandLensFailure.Unavailable
+                };
+                throw new LandLensUpstreamException(failure, chargeOutcomeUnknown: paid);
+            }
+            return root.Clone();
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new LandLensUpstreamException(LandLensFailure.Timeout, chargeOutcomeUnknown: paid);
+        }
+        catch (HttpRequestException)
+        {
+            throw new LandLensUpstreamException(LandLensFailure.Unavailable, chargeOutcomeUnknown: paid);
+        }
+        catch (JsonException)
+        {
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse, chargeOutcomeUnknown: paid);
+        }
+        // No automatic retries: a failed paid request may already have consumed credits.
+    }
+
+    private static JsonElement UnwrapData(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty("data", out var data) ? data : root;
+
+    private static bool IsNotFound(JsonElement data) => GetBoolProp(data, "found") == false;
+    private static bool? GetBoolProp(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) &&
+        value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
+
+    private static decimal? GetNormalizedSqFtRate(JsonElement item) =>
+        GetDecimalProp(item, "guideline_rate_per_sqft") ?? GetDecimalProp(item, "rate_per_sqft") ??
+        GetDecimalProp(item, "val_per_sqft") ?? GetDecimalProp(item, "value_per_sqft");
+
+    private static bool HasClassification(JsonElement item) => !string.IsNullOrWhiteSpace(
+        GetStringProp(item, "classification") ?? GetStringProp(item, "category_name") ?? GetStringProp(item, "land_type"));
+
+    private static bool MatchesUsage(JsonElement item, LandUsageType usage)
+    {
+        var classification = GetStringProp(item, "classification") ?? GetStringProp(item, "category_name") ?? GetStringProp(item, "land_type") ?? "";
+        var keyword = usage switch
+        {
+            LandUsageType.Residential => "residential", LandUsageType.Commercial => "commercial",
+            LandUsageType.Industrial => "industrial", LandUsageType.AgriculturalWet => "wet",
+            LandUsageType.AgriculturalDry => "dry", _ => "mixed"
+        };
+        return classification.Contains(keyword, StringComparison.OrdinalIgnoreCase);
     }
 
     private HttpRequestMessage CreateAuthorizedRequest(HttpMethod method, string endpoint)
@@ -546,27 +522,32 @@ public class LandLensClient : ILandLensClient
 
     private static LandLensToolDefinition ParseTool(JsonElement el)
     {
-        string name = el.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+        if (el.ValueKind != JsonValueKind.Object || string.IsNullOrWhiteSpace(GetStringProp(el, "name")))
+            throw new LandLensUpstreamException(LandLensFailure.InvalidResponse);
+        string name = GetStringProp(el, "name")!;
         string? summary = el.TryGetProperty("summary", out var s) ? s.GetString() : null;
         string? description = el.TryGetProperty("description", out var d) ? d.GetString() : null;
-        int cost = el.TryGetProperty("cost_credits", out var c) ? c.GetInt32() : 0;
-        bool isFree = el.TryGetProperty("is_free", out var f) ? f.GetBoolean() : cost == 0;
-        string? category = el.TryGetProperty("category", out var cat) ? cat.GetString() : null;
-
-        return new LandLensToolDefinition(name, summary, description, cost, isFree, category);
+        var cost = GetIntProp(el, "credits") ?? GetIntProp(el, "cost_credits");
+        var maximum = GetIntProp(el, "credits_max");
+        var isFree = cost == 0 && (maximum ?? 0) == 0;
+        string? category = GetStringProp(el, "category");
+        return new LandLensToolDefinition(name, summary, description, cost, isFree, category, maximum);
     }
+
+    private static int? GetIntProp(JsonElement el, string name) =>
+        GetDecimalProp(el, name) is decimal value && value == Math.Truncate(value) && value <= int.MaxValue && value >= int.MinValue ? (int)value : null;
 
     private static string? GetStringProp(JsonElement el, string propName)
     {
-        return el.TryGetProperty(propName, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        return el.ValueKind == JsonValueKind.Object && el.TryGetProperty(propName, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
     }
 
     private static decimal? GetDecimalProp(JsonElement el, string propName)
     {
-        if (el.TryGetProperty(propName, out var p))
+        if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty(propName, out var p))
         {
             if (p.ValueKind == JsonValueKind.Number && p.TryGetDecimal(out var dec)) return dec;
-            if (p.ValueKind == JsonValueKind.String && decimal.TryParse(p.GetString(), out var parsed)) return parsed;
+            if (p.ValueKind == JsonValueKind.String && decimal.TryParse(p.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)) return parsed;
         }
         return null;
     }

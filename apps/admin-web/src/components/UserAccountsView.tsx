@@ -47,15 +47,15 @@ export const UserAccountsView: React.FC = () => {
   const passwordUsers = users.filter((u) => u.hasPassword).length;
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div className="operations-view" style={{ maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#1E1B4B', margin: 0 }}>
-            Application User Accounts
+            User accounts
           </h2>
           <p style={{ fontSize: '14px', color: '#64748B', marginTop: '6px', margin: 0 }}>
-            Verified customer profiles, authentication providers, and account status across mobile and web platforms.
+            Manage customer details, account status and sign-in methods.
           </p>
         </div>
         <button
@@ -80,7 +80,7 @@ export const UserAccountsView: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Users</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#240046', marginTop: '4px' }}>{totalUsers}</div>
@@ -102,20 +102,22 @@ export const UserAccountsView: React.FC = () => {
         <div style={{ backgroundColor: '#FFFFFF', padding: '18px', borderRadius: '12px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Password Configured</div>
           <div style={{ fontSize: '28px', fontWeight: 800, color: '#7C3AED', marginTop: '4px' }}>{passwordUsers}</div>
-          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>PBKDF2 encrypted</div>
+          <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Password sign-in enabled</div>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
       <div style={{ backgroundColor: '#FFFFFF', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-        <form onSubmit={handleSearchSubmit} style={{ flex: '1 1 300px', display: 'flex', gap: '8px' }}>
+        <form onSubmit={handleSearchSubmit} style={{ flex: '1 1 240px', minWidth: 0, display: 'flex', gap: '8px' }}>
           <input
             type="text"
+            aria-label="Search user accounts"
             placeholder="Search by name, email, or phone..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               flex: 1,
+              minWidth: 0,
               padding: '9px 14px',
               borderRadius: '8px',
               border: '1px solid #CBD5E1',
@@ -140,8 +142,9 @@ export const UserAccountsView: React.FC = () => {
           </button>
         </form>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           <select
+            aria-label="Filter users by role"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
             style={{
@@ -160,6 +163,7 @@ export const UserAccountsView: React.FC = () => {
           </select>
 
           <select
+            aria-label="Filter users by status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             style={{
@@ -204,7 +208,7 @@ export const UserAccountsView: React.FC = () => {
             {loading ? (
               <tr>
                 <td colSpan={7} style={{ padding: '36px', textAlign: 'center', color: '#64748B' }}>
-                  Loading user directory from Greenart backend...
+                  Loading user directory from the backend...
                 </td>
               </tr>
             ) : filteredUsers.length === 0 ? (

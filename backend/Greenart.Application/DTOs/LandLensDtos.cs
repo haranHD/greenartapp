@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Greenart.Domain.Enums;
+
 namespace Greenart.Application.DTOs;
 
 /// <summary>
@@ -8,7 +11,9 @@ public record LandLensAccountResponse(
     int Balance,
     decimal SpentToday,
     string? Currency = "Credits",
-    string? Status = "Active"
+    string? Status = "Active",
+    decimal? DailyCreditCap = null,
+    IReadOnlyList<string>? AllowedTools = null
 );
 
 /// <summary>
@@ -18,9 +23,10 @@ public record LandLensToolDefinition(
     string Name,
     string? Summary,
     string? Description,
-    int CostCredits,
+    int? CostCredits,
     bool IsFree,
-    string? Category
+    string? Category,
+    int? MaxCostCredits = null
 );
 
 /// <summary>
@@ -31,8 +37,11 @@ public class LandLensEnvelope<T>
     public bool Ok { get; set; }
     public string? Status { get; set; }
     public T? Data { get; set; }
+    [JsonPropertyName("credits_charged")]
     public int CreditsCharged { get; set; }
+    [JsonPropertyName("balance_after")]
     public int BalanceAfter { get; set; }
+    [JsonPropertyName("request_id")]
     public string? RequestId { get; set; }
     public string? Error { get; set; }
     public string? Message { get; set; }
@@ -61,7 +70,13 @@ public record ResolveParcelResult(
     decimal? ExtentCents,
     object? BoundaryGeoJson,
     string? FirkaWardNumber,
-    string? UrbanBlockNumber
+    string? UrbanBlockNumber,
+    string? DistrictCode = null,
+    string? TalukCode = null,
+    string? VillageCode = null,
+    bool? IsParcel = null,
+    bool IdentityAmbiguous = false,
+    string? IdentityWarning = null
 );
 
 /// <summary>
@@ -80,7 +95,11 @@ public record GuidelineValueRequest(
     string? Sro = null,
     string? UrbanBlockNumber = null,
     string? FirkaWardNumber = null,
-    string? TalukName = null
+    string? TalukName = null,
+    string? RevDistrictCode = null,
+    string? RevTalukCode = null,
+    string? RevVillageCode = null,
+    LandUsageType? LandUsage = null
 );
 
 /// <summary>
@@ -107,7 +126,10 @@ public record GuidelineValueResult(
     string? StreetName,
     string? Unit,
     string? Zone,
-    string? Sro
+    string? Sro,
+    string? MatchType = null,
+    string? RevisionDate = null,
+    string? RateBasis = null
 );
 
 /// <summary>
@@ -118,14 +140,23 @@ public record GuidelineHistoryRequest(
     string? SubDivision = null,
     string? VillageName = null,
     string? DistrictName = null,
-    string? RuralUrban = null
+    string? RuralUrban = null,
+    double? Lat = null,
+    double? Lng = null,
+    string? Village = null,
+    string? Sro = null,
+    string? Street = null,
+    string? Classification = null,
+    decimal? CurrentValue = null
 );
 
 public record GuidelineHistoryEntry(
     int Year,
-    decimal RatePerSqFt,
-    decimal RatePerCent,
-    string? Classification
+    decimal? RatePerSqFt,
+    decimal? RatePerCent,
+    string? Classification,
+    decimal? RegisteredValue = null,
+    string? RegisteredUnit = null
 );
 
 public record GuidelineHistoryResult(

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import Feather from '@expo/vector-icons/Feather';
 import {
   View,
   Text,
@@ -7,8 +8,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  Platform,
+  useWindowDimensions,
+  Animated,
+  Easing,
 } from 'react-native';
+import { LocalitySearchError } from '../components/LocalitySearchError';
+import { Premium } from '../theme/premium';
+import { PropertyHero } from '../components/PropertyHero';
+import { PremiumPressable } from '../components/PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { Colors } from '../theme/colors';
+import { FeatureIcon } from '../components/FeatureIcon';
 import {
   MobileTab,
   LocalityReference,
@@ -24,6 +35,8 @@ export interface HomeScreenProps {
   homeGeocodingSuggestions: LocalitySuggestionDto[];
   homeFilteredSuggestions: LocalityReference[];
   resolvingPlaceId: string | null;
+  searchError: string | null;
+  onRetrySearch: () => void;
   handleSelectGeocodingSuggestion: (item: LocalitySuggestionDto, fromTab: 'home') => void;
   handleSelectLocalityRef: (loc: LocalityReference) => void;
   activeLocality: string;
@@ -44,6 +57,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   homeGeocodingSuggestions,
   homeFilteredSuggestions,
   resolvingPlaceId,
+  searchError,
+  onRetrySearch,
   handleSelectGeocodingSuggestion,
   handleSelectLocalityRef,
   activeLocality,
@@ -55,59 +70,74 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   setEstimateStep,
   setPreviousTab,
 }) => {
+  const [searchFocused, setSearchFocused] = React.useState(false);
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 820;
+  const stacked = width < 360 || fontScale > 1.25;
+  const { reduced: reducedMotion, ready } = useReducedMotion();
+  const entrance = useRef(new Animated.Value(1)).current;
+  const focus = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!ready || reducedMotion) { entrance.setValue(1); return; }
+    entrance.setValue(.96);
+    const animation = Animated.timing(entrance, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    animation.start(); return () => animation.stop();
+  }, [ready, reducedMotion, entrance]);
+  useEffect(() => {
+    focus.stopAnimation();
+    if (reducedMotion) { focus.setValue(searchFocused ? 1 : 0); return; }
+    const animation = Animated.timing(focus, { toValue: searchFocused ? 1 : 0, duration: 160, useNativeDriver: false });
+    animation.start(); return () => animation.stop();
+  }, [searchFocused, reducedMotion, focus]);
   return (
     <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      style={{ flex: 1, backgroundColor: Premium.background }}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
-      {/* Premium Hero Surface */}
-      <View style={styles.homeHeroCard}>
-        <View style={styles.heroPill}>
-          <Text style={styles.heroPillText}>Land Market Rate Analyst</Text>
-        </View>
-        <Text style={styles.homeHeroTitle}>Discover your land's value.</Text>
-        <Text style={styles.homeHeroSub}>
-          Explore nearby land records and understand local market rates.
-        </Text>
-      </View>
+      <Animated.View style={{ gap: 18, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
+      <View style={[styles.heroSearchLayout, wide && styles.heroSearchLayoutWide]}>
+      <PropertyHero wide={wide} compact={width < 360} />
 
       {/* Primary Location-Search Card */}
-      <View style={styles.primarySearchCard}>
-        <Text style={styles.searchCardTitle}>Find a property</Text>
+      <View style={[styles.primarySearchCard, wide && { flex: 1, justifyContent: 'center' }]}>
+        <View style={styles.searchHeading}><Feather accessible={false} name="map-pin" size={19} color={Premium.purple} /><Text style={styles.searchCardTitle}>Find a property</Text></View>
         <Text style={styles.searchCardSub}>
-          Search across available localities, towns, and districts:
+          Choose the property location you want to research.
         </Text>
 
-        <View style={styles.searchBarBox}>
-          <View style={styles.searchIconRing}>
-            <View style={styles.searchIconCircle} />
-            <View style={styles.searchIconHandle} />
-          </View>
+        <Animated.View style={[styles.searchBarBox, { borderColor: focus.interpolate({ inputRange: [0, 1], outputRange: [Premium.border, Premium.highlight] }) }, searchFocused && styles.searchFocus]}>
+          <Feather accessible={false} name="search" size={18} color="#73677C" style={{ marginRight: 10 }} />
           <TextInput
-            style={styles.searchBarInput}
-            placeholder="Enter locality (e.g. Kannampalayam, Sulur)..."
+            accessibilityLabel="Search property location"
+            autoCorrect={false}
+            style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder="Search a locality, town or district"
             placeholderTextColor="#94A3B8"
             value={homeSearchQuery}
             onChangeText={setHomeSearchQuery}
             returnKeyType="search"
           />
           {homeSearchQuery ? (
-            <TouchableOpacity onPress={() => setHomeSearchQuery('')} style={{ padding: 6 }}>
-              <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '700' }}>✕</Text>
+            <TouchableOpacity onPress={() => setHomeSearchQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
+              <Feather accessible={false} name="x" size={17} color={Premium.secondary} />
             </TouchableOpacity>
           ) : null}
-        </View>
+        </Animated.View>
 
         {/* Autocomplete Suggestions Dropdown */}
         {homeSearchQuery.trim() !== '' && (
           <View style={styles.suggestionsContainer}>
+            {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
+            {!searchError && homeSearchQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
             {isSearchingHomeGeocode && homeGeocodingSuggestions.length === 0 && (
               <View style={styles.searchingRow}>
                 <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.searchingText}>Searching locations via Google Places...</Text>
+                <Text style={styles.searchingText}>Finding matching locations…</Text>
               </View>
             )}
 
@@ -117,7 +147,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 key={item.placeId}
                 style={styles.suggestionRow}
                 onPress={() => handleSelectGeocodingSuggestion(item, 'home')}
-                disabled={resolvingPlaceId === item.placeId}
+                disabled={resolvingPlaceId !== null}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.suggestionName}>{item.mainText}</Text>
@@ -133,7 +163,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </TouchableOpacity>
             ))}
 
-            {/* Pilot Reference Locality Fallback */}
+            {/* Existing reference-locality suggestions */}
             {homeFilteredSuggestions
               .filter(
                 (loc) =>
@@ -160,7 +190,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </TouchableOpacity>
               ))}
 
-            {!isSearchingHomeGeocode &&
+            {!searchError && homeSearchQuery.trim().length >= 2 && !isSearchingHomeGeocode &&
               homeGeocodingSuggestions.length === 0 &&
               homeFilteredSuggestions.length === 0 && (
                 <Text style={styles.noSuggestionsText}>No matching localities found.</Text>
@@ -170,376 +200,151 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* Selected Location Pill */}
         <View style={styles.selectedLocalityBar}>
-          <View style={styles.locPinDot} />
+          <View style={styles.selectedPin}><Feather accessible={false} name="map-pin" size={17} color={Premium.purple} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedLocalityName}>
-              {activeLocality}{' '}
-              <Text style={styles.selectedLocalityCoords}>
-                ({targetLat.toFixed(4)}, {targetLng.toFixed(4)})
-              </Text>
+              {activeLocality}
             </Text>
             <Text style={styles.selectedLocalityDistrict}>
-              Coimbatore District • {currentUsageObj.label} Zoning
+              {currentUsageObj.label} land · {targetLat.toFixed(4)}, {targetLng.toFixed(4)}
             </Text>
           </View>
+          <Feather accessible={false} name="check-circle" size={16} color={Premium.purple} />
         </View>
 
         {/* Action Buttons Row */}
-        <View style={styles.searchCtaRow}>
+        <View style={[styles.searchCtaRow, stacked && styles.actionsStacked]}>
           {/* Primary CTA */}
-          <TouchableOpacity
+          <PremiumPressable
+            reducedMotion={reducedMotion}
+            containerStyle={stacked ? styles.actionStacked : styles.primaryActionContainer}
             style={styles.primaryFindBtn}
             onPress={() => executeCalculation(targetLat, targetLng, currentUsageObj.id)}
-            activeOpacity={0.85}
           >
-            <Text style={styles.primaryFindBtnText}>Find Land Value</Text>
-          </TouchableOpacity>
+            <Text style={styles.primaryFindBtnText}>Estimate land value</Text>
+          </PremiumPressable>
 
           {/* Secondary Action */}
-          <TouchableOpacity
+          <PremiumPressable
+            reducedMotion={reducedMotion}
+            containerStyle={stacked ? styles.actionStacked : styles.secondaryActionContainer}
             style={styles.secondaryMapBtn}
             onPress={() => setActiveTab('search')}
-            activeOpacity={0.8}
           >
-            <Text style={styles.secondaryMapBtnText}>Choose on map</Text>
-          </TouchableOpacity>
+            <Feather accessible={false} name="map" size={16} color={Premium.violet} /><Text style={styles.secondaryMapBtnText}>Choose on map</Text>
+          </PremiumPressable>
         </View>
       </View>
 
-      {/* Quick Access Shortcuts (Clean, 3-column modern layout) */}
-      <View style={styles.quickAccessRow}>
-        <TouchableOpacity
+      </View>
+      <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Research tools</Text><Text style={styles.sectionCaption}>Choose the information you need</Text></View>
+      {/* Quick Access Shortcuts */}
+      <View style={[styles.quickAccessRow, fontScale > 1.35 && styles.toolsStacked]}>
+        <PremiumPressable
+          reducedMotion={reducedMotion}
+          highlight
+          containerStyle={styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setActiveTab('estimate');
             setEstimateStep('selection');
           }}
-          activeOpacity={0.8}
         >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#F3E8FF' }]}>
-            <Text style={styles.quickIconText}>📊</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+            <FeatureIcon kind="valuation" />
           </View>
           <Text style={styles.quickAccessTitle}>Valuation</Text>
           <Text style={styles.quickAccessSub}>Market Rates</Text>
-        </TouchableOpacity>
+        </PremiumPressable>
 
-        <TouchableOpacity
+        <PremiumPressable
+          reducedMotion={reducedMotion}
+          highlight
+          containerStyle={styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
             setActiveTab('records');
           }}
-          activeOpacity={0.8}
         >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#FEF3C7' }]}>
-            <Text style={styles.quickIconText}>📍</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+            <FeatureIcon kind="nearby" />
           </View>
           <Text style={styles.quickAccessTitle}>Nearby</Text>
           <Text style={styles.quickAccessSub}>Comparables</Text>
-        </TouchableOpacity>
+        </PremiumPressable>
 
-        <TouchableOpacity
+        <PremiumPressable
+          reducedMotion={reducedMotion}
+          highlight
+          containerStyle={styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
             setActiveTab('guideline');
           }}
-          activeOpacity={0.8}
         >
-          <View style={[styles.quickIconCircle, { backgroundColor: '#DBEAFE' }]}>
-            <Text style={styles.quickIconText}>🏛️</Text>
+          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+            <FeatureIcon kind="guideline" />
           </View>
           <Text style={styles.quickAccessTitle}>Guideline</Text>
           <Text style={styles.quickAccessSub}>Statutory</Text>
-        </TouchableOpacity>
+        </PremiumPressable>
       </View>
+      <View style={styles.evidenceNote}>
+        <View style={styles.infoHeading}><Feather accessible={false} name="info" size={17} color={Premium.purple} /><Text style={styles.evidenceNoteTitle}>About the price information</Text></View>
+        <Text style={styles.evidenceNoteBody}>Broker-reviewed ranges, registered-sale estimates and government guideline rates are clearly labelled. Where evidence is limited, we tell you.</Text>
+      </View>
+      </Animated.View>
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollBody: {
-    padding: 16,
-    gap: 16,
-  },
-  homeHeroCard: {
-    backgroundColor: '#240046',
-    borderRadius: 20,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: '#D4AF37',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  heroPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(212, 175, 55, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D4AF37',
-    marginBottom: 10,
-  },
-  heroPillText: {
-    color: '#FDE047',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  homeHeroTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.4,
-    marginBottom: 6,
-  },
-  homeHeroSub: {
-    fontSize: 13,
-    color: '#E9D5FF',
-    lineHeight: 18,
-    maxWidth: 320,
-  },
-  primarySearchCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  searchCardTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1E1B4B',
-    marginBottom: 4,
-  },
-  searchCardSub: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 14,
-  },
-  searchBarBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FAF8FC',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E9D5FF',
-    paddingHorizontal: 12,
-    height: 48,
-    marginBottom: 10,
-  },
-  searchIconRing: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-    position: 'relative',
-  },
-  searchIconCircle: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#240046',
-  },
-  searchIconHandle: {
-    width: 2,
-    height: 6,
-    backgroundColor: '#D4AF37',
-    position: 'absolute',
-    bottom: 2,
-    right: 3,
-    transform: [{ rotate: '-45deg' }],
-  },
-  searchBarInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#1E1B4B',
-    paddingVertical: 8,
-  },
-  suggestionsContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    marginBottom: 12,
-    overflow: 'hidden',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  searchingRow: {
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  searchingText: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  suggestionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#FAF5FF',
-  },
-  suggestionName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E1B4B',
-  },
-  suggestionDistrict: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  suggestionCountBadge: {
-    backgroundColor: '#FEFCE8',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  suggestionCountText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  noSuggestionsText: {
-    padding: 12,
-    fontSize: 12,
-    color: '#94A3B8',
-    textAlign: 'center',
-  },
-  selectedLocalityBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FAF5FF',
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    marginBottom: 14,
-    gap: 10,
-  },
-  locPinDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#D4AF37',
-  },
-  selectedLocalityName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E1B4B',
-  },
-  selectedLocalityCoords: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  selectedLocalityDistrict: {
-    fontSize: 11,
-    color: '#581C87',
-    marginTop: 2,
-  },
-  searchCtaRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  primaryFindBtn: {
-    flex: 1.4,
-    backgroundColor: '#240046',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#D4AF37',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  primaryFindBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  secondaryMapBtn: {
-    flex: 1,
-    backgroundColor: '#FAF5FF',
-    borderRadius: 12,
-    paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  secondaryMapBtnText: {
-    color: '#240046',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  quickAccessRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  quickAccessCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    shadowColor: '#240046',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  quickIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  quickIconText: {
-    fontSize: 18,
-  },
-  quickAccessTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E1B4B',
-    marginBottom: 2,
-  },
-  quickAccessSub: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '500',
-  },
+  scrollBody: { padding: 20, gap: 18, width: '100%', maxWidth: 1120, alignSelf: 'center' },
+  heroSearchLayout: { gap: 18 },
+  heroSearchLayoutWide: { flexDirection: 'row', alignItems: 'stretch', gap: 24 },
+  primarySearchCard: { minWidth: 0, backgroundColor: Premium.surface, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 3 }, shadowOpacity: .045, shadowRadius: 12, elevation: 1 },
+  searchHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 },
+  searchCardTitle: { fontSize: 19, fontWeight: '700', color: Premium.text, flexShrink: 1 },
+  searchCardSub: { fontSize: 13, lineHeight: 20, color: Premium.secondary, marginBottom: 16 },
+  searchBarBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FDFCFE', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, minHeight: 54, marginBottom: 12 },
+  searchFocus: { backgroundColor: Premium.surface, shadowColor: Premium.highlight, shadowOffset: { width: 0, height: 0 }, shadowOpacity: .1, shadowRadius: 4, elevation: 1 },
+  searchBarInput: { flex: 1, minWidth: 0, fontSize: 14, color: Premium.text, paddingVertical: 12 },
+  suggestionsContainer: { backgroundColor: Premium.surface, borderRadius: 12, borderWidth: 1, borderColor: Premium.border, marginBottom: 12, overflow: 'hidden' },
+  searchingRow: { padding: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchingText: { padding: 12, fontSize: 12, lineHeight: 19, color: Premium.secondary },
+  suggestionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: Premium.lavender, gap: 8 },
+  suggestionName: { fontSize: 14, fontWeight: '600', color: Premium.text },
+  suggestionDistrict: { fontSize: 12, lineHeight: 18, color: Premium.secondary, marginTop: 3 },
+  suggestionCountBadge: { backgroundColor: Premium.lightGold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  suggestionCountText: { fontSize: 10, fontWeight: '600', color: Colors.goldText },
+  noSuggestionsText: { padding: 14, fontSize: 12, color: Premium.secondary, textAlign: 'center' },
+  selectedLocalityBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Premium.lavender, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: Premium.border, marginBottom: 16, gap: 10 },
+  selectedPin: { width: 30, height: 34, alignItems: 'center', justifyContent: 'center' },
+  selectedLocalityName: { fontSize: 14, fontWeight: '700', color: Premium.text },
+  selectedLocalityDistrict: { fontSize: 12, lineHeight: 19, color: Premium.secondary, marginTop: 3 },
+  searchCtaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  actionsStacked: { flexDirection: 'column' },
+  primaryActionContainer: { flex: 1, minWidth: 144 },
+  secondaryActionContainer: { flex: 1, minWidth: 150 },
+  actionStacked: { width: '100%' },
+  primaryFindBtn: { minHeight: 50, flexGrow: 1, backgroundColor: Premium.violet, borderRadius: 11, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Premium.violet },
+  primaryFindBtnText: { color: '#FFFFFF', fontSize: 13, lineHeight: 20, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
+  secondaryMapBtn: { minHeight: 50, flexGrow: 1, flexDirection: 'row', gap: 7, backgroundColor: Premium.surface, borderRadius: 11, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DDD0E8' },
+  secondaryMapBtnText: { color: Premium.violet, fontSize: 13, lineHeight: 20, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
+  sectionHeading: { gap: 4, marginTop: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: Premium.text },
+  sectionCaption: { fontSize: 13, lineHeight: 20, color: Premium.secondary },
+  quickAccessRow: { flexDirection: 'row', gap: 10 },
+  toolsStacked: { flexDirection: 'column' },
+  toolContainer: { flex: 1, minWidth: 0 },
+  quickAccessCard: { minHeight: 112, flexGrow: 1, justifyContent: 'center', backgroundColor: Premium.surface, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 2 }, shadowOpacity: .035, shadowRadius: 8, elevation: 1 },
+  quickIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  quickAccessTitle: { fontSize: 13, lineHeight: 19, fontWeight: '700', color: Premium.text, textAlign: 'center', maxWidth: '100%' },
+  quickAccessSub: { fontSize: 11, lineHeight: 17, color: Premium.secondary, textAlign: 'center', maxWidth: '100%' },
+  evidenceNote: { backgroundColor: Premium.lavender, padding: 18, borderWidth: 1, borderColor: Premium.border, borderRadius: 14, borderLeftWidth: 2, borderLeftColor: Premium.gold },
+  infoHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  evidenceNoteTitle: { color: Premium.text, fontSize: 14, lineHeight: 21, fontWeight: '700', flexShrink: 1 },
+  evidenceNoteBody: { color: Premium.secondary, fontSize: 13, lineHeight: 21 },
 });
-

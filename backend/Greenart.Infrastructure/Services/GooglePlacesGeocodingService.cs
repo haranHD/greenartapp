@@ -1,4 +1,6 @@
 using System.Net;
+using System.Globalization;
+using Greenart.Application.Common.Exceptions;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -80,368 +82,124 @@ public class GooglePlacesGeocodingService : IGeocodingService
     public async Task<IReadOnlyList<LocalitySuggestionDto>> SearchLocalitiesAsync(string query, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
-        {
             return Array.Empty<LocalitySuggestionDto>();
-        }
-
-        var normalizedQuery = query.Trim().ToLowerInvariant();
-        var cacheKey = $"locality_search_{normalizedQuery}_{_options.DefaultRegion}";
-
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<LocalitySuggestionDto>? cached) && cached != null)
-        {
-            return cached;
-        }
-
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            _logger.LogWarning("Geocoding API key is not configured. Skipping Google Places search.");
-            return Array.Empty<LocalitySuggestionDto>();
-        }
-
-        try
-        {
-            var requestUri = $"{_options.BaseUrl.TrimEnd('/')}/places:autocomplete";
-            var requestBody = new
+        EnsureConfigured();
+        var cacheKey = $"locality_search_{query.Trim().ToLowerInvariant()}_{_options.DefaultRegion}";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<LocalitySuggestionDto>? cached) && cached != null) return cached;
+        using var request = CreateRequest(HttpMethod.Post, "places:autocomplete");
+        request.Content = JsonContent.Create(new { input = query.Trim(), includedRegionCodes = new[] { _options.DefaultRegion } }, options: JsonOpts);
+        var data = await SendAsync<GoogleAutocompleteResponse>(request, ct);
+        var results = (data!.Suggestions ?? new()).Where(item => !string.IsNullOrWhiteSpace(item.PlacePrediction?.PlaceId))
+            .Select(item =>
             {
-                input = query.Trim(),
-                includedRegionCodes = new[] { _options.DefaultRegion }
-            };
-
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
-            request.Content = JsonContent.Create(requestBody, options: JsonOpts);
-
-            using var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                var statusCode = (int)response.StatusCode;
-                if (statusCode == (int)HttpStatusCode.Forbidden || statusCode == (int)HttpStatusCode.TooManyRequests)
-                {
-                    _logger.LogInformation("Google Places Autocomplete rate-limit/quota restriction (HTTP {StatusCode}).", statusCode);
-                }
-                else
-                {
-                    _logger.LogWarning("Google Places Autocomplete API returned non-success HTTP status {StatusCode}", statusCode);
-                }
-                return Array.Empty<LocalitySuggestionDto>();
-            }
-
-            var content = await response.Content.ReadAsStringAsync(ct);
-            var apiResult = JsonSerializer.Deserialize<GoogleAutocompleteResponse>(content, JsonOpts);
-
-            if (apiResult?.Suggestions == null || apiResult.Suggestions.Count == 0)
-            {
-                return Array.Empty<LocalitySuggestionDto>();
-            }
-
-            var results = new List<LocalitySuggestionDto>();
-            foreach (var suggestion in apiResult.Suggestions)
-            {
-                if (suggestion.PlacePrediction == null || string.IsNullOrWhiteSpace(suggestion.PlacePrediction.PlaceId))
-                {
-                    continue;
-                }
-
-                var pred = suggestion.PlacePrediction;
-                var main = pred.StructuredFormat?.MainText?.Text ?? pred.Text?.Text ?? string.Empty;
-                var secondary = pred.StructuredFormat?.SecondaryText?.Text ?? string.Empty;
-                var full = pred.Text?.Text ?? $"{main}, {secondary}".TrimEnd(',', ' ');
-                var types = pred.Types ?? (IReadOnlyList<string>)Array.Empty<string>();
-
-                results.Add(new LocalitySuggestionDto(pred.PlaceId, main, secondary, full, types));
-            }
-
-            // Cache for 30 minutes
-            _cache.Set(cacheKey, (IReadOnlyList<LocalitySuggestionDto>)results, TimeSpan.FromMinutes(30));
-            return results;
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error calling Google Places Autocomplete API");
-            return Array.Empty<LocalitySuggestionDto>();
-        }
+                var prediction = item.PlacePrediction!;
+                var main = prediction.StructuredFormat?.MainText?.Text ?? prediction.Text?.Text ?? "";
+                var secondary = prediction.StructuredFormat?.SecondaryText?.Text ?? "";
+                return new LocalitySuggestionDto(prediction.PlaceId!, main, secondary,
+                    prediction.Text?.Text ?? $"{main}, {secondary}".TrimEnd(',', ' '), prediction.Types ?? new());
+            }).ToList();
+        _cache.Set(cacheKey, (IReadOnlyList<LocalitySuggestionDto>)results, TimeSpan.FromMinutes(30));
+        return results;
     }
 
     public async Task<LocalityDetailsDto?> GetPlaceDetailsAsync(string placeId, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(placeId))
-        {
-            return null;
-        }
-
-        var trimmedId = placeId.Trim();
-        var cacheKey = $"locality_details_{trimmedId}";
-
-        if (_cache.TryGetValue(cacheKey, out LocalityDetailsDto? cached) && cached != null)
-        {
-            return cached;
-        }
-
-        if (string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            _logger.LogWarning("Geocoding API key is not configured. Skipping Google Places Details call.");
-            return null;
-        }
-
-        try
-        {
-            var requestUri = $"{_options.BaseUrl.TrimEnd('/')}/places/{Uri.EscapeDataString(trimmedId)}";
-            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
-            request.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
-            request.Headers.Add("X-Goog-FieldMask", "id,displayName,formattedAddress,location,addressComponents");
-
-            using var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                var statusCode = (int)response.StatusCode;
-                if (statusCode == (int)HttpStatusCode.Forbidden || statusCode == (int)HttpStatusCode.TooManyRequests)
-                {
-                    _logger.LogInformation("Google Places Details rate-limit/quota restriction (HTTP {StatusCode}) for place {PlaceId}.", statusCode, trimmedId);
-                }
-                else
-                {
-                    _logger.LogWarning("Google Places Details API returned non-success HTTP status {StatusCode} for place {PlaceId}", statusCode, trimmedId);
-                }
-                return null;
-            }
-
-            var content = await response.Content.ReadAsStringAsync(ct);
-            var place = JsonSerializer.Deserialize<GooglePlaceDetailsResponse>(content, JsonOpts);
-
-            if (place?.Location == null)
-            {
-                _logger.LogWarning("Google Place Details did not contain geographic coordinates for place {PlaceId}", trimmedId);
-                return null;
-            }
-
-            var lat = place.Location.Latitude;
-            var lng = place.Location.Longitude;
-
-            // Validate coordinate boundary sanity
-            if (lat < -90 || lat > 90 || lng < -180 || lng > 180)
-            {
-                _logger.LogWarning("Invalid coordinates ({Lat}, {Lng}) returned for place {PlaceId}", lat, lng, trimmedId);
-                return null;
-            }
-
-            var name = place.DisplayName?.Text ?? place.FormattedAddress ?? trimmedId;
-            var formatted = place.FormattedAddress ?? name;
-
-            var locality = string.Empty;
-            var district = string.Empty;
-            var state = string.Empty;
-            var country = string.Empty;
-
-            if (place.AddressComponents != null)
-            {
-                foreach (var comp in place.AddressComponents)
-                {
-                    if (comp.Types == null) continue;
-
-                    if (comp.Types.Contains("locality") || comp.Types.Contains("sublocality"))
-                    {
-                        if (string.IsNullOrEmpty(locality)) locality = comp.LongText ?? comp.ShortText ?? string.Empty;
-                    }
-                    if (comp.Types.Contains("administrative_area_level_3") || comp.Types.Contains("administrative_area_level_2"))
-                    {
-                        if (string.IsNullOrEmpty(district)) district = comp.LongText ?? comp.ShortText ?? string.Empty;
-                    }
-                    if (comp.Types.Contains("administrative_area_level_1"))
-                    {
-                        if (string.IsNullOrEmpty(state)) state = comp.LongText ?? comp.ShortText ?? string.Empty;
-                    }
-                    if (comp.Types.Contains("country"))
-                    {
-                        if (string.IsNullOrEmpty(country)) country = comp.LongText ?? comp.ShortText ?? string.Empty;
-                    }
-                }
-            }
-
-            if (string.IsNullOrEmpty(locality)) locality = name;
-            if (string.IsNullOrEmpty(district)) district = "Coimbatore";
-            if (string.IsNullOrEmpty(state)) state = "Tamil Nadu";
-            if (string.IsNullOrEmpty(country)) country = "India";
-
-            var dto = new LocalityDetailsDto(
-                trimmedId,
-                name,
-                formatted,
-                lat,
-                lng,
-                locality,
-                district,
-                state,
-                country
-            );
-
-            // Cache for 24 hours
-            _cache.Set(cacheKey, dto, TimeSpan.FromHours(24));
-            return dto;
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error calling Google Places Details API for place {PlaceId}", trimmedId);
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(placeId)) return null;
+        EnsureConfigured();
+        var cacheKey = $"locality_details_{placeId.Trim()}";
+        if (_cache.TryGetValue(cacheKey, out LocalityDetailsDto? cached) && cached != null) return cached;
+        using var request = CreateRequest(HttpMethod.Get, $"places/{Uri.EscapeDataString(placeId.Trim())}");
+        request.Headers.Add("X-Goog-FieldMask", "id,displayName,formattedAddress,location,addressComponents");
+        var data = await SendAsync<GooglePlaceDetailsResponse>(request, ct, allowNotFound: true);
+        if (data == null) return null;
+        var details = MapPlace(data, placeId.Trim());
+        _cache.Set(cacheKey, details, TimeSpan.FromHours(24));
+        return details;
     }
 
     public async Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(address))
-        {
-            return null;
-        }
-
+        if (string.IsNullOrWhiteSpace(address)) return null;
         var trimmed = address.Trim();
+        var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$");
+        if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat) &&
+            double.TryParse(match.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var lng) &&
+            lat >= 6 && lat <= 38 && lng >= 68 && lng <= 98)
+            return new LocalityDetailsDto(FormattableString.Invariant($"coord_{lat:F4}_{lng:F4}"),
+                "Custom Pin Location", trimmed, lat, lng, "Custom Pin Location", "", "", "");
+        EnsureConfigured();
         var cacheKey = $"geocode_address_{trimmed.ToLowerInvariant()}_{_options.DefaultRegion}";
+        if (_cache.TryGetValue(cacheKey, out LocalityDetailsDto? cached) && cached != null) return cached;
+        using var request = CreateRequest(HttpMethod.Post, "places:searchText");
+        request.Headers.Add("X-Goog-FieldMask", "places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents");
+        request.Content = JsonContent.Create(new { textQuery = trimmed, regionCode = _options.DefaultRegion }, options: JsonOpts);
+        var data = await SendAsync<GoogleTextSearchResponse>(request, ct);
+        if (data!.Places == null || data.Places.Count == 0) return null;
+        var details = MapPlace(data.Places[0], trimmed);
+        _cache.Set(cacheKey, details, TimeSpan.FromHours(24));
+        return details;
+    }
 
-        if (_cache.TryGetValue(cacheKey, out LocalityDetailsDto? cached) && cached != null)
-        {
-            return cached;
-        }
+    private HttpRequestMessage CreateRequest(HttpMethod method, string endpoint)
+    {
+        var request = new HttpRequestMessage(method, $"{_options.BaseUrl.TrimEnd('/')}/{endpoint}");
+        request.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
+        return request;
+    }
 
-        // 1. Check if user entered raw numeric coordinates: e.g. "11.0012, 77.0874"
-        var coordMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"^(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)$");
-        if (coordMatch.Success &&
-            double.TryParse(coordMatch.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rawLat) &&
-            double.TryParse(coordMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var rawLng))
-        {
-            if (rawLat >= 6.0 && rawLat <= 38.0 && rawLng >= 68.0 && rawLng <= 98.0)
-            {
-                var coordDto = new LocalityDetailsDto(
-                    $"coord_{rawLat:F4}_{rawLng:F4}",
-                    "Custom Pin Location",
-                    trimmed,
-                    rawLat,
-                    rawLng,
-                    "Custom Pin Location",
-                    "Tamil Nadu",
-                    "Tamil Nadu",
-                    "India"
-                );
-                return coordDto;
-            }
-        }
+    private void EnsureConfigured()
+    {
+        if (string.IsNullOrWhiteSpace(_options.ApiKey)) throw new GeocodingException(GeocodingFailure.NotConfigured);
+    }
 
-        // 2. Try Google Places Text Search (New)
-        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
-        {
-            try
-            {
-                var requestUri = $"{_options.BaseUrl.TrimEnd('/')}/places:searchText";
-                var requestBody = new
-                {
-                    textQuery = trimmed,
-                    regionCode = _options.DefaultRegion
-                };
-
-                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-                request.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
-                request.Headers.Add("X-Goog-FieldMask", "places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents");
-                request.Content = JsonContent.Create(requestBody, options: JsonOpts);
-
-                using var response = await _httpClient.SendAsync(request, ct);
-                if (response.IsSuccessStatusCode)
-                {
-                    var content = await response.Content.ReadAsStringAsync(ct);
-                    var textSearchResult = JsonSerializer.Deserialize<GoogleTextSearchResponse>(content, JsonOpts);
-
-                    if (textSearchResult?.Places != null && textSearchResult.Places.Count > 0)
-                    {
-                        var place = textSearchResult.Places[0];
-                        if (place.Location != null)
-                        {
-                            var lat = place.Location.Latitude;
-                            var lng = place.Location.Longitude;
-                            var name = place.DisplayName?.Text ?? place.FormattedAddress ?? trimmed;
-                            var formatted = place.FormattedAddress ?? name;
-
-                            var locality = string.Empty;
-                            var district = string.Empty;
-                            var state = string.Empty;
-                            var country = string.Empty;
-
-                            if (place.AddressComponents != null)
-                            {
-                                foreach (var comp in place.AddressComponents)
-                                {
-                                    if (comp.Types == null) continue;
-                                    if (comp.Types.Contains("locality") || comp.Types.Contains("sublocality"))
-                                    {
-                                        if (string.IsNullOrEmpty(locality)) locality = comp.LongText ?? comp.ShortText ?? string.Empty;
-                                    }
-                                    if (comp.Types.Contains("administrative_area_level_3") || comp.Types.Contains("administrative_area_level_2"))
-                                    {
-                                        if (string.IsNullOrEmpty(district)) district = comp.LongText ?? comp.ShortText ?? string.Empty;
-                                    }
-                                    if (comp.Types.Contains("administrative_area_level_1"))
-                                    {
-                                        if (string.IsNullOrEmpty(state)) state = comp.LongText ?? comp.ShortText ?? string.Empty;
-                                    }
-                                    if (comp.Types.Contains("country"))
-                                    {
-                                        if (string.IsNullOrEmpty(country)) country = comp.LongText ?? comp.ShortText ?? string.Empty;
-                                    }
-                                }
-                            }
-
-                            if (string.IsNullOrEmpty(locality)) locality = name;
-                            if (string.IsNullOrEmpty(district)) district = "Coimbatore";
-                            if (string.IsNullOrEmpty(state)) state = "Tamil Nadu";
-                            if (string.IsNullOrEmpty(country)) country = "India";
-
-                            var dto = new LocalityDetailsDto(
-                                place.Id ?? $"place_{Guid.NewGuid():N}",
-                                name,
-                                formatted,
-                                lat,
-                                lng,
-                                locality,
-                                district,
-                                state,
-                                country
-                            );
-
-                            _cache.Set(cacheKey, dto, TimeSpan.FromHours(24));
-                            return dto;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Google Places Text Search failed for address {Address}", trimmed);
-            }
-        }
-
-        // 3. Fallback: Search Autocomplete to see if any place matches
+    private async Task<T?> SendAsync<T>(HttpRequestMessage request, CancellationToken ct, bool allowNotFound = false) where T : class
+    {
+        ct.ThrowIfCancellationRequested();
         try
         {
-            var suggestions = await SearchLocalitiesAsync(trimmed, ct);
-            if (suggestions.Count > 0 && !string.IsNullOrWhiteSpace(suggestions[0].PlaceId))
+            using var response = await _httpClient.SendAsync(request, ct);
+            if (allowNotFound && response.StatusCode == HttpStatusCode.NotFound) return null;
+            if (!response.IsSuccessStatusCode)
             {
-                var details = await GetPlaceDetailsAsync(suggestions[0].PlaceId, ct);
-                if (details != null)
+                _logger.LogWarning("Location provider returned HTTP {StatusCode}", (int)response.StatusCode);
+                throw new GeocodingException(response.StatusCode switch
                 {
-                    _cache.Set(cacheKey, details, TimeSpan.FromHours(24));
-                    return details;
-                }
+                    HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => GeocodingFailure.PermissionDenied,
+                    HttpStatusCode.TooManyRequests => GeocodingFailure.RateLimited,
+                    _ => GeocodingFailure.Unavailable
+                });
             }
+            return await response.Content.ReadFromJsonAsync<T>(JsonOpts, ct)
+                ?? throw new GeocodingException(GeocodingFailure.InvalidResponse);
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Fallback autocomplete geocoding failed for {Address}", trimmed);
-        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { throw new GeocodingException(GeocodingFailure.Timeout); }
+        catch (HttpRequestException) { throw new GeocodingException(GeocodingFailure.Unavailable); }
+        catch (JsonException) { throw new GeocodingException(GeocodingFailure.InvalidResponse); }
+    }
 
-        return null;
+    private static LocalityDetailsDto MapPlace(GooglePlaceDetailsResponse place, string fallbackName)
+    {
+        var lat = place.Location?.Latitude;
+        var lng = place.Location?.Longitude;
+        if (!lat.HasValue || !lng.HasValue || !double.IsFinite(lat.Value) || !double.IsFinite(lng.Value) ||
+            lat < -90 || lat > 90 || lng < -180 || lng > 180)
+            throw new GeocodingException(GeocodingFailure.InvalidResponse);
+        string Component(params string[] types)
+        {
+            foreach (var type in types)
+            {
+                var part = place.AddressComponents?.FirstOrDefault(c => c.Types?.Contains(type) == true);
+                if (!string.IsNullOrWhiteSpace(part?.LongText ?? part?.ShortText)) return part!.LongText ?? part.ShortText!;
+            }
+            return "";
+        }
+        var name = place.DisplayName?.Text ?? place.FormattedAddress ?? fallbackName;
+        var locality = Component("locality", "sublocality");
+        return new LocalityDetailsDto(place.Id ?? fallbackName, name, place.FormattedAddress ?? name,
+            lat.Value, lng.Value, string.IsNullOrEmpty(locality) ? name : locality,
+            Component("administrative_area_level_2", "administrative_area_level_3"),
+            Component("administrative_area_level_1"), Component("country"));
     }
 
     #region Google API JSON Contract Models
@@ -489,8 +247,8 @@ public class GooglePlacesGeocodingService : IGeocodingService
 
     private sealed class GoogleLocation
     {
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
     }
 
     private sealed class GoogleAddressComponent

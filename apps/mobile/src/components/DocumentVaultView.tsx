@@ -1,3 +1,5 @@
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
 import React, { useState } from 'react';
 import {
   View,
@@ -64,11 +66,11 @@ export const DocumentVaultView: React.FC<DocumentVaultViewProps> = ({
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>ENCRYPTED TITLE VAULT</Text>
+          <Text style={styles.badgeText}>TITLE VAULT</Text>
         </View>
         <Text style={styles.title}>Legal Document Submissions</Text>
         <Text style={styles.subtitle}>
-          Secure repository for Revenue Patta, SRO Registered Deeds, FMB Sketches, and Encumbrance Certificates. Only verified documents qualify for valuation indexing.
+          Review your property document details and their current verification status before relying on them as title evidence.
         </Text>
       </View>
 
@@ -233,7 +235,7 @@ export const DocumentVaultView: React.FC<DocumentVaultViewProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -482,5 +484,8 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#94A3B8',
   },
+}, {
+  container: { flex: undefined, padding: 0, backgroundColor: 'transparent' }, header: { marginBottom: 16 }, badge: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', marginBottom: 6 }, badgeText: ScreenUI.eyebrow, title: { ...ScreenUI.heading, fontSize: 20, lineHeight: 28 }, subtitle: { ...ScreenUI.subtitle, marginTop: 6 },
+  uploadBtn: ScreenUI.primary, uploadBtnText: ScreenUI.primaryText, uploadCard: ScreenUI.card, confirmUploadBtn: ScreenUI.primary, confirmUploadBtnText: ScreenUI.primaryText, docCard: ScreenUI.card, docList: { gap: 14, paddingBottom: 20 },
 });
 

@@ -219,7 +219,7 @@ export const GoogleMapsExplorer = ({
     if (!mapRef.current || !mapRef.current.setView) {
       const map = L.map(containerRef.current).setView([targetLat, targetLng], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap & Greenart Properties',
+        attribution: '&copy; OpenStreetMap',
         maxZoom: 19,
       }).addTo(map);
 

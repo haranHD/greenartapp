@@ -122,11 +122,6 @@ class AuthService {
       return;
     }
 
-    if (savedUser) {
-      this.updateState({ user: savedUser, isAuthenticated: true, isLoading: false });
-      return;
-    }
-
     // Try fetching user profile with active access token
     if (accessToken) {
       try {
@@ -250,33 +245,6 @@ class AuthService {
 
       return data.user;
     } catch (err: any) {
-      if (
-        err?.message?.includes('Cannot reach') ||
-        err?.message?.includes('Network request failed') ||
-        err?.message?.includes('Failed to fetch') ||
-        err?.message?.includes('offline')
-      ) {
-        const localUser: UserProfile = {
-          id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
-          email: cleanEmail,
-          fullName: fullName?.trim() || cleanEmail.split('@')[0],
-          phoneNumber: phoneNumber?.trim() || undefined,
-          role: 'Customer',
-          accountStatus: 'Active',
-          isSellerVerified: false,
-          sellerType: 'IndividualOwner',
-          createdAtUtc: new Date().toISOString(),
-          lastLoginAtUtc: new Date().toISOString(),
-        };
-        tokenStore.setTokens('offline-dev-token.' + Date.now(), 'offline-refresh-token', localUser);
-        this.updateState({
-          user: localUser,
-          isAuthenticated: true,
-          isLoading: false,
-          authError: null,
-        });
-        return localUser;
-      }
       const msg = err?.message || 'Failed to complete registration on the server. Please retry.';
       this.updateState({ isLoading: false, authError: msg });
       throw new Error(msg);
@@ -304,42 +272,6 @@ class AuthService {
 
       return data.user;
     } catch (err: any) {
-      const isRecognizedDemo = (
-        input === 'haricode04@gmail.com' ||
-        input === 'admin@greenartproperties.com' ||
-        input === 'admin@greenart.com' ||
-        input === 'client@greenart.com' ||
-        input === 'demo@greenart.com'
-      ) && password === 'Admin@123';
-
-      if (
-        isRecognizedDemo ||
-        err?.message?.includes('Cannot reach') ||
-        err?.message?.includes('Network request failed') ||
-        err?.message?.includes('Failed to fetch') ||
-        err?.message?.includes('offline')
-      ) {
-        const isAdmin = input === 'haricode04@gmail.com' || input.includes('admin');
-        const user: UserProfile = {
-          id: 'USR-' + Math.floor(1000 + Math.random() * 9000),
-          email: input.includes('@') ? input : `${input}@greenart.com`,
-          fullName: input === 'haricode04@gmail.com' ? 'Hari (Lead Developer & Admin)' : (input.includes('@') ? input.split('@')[0] : input),
-          role: isAdmin ? 'Administrator' : 'Customer',
-          accountStatus: 'Active',
-          isSellerVerified: true,
-          sellerType: isAdmin ? 'Promoter' : 'IndividualOwner',
-          createdAtUtc: new Date().toISOString(),
-          lastLoginAtUtc: new Date().toISOString(),
-        };
-        tokenStore.setTokens('offline-session-token.' + Date.now(), 'offline-refresh-token', user);
-        this.updateState({
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-          authError: null,
-        });
-        return user;
-      }
       const msg = err?.message || 'Invalid credentials or server unreachable.';
       this.updateState({ isLoading: false, authError: msg });
       throw new Error(msg);

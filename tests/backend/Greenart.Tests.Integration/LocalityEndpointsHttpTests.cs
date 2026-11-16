@@ -6,6 +6,8 @@ using Greenart.Application.DTOs;
 using Greenart.Domain.Enums;
 using Greenart.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -74,6 +76,9 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("Database:InitializeOnStartup", "false");
+            builder.UseSetting("JWT_SECRET_KEY", "LocalityEndpointTestOnlySigningKeyWith32Characters!");
             builder.ConfigureServices(services =>
             {
                 var geoDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IGeocodingService));
@@ -82,6 +87,8 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
                     services.Remove(geoDescriptor);
                 }
                 services.AddSingleton<IGeocodingService, FakeGeocodingService>();
+                services.RemoveAll<ILandLensClient>();
+                services.AddSingleton<ILandLensClient, DisabledLandLensClient>();
 
                 var repoDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ILandPriceRepository));
                 if (repoDescriptor != null)

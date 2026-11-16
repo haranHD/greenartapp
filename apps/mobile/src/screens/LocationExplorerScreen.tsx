@@ -1,3 +1,10 @@
+import { PremiumPressable } from '../components/PremiumPressable';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { PremiumChoice } from '../components/PremiumChoice';
+import { Premium as P } from '../theme/premium';
+import { ScreenUI, withScreenStyles } from '../theme/screenUI';
+import { ScreenEntrance } from '../components/ScreenEntrance';
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import {
   View,
@@ -7,7 +14,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  Platform,
 } from 'react-native';
+import { LocalitySearchError } from '../components/LocalitySearchError';
 import { Colors } from '../theme/colors';
 import { NativeInteractiveMap } from '../components/NativeInteractiveMap';
 import {
@@ -24,6 +33,8 @@ export interface LocationExplorerScreenProps {
   searchTabGeocodingSuggestions: LocalitySuggestionDto[];
   searchTabFilteredSuggestions: LocalityReference[];
   resolvingPlaceId: string | null;
+  searchError: string | null;
+  onRetrySearch: () => void;
   handleSelectGeocodingSuggestion: (item: LocalitySuggestionDto, fromTab: 'search') => void;
   handleSelectLocalityRef: (loc: LocalityReference) => void;
   handleSelectCoordinates: (lat: number, lng: number, localityName: string) => void;
@@ -57,6 +68,8 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   searchTabGeocodingSuggestions,
   searchTabFilteredSuggestions,
   resolvingPlaceId,
+  searchError,
+  onRetrySearch,
   handleSelectGeocodingSuggestion,
   handleSelectLocalityRef,
   handleSelectCoordinates,
@@ -81,17 +94,20 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   isLocatingAddress = false,
   addressLocateStatus = null,
 }) => {
+  const { reduced } = useReducedMotion();
+  const [searchFocused, setSearchFocused] = React.useState(false);
   const [isMapExpanded, setIsMapExpanded] = React.useState(false);
   const mapHeight = isMapExpanded ? 540 : 420;
 
   return (
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset, flexGrow: 1 }]}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset, flexGrow: 1 }]}
       showsVerticalScrollIndicator={true}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
+      <ScreenEntrance>
       {/* Screen Title & Subtitle */}
       <View style={styles.screenHeaderBox}>
         <Text style={styles.viewTitle}>Location Explorer</Text>
@@ -102,9 +118,13 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
 
       {/* Locality Search Input */}
       <View style={styles.card}>
-        <View style={styles.searchBarBox}>
+        <View style={[styles.searchBarBox, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 9 }} />
           <TextInput
-            style={styles.searchBarInput}
+            accessibilityLabel="Search property location on map"
+            autoCorrect={false}
+            style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             placeholder="Enter address, locality, or coords..."
             placeholderTextColor="#94A3B8"
             value={searchTabQuery}
@@ -113,7 +133,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             returnKeyType="search"
           />
           {searchTabQuery ? (
-            <TouchableOpacity onPress={() => setSearchTabQuery('')} style={{ padding: 6 }}>
+            <TouchableOpacity onPress={() => setSearchTabQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
               <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '700' }}>✕</Text>
             </TouchableOpacity>
           ) : null}
@@ -126,7 +146,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             {isLocatingAddress ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.locateBtnText}>Move Pin 📍</Text>
+              <Text style={styles.locateBtnText}>Move Pin</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -139,19 +159,10 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
         )}
 
         {/* Use My Current Location Action Button */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: P.border }}>
           <TouchableOpacity
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: '#FAF5FF',
-              paddingHorizontal: 12,
-              paddingVertical: 7,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: '#E9D5FF',
-              gap: 6,
-            }}
+            accessibilityRole="button" accessibilityLabel="Use My Current Location"
+            style={{ ...ScreenUI.secondary, flexDirection: 'row', gap: 8, paddingHorizontal: 12 }}
             onPress={onUseCurrentLocation}
             disabled={isLocating}
             activeOpacity={0.75}
@@ -159,9 +170,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             {isLocating ? (
               <ActivityIndicator size="small" color="#240046" />
             ) : (
-              <View style={{ width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: '#240046', alignItems: 'center', justifyContent: 'center' }}>
-                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D4AF37' }} />
-              </View>
+              <Feather accessible={false} name="crosshair" size={17} color={P.purple} />
             )}
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#240046' }}>
               {isLocating ? 'Acquiring GPS Location...' : 'Use My Current Location'}
@@ -189,6 +198,8 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
 
         {searchTabQuery.trim() !== '' && (
           <View style={styles.suggestionsContainer}>
+            {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
+            {!searchError && searchTabQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
             {/* Direct Address Geocode & Pin Mover Row */}
             <TouchableOpacity
               style={styles.directLocateRow}
@@ -196,7 +207,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
               activeOpacity={0.8}
             >
               <View style={styles.directLocateIconBox}>
-                <Text style={{ fontSize: 13 }}>📍</Text>
+                <Feather name="map-pin" size={16} color="#6D6873" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.directLocateTitle} numberOfLines={1}>
@@ -212,7 +223,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             {isSearchingTabGeocode && searchTabGeocodingSuggestions.length === 0 && (
               <View style={styles.searchingRow}>
                 <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.searchingText}>Searching locations via Google Places...</Text>
+                <Text style={styles.searchingText}>Finding matching locations…</Text>
               </View>
             )}
 
@@ -222,7 +233,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
                 key={item.placeId}
                 style={styles.suggestionRow}
                 onPress={() => handleSelectGeocodingSuggestion(item, 'search')}
-                disabled={resolvingPlaceId === item.placeId}
+                disabled={resolvingPlaceId !== null}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.suggestionName}>{item.mainText}</Text>
@@ -265,7 +276,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
                 </TouchableOpacity>
               ))}
 
-            {!isSearchingTabGeocode &&
+            {!searchError && searchTabQuery.trim().length >= 2 && !isSearchingTabGeocode &&
               searchTabGeocodingSuggestions.length === 0 &&
               searchTabFilteredSuggestions.length === 0 && (
                 <TouchableOpacity
@@ -273,7 +284,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
                   onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
                   activeOpacity={0.8}
                 >
-                  <Text style={{ fontSize: 15 }}>📍</Text>
+                  <Feather name="map-pin" size={17} color="#6D6873" />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fallbackLocateTitle} numberOfLines={1}>
                       Place Pin at "{searchTabQuery}"
@@ -299,21 +310,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
           {localities.map((loc) => {
             const isSelected = activeLocality === loc.name;
             return (
-              <TouchableOpacity
-                key={loc.name}
-                style={[styles.localityChip, isSelected && styles.localityChipActive]}
-                onPress={() => handleSelectLocalityRef(loc)}
-                activeOpacity={0.75}
-              >
-                <Text
-                  style={[
-                    styles.localityChipText,
-                    isSelected && styles.localityChipTextActive,
-                  ]}
-                >
-                  {loc.name} ({loc.recordCount})
-                </Text>
-              </TouchableOpacity>
+              <PremiumChoice key={loc.name} label={`${loc.name} (${loc.recordCount})`} selected={isSelected} onPress={() => handleSelectLocalityRef(loc)} />
             );
           })}
         </ScrollView>
@@ -323,21 +320,20 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
       <View style={[styles.mapCard, isMapExpanded && styles.mapCardExpanded]}>
         <View style={styles.mapCardHeader}>
           <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={styles.mapCardTitle} numberOfLines={1}>{activeLocality}</Text>
-            <Text style={styles.mapCardSubtitle} numberOfLines={1}>
+            <Text style={styles.mapCardTitle} >{activeLocality}</Text>
+            <Text style={styles.mapCardSubtitle}>
               {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 1,000m Buffer
             </Text>
           </View>
 
           <TouchableOpacity
+            accessibilityRole="button" accessibilityState={{ expanded: isMapExpanded }}
             style={[styles.expandIconBtn, isMapExpanded && styles.expandIconBtnActive]}
             onPress={() => setIsMapExpanded(!isMapExpanded)}
             activeOpacity={0.8}
             accessibilityLabel={isMapExpanded ? 'Collapse map' : 'Expand map'}
           >
-            <Text style={[styles.expandIconText, isMapExpanded && styles.expandIconTextActive]}>
-              {isMapExpanded ? '✕' : '⛶'}
-            </Text>
+            <Feather accessible={false} name={isMapExpanded ? 'minimize-2' : 'maximize-2'} size={19} color={isMapExpanded ? '#FFFFFF' : P.violet} />
           </TouchableOpacity>
         </View>
 
@@ -389,29 +385,32 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
         </View>
 
         {/* Primary CTA */}
-        <TouchableOpacity
+        <PremiumPressable reducedMotion={reduced}
           style={styles.primaryFindBtn}
           onPress={() => executeCalculation(targetLat, targetLng, landUsage)}
           disabled={loadingEstimate}
-          activeOpacity={0.85}
         >
           {loadingEstimate ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
             <Text style={styles.primaryFindBtnText}>Find Land Value for this Pin →</Text>
           )}
-        </TouchableOpacity>
+        </PremiumPressable>
       </View>
+      </ScreenEntrance>
     </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = withScreenStyles({
   scrollView: {
     flex: 1,
   },
   scrollBody: {
-    padding: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
     gap: 16,
   },
   screenHeaderBox: {
@@ -431,7 +430,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -624,7 +623,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAF5FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E9D5FF',
   },
@@ -643,7 +642,7 @@ const styles = StyleSheet.create({
   },
   mapCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E9D5FF',
     overflow: 'hidden',
@@ -670,7 +669,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0,
     shadowRadius: 2,
     elevation: 2,
   },
@@ -727,7 +726,7 @@ const styles = StyleSheet.create({
   },
   pinConfirmationCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
+    borderRadius: 8,
     padding: 16,
     borderWidth: 1,
     borderColor: '#FDE68A',
@@ -745,7 +744,7 @@ const styles = StyleSheet.create({
   pinIconWrap: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 8,
     backgroundColor: '#FAF5FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -803,7 +802,7 @@ const styles = StyleSheet.create({
     borderColor: '#D4AF37',
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -813,5 +812,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+}, {
+  scrollView: ScreenUI.canvas, screenHeaderBox: { marginBottom: 0 }, viewTitle: ScreenUI.heading, viewSubtitle: { ...ScreenUI.subtitle, marginTop: 6 }, card: ScreenUI.card,
+  searchBarBox: { minHeight: 54, height: undefined, borderRadius: 12, borderColor: P.border, backgroundColor: '#FDFCFE' }, searchBarInput: { minWidth: 0, fontSize: 14, color: P.text, paddingVertical: 12 }, locateBtn: { minHeight: 44, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, borderColor: P.violet }, locateBtnText: { fontSize: 12, lineHeight: 18 },
+  addressStatusBanner: { backgroundColor: P.lavender, borderColor: P.border, borderRadius: 12, padding: 13 }, addressStatusText: { color: P.violet, fontSize: 12, lineHeight: 19 },
+  localityChip: ScreenUI.chip, localityChipActive: ScreenUI.chipActive, localityChipText: ScreenUI.chipText, localityChipTextActive: ScreenUI.chipTextActive,
+  mapCard: { borderRadius: 20, borderColor: P.border, shadowOpacity: .04 }, mapCardHeader: { padding: 16, borderBottomColor: P.border }, mapCardTitle: { color: P.text, fontSize: 16, lineHeight: 23 }, mapCardSubtitle: { color: P.secondary, fontSize: 12, lineHeight: 19 }, expandIconBtn: { minHeight: 44, width: 44, height: 44, borderRadius: 12, backgroundColor: P.lavender, borderColor: P.border, borderWidth: 1, elevation: 0 }, expandIconBtnActive: { backgroundColor: P.violet, borderColor: P.gold },
+  mapFooterBar: { backgroundColor: P.lavender, flexWrap: 'wrap', gap: 8, padding: 13 }, mapFooterHint: { color: P.secondary }, mapFooterRadius: { color: P.violet },
+  pinConfirmationCard: ScreenUI.card, pinHeaderRow: { flexWrap: 'wrap', gap: 10 }, pinConfirmationTitle: { color: P.text, fontSize: 17, lineHeight: 24 }, pinConfirmationCoords: { color: P.secondary, fontSize: 12, lineHeight: 19 }, primaryFindBtn: ScreenUI.primary, primaryFindBtnText: ScreenUI.primaryText,
 });
 

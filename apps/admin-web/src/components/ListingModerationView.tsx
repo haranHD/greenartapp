@@ -48,23 +48,23 @@ export const ListingModerationView: React.FC<ListingModerationViewProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="operations-view" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header Banner */}
       <div style={{ background: '#FFFFFF', padding: 20, borderRadius: 8, border: '1px solid #E2E8F0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="operations-heading" style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ display: 'inline-block', background: '#ECFDF5', color: '#065F46', padding: '3px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
-              MARKETPLACE GOVERNANCE
+              LISTING REVIEW
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A', margin: 0 }}>
-              Plot Listing Moderation Queue
+              Review property listings
             </h2>
             <p style={{ fontSize: 13, color: '#475569', margin: '4px 0 0 0' }}>
-              Review seller-submitted land listings, verify revenue survey numbers against TN Land Records, and enforce price sanity heuristics.
+              Review the property details, seller information and asking price before publishing a listing.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             <div style={{ textAlign: 'center', background: '#F8FAFC', padding: '8px 16px', borderRadius: 6, border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: '#D97706' }}>
                 {listings.filter((l) => l.status === ListingStatus.PendingReview).length}
@@ -82,14 +82,16 @@ export const ListingModerationView: React.FC<ListingModerationViewProps> = ({
       </div>
 
       {/* Filter Bar */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#FFFFFF', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', background: '#FFFFFF', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
         <input
           type="text"
+          aria-label="Search listing reviews"
           placeholder="Filter by plot title, locality, seller, or survey number..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
-            flex: 1,
+            flex: '1 1 240px',
+            minWidth: 0,
             padding: '8px 12px',
             border: '1px solid #CBD5E1',
             borderRadius: 6,
@@ -98,16 +100,17 @@ export const ListingModerationView: React.FC<ListingModerationViewProps> = ({
           }}
         />
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {['All', ListingStatus.PendingReview, ListingStatus.Active, ListingStatus.Rejected].map((st) => (
             <button
               key={st}
+              aria-pressed={filterStatus === st}
               onClick={() => setFilterStatus(st)}
               style={{
                 padding: '6px 12px',
                 borderRadius: 6,
                 border: filterStatus === st ? '1px solid #065F46' : '1px solid #CBD5E1',
-                background: filterStatus === st ? '#065F46' : '#FFFFFF',
+                background: filterStatus === st ? '#240046' : '#FFFFFF',
                 color: filterStatus === st ? '#FFFFFF' : '#334155',
                 fontSize: 12,
                 fontWeight: 600,
@@ -121,8 +124,8 @@ export const ListingModerationView: React.FC<ListingModerationViewProps> = ({
       </div>
 
       {/* Moderation Table */}
-      <div style={{ background: '#FFFFFF', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
+      <div role="region" aria-label="ListingModeration table" tabIndex={0} style={{ background: '#FFFFFF', borderRadius: 14, border: '1px solid #E2E8F0', overflowX: 'auto' }}>
+        <table style={{ minWidth: 760, width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 12 }}>
           <thead>
             <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', color: '#475569', fontWeight: 700 }}>
               <th style={{ padding: '12px 14px' }}>Listing & Locality</th>

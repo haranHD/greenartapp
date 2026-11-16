@@ -52,7 +52,7 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
           </TouchableOpacity>
           <Text style={styles.barTitle}>Institutional Valuation Report</Text>
           <TouchableOpacity onPress={handlePrintOrDownload} style={styles.printBtn} activeOpacity={0.8}>
-            <Text style={styles.printBtnText}>⬇ Download / Print PDF</Text>
+            <Text style={styles.printBtnText}>Download / Print PDF</Text>
           </TouchableOpacity>
         </View>
 
@@ -62,7 +62,7 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
             {/* Certificate Header */}
             <View style={styles.certHeader}>
               <View>
-                <Text style={styles.certBrand}>GREENART PROPERTIES</Text>
+                <Text style={styles.certBrand}>PROPERTY VALUATION</Text>
                 <Text style={styles.certBrandSub}>Land Market Rate Analyst — Spatial Intelligence Bureau</Text>
               </View>
               <View style={styles.certMetaCol}>
@@ -271,7 +271,7 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
             {/* Certificate Footer */}
             <View style={styles.certFooter}>
               <Text style={styles.certFooterText}>
-                Greenart Properties Private Limited • Chennai & Coimbatore, Tamil Nadu
+                Indicative property valuation · Tamil Nadu
               </Text>
               <Text style={styles.certFooterText}>
                 Confidential Document • For Indicative Valuation & Strategic Underwriting Only

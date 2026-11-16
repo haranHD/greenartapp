@@ -1,386 +1,100 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Colors } from '../theme/colors';
 
-export type MobileTab =
-  | 'home'
-  | 'marketplace'
-  | 'estimate'
-  | 'sell'
-  | 'profile'
-  | 'search'
-  | 'history'
-  | 'records'
-  | 'guideline';
+export type MobileTab = 'home' | 'marketplace' | 'estimate' | 'sell' | 'profile' | 'search' | 'history' | 'records' | 'guideline';
+export interface FloatingBottomNavProps { activeTab: MobileTab; onSelectTab: (tab: MobileTab) => void; bottomInset: number; }
+const palette = { dark: '#160026', primary: Colors.primary, secondary: '#3C096C', active: '#F5C76A', metallic: Colors.gold, muted: '#C6B7D6', border: '#51316B' };
+const BAR_HEIGHT = 72;
+export const getBottomNavClearance = (bottomInset: number) => BAR_HEIGHT + Math.max(bottomInset, 12) + 12;
+const tabs = [
+  { id: 'home', label: 'Home', accessibility: 'Home', icon: 'home' },
+  { id: 'marketplace', label: 'Properties', accessibility: 'Browse properties', icon: 'map' },
+  { id: 'estimate', label: 'Valuation', accessibility: 'Estimate land value', icon: 'bar-chart-2' },
+  { id: 'sell', label: 'Sell', accessibility: 'Sell land', icon: 'plus-square' },
+  { id: 'profile', label: 'Account', accessibility: 'Your profile', icon: 'user' },
+] as const;
+type NavItem = typeof tabs[number];
 
-export interface FloatingBottomNavProps {
-  activeTab: MobileTab;
-  onSelectTab: (tab: MobileTab) => void;
-  bottomInset: number;
-}
-
-// ---------------------------------------------------------------------------
-// Stroke-Based Vector Icons (Zero Emojis, 100% Vector Geometry)
-// ---------------------------------------------------------------------------
-
-const TabIconHome = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#64748B';
-  return (
-    <View style={iconStyles.box}>
-      <View
-        style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 8,
-          borderRightWidth: 8,
-          borderBottomWidth: 7,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderBottomColor: color,
-        }}
-      />
-      <View
-        style={{
-          width: 13,
-          height: 9,
-          borderWidth: 1.6,
-          borderTopWidth: 0,
-          borderColor: color,
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-        }}
-      >
-        <View style={{ width: 4, height: 4, backgroundColor: active ? '#D4AF37' : color }} />
-      </View>
-    </View>
-  );
-};
-
-const TabIconMarketplace = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#64748B';
-  return (
-    <View style={iconStyles.box}>
-      <View
-        style={{
-          width: 16,
-          height: 14,
-          borderRadius: 2,
-          borderWidth: 1.6,
-          borderColor: color,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <View style={{ width: 8, height: 1.6, backgroundColor: active ? '#D4AF37' : color, marginBottom: 2 }} />
-        <View style={{ width: 8, height: 1.6, backgroundColor: color }} />
-      </View>
-    </View>
-  );
-};
-
-const TabIconEstimateCenter = ({ active }: { active: boolean }) => {
-  return (
-    <View style={iconStyles.centerBox}>
-      {/* Outer valuation gauge ring */}
-      <View
-        style={{
-          width: 22,
-          height: 22,
-          borderRadius: 11,
-          borderWidth: 2,
-          borderColor: active ? '#D4AF37' : '#FFFFFF',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-        }}
-      >
-        {/* Needle / Value target */}
-        <View
-          style={{
-            width: 2,
-            height: 8,
-            backgroundColor: active ? '#D4AF37' : '#FDE047',
-            borderRadius: 1,
-            transform: [{ rotate: '-35deg' }],
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            width: 4,
-            height: 4,
-            borderRadius: 2,
-            backgroundColor: '#FFFFFF',
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-const TabIconSell = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#64748B';
-  return (
-    <View style={iconStyles.box}>
-      <View
-        style={{
-          width: 15,
-          height: 15,
-          borderRadius: 3,
-          borderWidth: 1.6,
-          borderColor: color,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View style={{ width: 7, height: 1.6, backgroundColor: color }} />
-        <View
-          style={{
-            position: 'absolute',
-            width: 1.6,
-            height: 7,
-            backgroundColor: active ? '#D4AF37' : color,
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-const TabIconProfile = ({ active }: { active: boolean }) => {
-  const color = active ? '#240046' : '#64748B';
-  return (
-    <View style={iconStyles.box}>
-      <View
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 3.5,
-          borderWidth: 1.6,
-          borderColor: active ? '#D4AF37' : color,
-          marginBottom: 1,
-        }}
-      />
-      <View
-        style={{
-          width: 14,
-          height: 6,
-          borderTopLeftRadius: 5,
-          borderTopRightRadius: 5,
-          borderWidth: 1.6,
-          borderBottomWidth: 0,
-          borderColor: color,
-        }}
-      />
-    </View>
-  );
-};
-
-const iconStyles = StyleSheet.create({
-  box: {
-    width: 24,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  centerBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+// Narrow tonal steps give native and web the same restrained gradient, without a new library.
+const gradientBands = Array.from({ length: 24 }, (_, index) => {
+  const amount = index / 23;
+  return { top: `${index * 100 / 24}%`, height: '4.3%', color: `rgb(${Math.round(22 + 14 * amount)},0,${Math.round(38 + 32 * amount)})` };
 });
 
-// ---------------------------------------------------------------------------
-// Floating Bottom Navigation Component
-// ---------------------------------------------------------------------------
+function NavButton({ tab, active, reducedMotion, onSelect }: { tab: NavItem; active: boolean; reducedMotion: boolean; onSelect: (tab: MobileTab) => void }) {
+  const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const pressScale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    progress.stopAnimation();
+    if (reducedMotion) { progress.setValue(active ? 1 : 0); return; }
+    const animation = Animated.timing(progress, { toValue: active ? 1 : 0, duration: 225, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    animation.start(); return () => animation.stop();
+  }, [active, reducedMotion, progress]);
+  const press = (pressed: boolean) => {
+    pressScale.stopAnimation();
+    if (reducedMotion) { pressScale.setValue(1); return; }
+    Animated.timing(pressScale, { toValue: pressed ? .97 : 1, duration: 100, useNativeDriver: false }).start();
+  };
+  return <TouchableOpacity {...(Platform.OS === 'web' ? { 'aria-current': active ? 'page' : undefined } : {})} accessibilityRole="button" accessibilityLabel={tab.accessibility} accessibilityState={{ selected: active }}
+    onPress={() => onSelect(tab.id)} onPressIn={() => press(true)} onPressOut={() => press(false)} activeOpacity={.9} style={styles.touchTarget}>
+    <Animated.View pointerEvents="none" style={[styles.item, { transform: [{ scale: pressScale }] }]}>
+      <Animated.View style={[styles.activeBackground, { opacity: progress }]} />
+      <Animated.View style={[styles.icon, { transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }] }]}>
+        <Feather accessible={false} name={tab.icon} size={22} color={palette.muted} />
+        <Animated.View style={[styles.iconOverlay, { opacity: progress }]}><Feather accessible={false} name={tab.icon} size={22} color={palette.active} /></Animated.View>
+      </Animated.View>
+      <View style={styles.labelBox}>
+        <Text style={styles.label}>{tab.label}</Text>
+        <Animated.Text style={[styles.activeLabel, { opacity: progress }]}>{tab.label}</Animated.Text>
+      </View>
+    </Animated.View>
+  </TouchableOpacity>;
+}
 
-export const FloatingBottomNav: React.FC<FloatingBottomNavProps> = ({
-  activeTab,
-  onSelectTab,
-  bottomInset,
-}) => {
-  const isEstimateActive = activeTab === 'estimate';
-
-  return (
-    <View
-      style={[
-        styles.navWrapper,
-        {
-          bottom: Math.max(bottomInset, 12) + (Platform.OS === 'ios' ? 0 : 4),
-          pointerEvents: 'box-none' as any,
-        },
-      ]}
-    >
-      <View style={styles.navBar}>
-        {/* 1. Home */}
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => onSelectTab('home')}
-          activeOpacity={0.7}
-        >
-          <TabIconHome active={activeTab === 'home'} />
-          <Text style={[styles.navLabel, activeTab === 'home' && styles.navLabelActive]}>
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        {/* 2. Buy Marketplace */}
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => onSelectTab('marketplace')}
-          activeOpacity={0.7}
-        >
-          <TabIconMarketplace active={activeTab === 'marketplace' || activeTab === 'search'} />
-          <Text
-            style={[
-              styles.navLabel,
-              (activeTab === 'marketplace' || activeTab === 'search') && styles.navLabelActive,
-            ]}
-          >
-            Buy Plots
-          </Text>
-        </TouchableOpacity>
-
-        {/* 3. Center Elevated Action: Valuation Estimate */}
-        <View style={styles.centerItemWrapper}>
-          <TouchableOpacity
-            style={[styles.elevatedBtn, isEstimateActive && styles.elevatedBtnActive]}
-            onPress={() => onSelectTab('estimate')}
-            activeOpacity={0.85}
-          >
-            <TabIconEstimateCenter active={isEstimateActive} />
-          </TouchableOpacity>
-          <Text
-            style={[
-              styles.elevatedBtnLabel,
-              isEstimateActive && styles.elevatedBtnLabelActive,
-            ]}
-          >
-            Valuation
-          </Text>
-        </View>
-
-        {/* 4. Sell Land Flow */}
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => onSelectTab('sell')}
-          activeOpacity={0.7}
-        >
-          <TabIconSell active={activeTab === 'sell'} />
-          <Text style={[styles.navLabel, activeTab === 'sell' && styles.navLabelActive]}>
-            Sell
-          </Text>
-        </TouchableOpacity>
-
-        {/* 5. Profile & Vault */}
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => onSelectTab('profile')}
-          activeOpacity={0.7}
-        >
-          <TabIconProfile active={activeTab === 'profile'} />
-          <Text style={[styles.navLabel, activeTab === 'profile' && styles.navLabelActive]}>
-            Profile
-          </Text>
-        </TouchableOpacity>
+export function FloatingBottomNav({ activeTab, onSelectTab, bottomInset }: FloatingBottomNavProps) {
+  const selected = ['search', 'records', 'guideline'].includes(activeTab) ? 'estimate' : activeTab === 'history' ? 'profile' : activeTab;
+  // Start without motion until the platform's accessibility preference has been read.
+  const [reducedMotion, setReducedMotion] = useState(true);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    let current = true;
+    if (Platform.OS === 'web') {
+      const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const update = () => setReducedMotion(media.matches);
+      update(); media.addEventListener('change', update);
+      return () => media.removeEventListener('change', update);
+    }
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled: boolean) => { if (current) setReducedMotion(enabled); }).catch(() => {});
+    const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { current = false; motion.remove(); show.remove(); hide.remove(); };
+  }, []);
+  if (keyboardVisible) return null;
+  return <View {...(Platform.OS === 'web' ? { role: 'navigation', 'aria-label': 'Main navigation' } : {})} pointerEvents="box-none" style={[styles.wrapper, { bottom: Math.max(bottomInset, 12) }]}>
+    <View style={styles.shadowFrame}>
+      <View style={styles.bar}>
+        <View pointerEvents="none" style={styles.gradient}>{gradientBands.map((band, index) => <View key={index} style={{ position: 'absolute', left: 0, right: 0, top: band.top, height: band.height, backgroundColor: band.color }} />)}</View>
+        <View pointerEvents="none" style={styles.topReflection} />
+        {tabs.map(tab => <NavButton key={tab.id} tab={tab} active={selected === tab.id} reducedMotion={reducedMotion} onSelect={onSelectTab} />)}
       </View>
     </View>
-  );
-};
-
+  </View>;
+}
 const styles = StyleSheet.create({
-  navWrapper: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    alignItems: 'center',
-    zIndex: 999,
-  },
-  navBar: {
-    width: '100%',
-    maxWidth: 440,
-    height: 60,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-    // Subtle luxury ambient shadow
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 6px 14px rgba(36, 0, 70, 0.15)',
-      },
-      default: {
-        shadowColor: '#240046',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 14,
-      },
-    }),
-    elevation: 8,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  navLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 1,
-    letterSpacing: 0.2,
-  },
-  navLabelActive: {
-    color: '#240046',
-    fontWeight: '700',
-  },
-  centerItemWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  elevatedBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#240046',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -22,
-    borderWidth: 3,
-    borderColor: '#D4AF37',
-    ...Platform.select({
-      web: {
-        boxShadow: '0px 4px 8px rgba(36, 0, 70, 0.35)',
-      },
-      default: {
-        shadowColor: '#240046',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
-      },
-    }),
-    elevation: 9,
-  },
-  elevatedBtnActive: {
-    backgroundColor: '#3B0764',
-    borderColor: '#FDE047',
-    shadowOpacity: 0.5,
-  },
-  elevatedBtnLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
-  elevatedBtnLabelActive: {
-    color: '#240046',
-    fontWeight: '700',
-  },
+  wrapper: { position: 'absolute', left: 12, right: 12, alignItems: 'center', zIndex: 100 },
+  shadowFrame: { width: '100%', maxWidth: 640, borderRadius: 22, backgroundColor: palette.dark, shadowColor: '#160026', shadowOffset: { width: 0, height: 5 }, shadowOpacity: .2, shadowRadius: 12, elevation: 8, ...(Platform.OS === 'web' ? { boxShadow: '0 5px 18px rgba(22,0,38,.19)' } : {}) },
+  bar: { height: BAR_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, borderRadius: 22, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
+  gradient: { position: 'absolute', top: 0, left: 0, bottom: 0, right: 0 },
+  topReflection: { position: 'absolute', top: 0, left: 22, right: 22, height: 1, backgroundColor: 'rgba(245,199,106,.12)' },
+  touchTarget: { flex: 1, minWidth: 0, minHeight: 56, marginHorizontal: 2, borderRadius: 15 },
+  item: { minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  activeBackground: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 15, backgroundColor: palette.secondary, borderWidth: 1, borderColor: 'rgba(245,199,106,.15)', shadowColor: palette.metallic, shadowOffset: { width: 0, height: 0 }, shadowOpacity: .12, shadowRadius: 6, ...(Platform.OS === 'web' ? { boxShadow: '0 0 9px rgba(212,175,55,.08), inset 0 1px 0 rgba(245,199,106,.06)' } : {}) },
+  icon: { width: 23, height: 23, alignItems: 'center', justifyContent: 'center' },
+  iconOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  labelBox: { alignItems: 'center', justifyContent: 'center', minHeight: 15, alignSelf: 'stretch' },
+  label: { fontSize: 10, lineHeight: 15, color: palette.muted, fontWeight: '500' },
+  activeLabel: { position: 'absolute', fontSize: 10, lineHeight: 15, color: palette.active, fontWeight: '700' },
 });

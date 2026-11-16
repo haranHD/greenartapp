@@ -1,0 +1,37 @@
+.price-workspace { color: #25213c; max-width: 1280px; margin: auto; }
+.price-banner { padding: 28px; background: #24003f; color: #fff; border-radius: 18px; margin-bottom: 24px; }
+.price-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 1.7px; color: #f4d765; }
+.price-banner h2 { margin: 10px 0; font-size: 28px; }
+.price-banner p { color: #e1d6eb; max-width: 680px; line-height: 1.6; }
+.price-provider-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.price-provider-row span { border: 1px solid #72578a; border-radius: 30px; padding: 6px 12px; font-size: 12px; }
+.price-provider-row .price-ready { background: #e9fff1; color: #18623b; }
+.price-layout { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(360px, 1.4fr); gap: 24px; align-items: start; }
+.price-panel { background: #fff; border: 1px solid #e6e3ed; border-radius: 16px; padding: 24px; min-width: 0; }
+.price-panel h3 { margin: 0 0 12px; }
+.price-panel p { font-size: 13px; line-height: 1.65; color: #5e5a71; }
+.price-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.price-workspace label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; }
+.price-workspace input, .price-workspace select, .price-workspace textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid #d9d5e4; border-radius: 9px; background: #fff; color: #25213c; font: inherit; }
+.price-workspace textarea { min-height: 90px; resize: vertical; }
+.price-workspace :is(input, select, textarea, button):focus-visible { outline: 3px solid #b6a1d2; outline-offset: 2px; }
+.price-form { display: flex; flex-direction: column; gap: 16px; margin-top: 20px; }
+.price-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.price-workspace button { border: 1px solid #d9d5e4; border-radius: 9px; background: #f8f6fc; color: #290444; padding: 10px 14px; font-weight: 700; cursor: pointer; }
+.price-workspace button.price-primary { background: #290444; color: #fff; border-color: #290444; }
+.price-workspace button:disabled { opacity: .5; cursor: default; }
+.price-review { margin-top: 24px; }
+.price-status { display: inline-block; padding: 5px 10px; border-radius: 20px; background: #f0ebf8; font-size: 12px; margin-bottom: 14px; }
+.price-status-approved { background: #e4f7eb; color: #14653b; }
+.price-proposal { border: 1px solid #e4dfed; background: #faf9fd; border-radius: 12px; padding: 16px; margin: 10px 0; }
+.price-proposal > span, .price-proposal > b { display: block; margin-top: 5px; }
+.price-proposal > span, .price-proposal small { font-size: 11px; color: #686177; }
+.price-proposal a { display: block; overflow-wrap: anywhere; font-size: 12px; margin: 8px 0; }
+.price-preserve { white-space: pre-wrap; overflow-wrap: anywhere; }
+.price-review h4 { margin: 24px 0 10px; } .price-review h4 small { display: block; font-size: 11px; color: #877995; margin-top: 4px; }
+.price-error { background: #fff0f0; color: #9d1b1b; border: 1px solid #f2cccc; padding: 16px; border-radius: 12px; margin-bottom: 20px; }
+.price-broker, .price-published { border-top: 1px solid #e4dfed; margin-top: 24px; }
+.price-published > strong { font-size: 22px; color: #236240; }
+.price-note { padding: 12px; background: #fffbec; border-radius: 8px; }
+@media (max-width: 1000px) { .price-layout { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .price-panel, .price-banner { padding: 18px; } .price-fields { grid-template-columns: 1fr; } }

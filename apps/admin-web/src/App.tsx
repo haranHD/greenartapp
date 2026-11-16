@@ -12,6 +12,7 @@ import {
   ProviderSummary,
   HealthCheckResponse,
 } from './services/api';
+import { PriceResearchView } from './components/PriceResearchView';
 import { ListingModerationView } from './components/ListingModerationView';
 import { DocumentReviewQueueView } from './components/DocumentReviewQueueView';
 import { ProviderHealthView } from './components/ProviderHealthView';
@@ -22,9 +23,6 @@ import {
   ListingStatus,
   DocumentSubmission,
   DocumentStatus,
-  SellerType,
-  DocumentType,
-  LandUsageType,
 } from '@greenart/shared-types';
 
 // =========================================================================
@@ -138,6 +136,7 @@ const Icons = {
 type TabView =
   | 'dashboard'
   | 'users'
+  | 'price-research'
   | 'marketplace'
   | 'documents'
   | 'explorer'
@@ -149,154 +148,37 @@ type TabView =
 
 export const App = () => {
   const [activeTab, setActiveTab] = useState<TabView>('dashboard');
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationToggleRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && navigationOpen) { setNavigationOpen(false); navigationToggleRef.current?.focus(); }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [navigationOpen]);
+  useEffect(() => {
+    setNavigationOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    if (window.matchMedia('(max-width: 768px)').matches) document.getElementById('main-content')?.focus({ preventScroll: true });
+  }, [activeTab]);
 
   // Backend Health & Database Connectivity
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
   const [isApiConnected, setIsApiConnected] = useState<boolean>(false);
 
   // Marketplace & Document Moderation State
-  const [adminListings, setAdminListings] = useState<MarketplaceListing[]>([
-    {
-      id: 'LIST-TN-CBE-001',
-      title: 'Gated Residential Plot — Saravanampatti IT Corridor',
-      description: 'Prime North-facing residential plot located 400m from Sathy Main Road. Clear title, DTCP approved.',
-      sellerId: 'USR-SEL-101',
-      sellerName: 'K. Balasubramanian',
-      sellerType: SellerType.IndividualOwner,
-      isSellerVerified: true,
-      state: 'Tamil Nadu',
-      district: 'Coimbatore',
-      taluk: 'Annur',
-      locality: 'Saravanampatti',
-      surveyNumber: '318/2B',
-      coordinates: { latitude: 11.0827, longitude: 77.0016 },
-      landUsage: LandUsageType.Residential,
-      extentCent: 5.5,
-      extentSqFt: 2396,
-      askingPriceTotal: 4950000,
-      askingRatePerCent: 900000,
-      askingRatePerSqFt: 2066,
-      guidelineRatePerCent: 650000,
-      guidelineRatePerSqFt: 1492,
-      status: ListingStatus.Active,
-      images: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800'],
-      documentsAvailable: [
-        { type: DocumentType.PattaChitta, verified: true, documentName: 'Patta_318_2B_verified.pdf' },
-        { type: DocumentType.RegisteredSaleDeed, verified: true, documentName: 'SaleDeed_Doc_4412_2021.pdf' },
-      ],
-      createdAt: '2026-09-15T10:30:00Z',
-      updatedAt: '2026-10-20T14:15:00Z',
-    },
-    {
-      id: 'LIST-TN-TPR-003',
-      title: 'Textile Hub Residential Land — Avinashi Road',
-      description: 'Corner plot with dual road access. Just 12 minutes to Tiruppur Old Bus Stand.',
-      sellerId: 'USR-SEL-103',
-      sellerName: 'M. Senthilkumar',
-      sellerType: SellerType.IndividualOwner,
-      isSellerVerified: false,
-      state: 'Tamil Nadu',
-      district: 'Tiruppur',
-      taluk: 'Avinashi',
-      locality: 'Avinashi',
-      surveyNumber: '219/3',
-      coordinates: { latitude: 11.1925, longitude: 77.2694 },
-      landUsage: LandUsageType.Residential,
-      extentCent: 4.2,
-      extentSqFt: 1829,
-      askingPriceTotal: 2520000,
-      askingRatePerCent: 600000,
-      askingRatePerSqFt: 1378,
-      guidelineRatePerCent: 410000,
-      guidelineRatePerSqFt: 941,
-      status: ListingStatus.PendingReview,
-      images: ['https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800'],
-      documentsAvailable: [
-        { type: DocumentType.PattaChitta, verified: false, documentName: 'Pending_Patta_Copy.pdf' },
-      ],
-      createdAt: '2026-10-24T08:30:00Z',
-      updatedAt: '2026-10-24T08:30:00Z',
-    },
-    {
-      id: 'LIST-TN-ERD-002',
-      title: 'Industrial Commercial Frontage — Perundurai SIPCOT Phase II',
-      description: 'High-connectivity commercial frontage on NH-544 (Salem-Cochin Highway).',
-      sellerId: 'USR-SEL-102',
-      sellerName: 'V. Sundaram & Sons Promoters',
-      sellerType: SellerType.Promoter,
-      isSellerVerified: true,
-      state: 'Tamil Nadu',
-      district: 'Erode',
-      taluk: 'Perundurai',
-      locality: 'Perundurai',
-      surveyNumber: '104/1A',
-      coordinates: { latitude: 11.2783, longitude: 77.5852 },
-      landUsage: LandUsageType.Commercial,
-      extentCent: 24.0,
-      extentSqFt: 10454,
-      askingPriceTotal: 10800000,
-      askingRatePerCent: 450000,
-      askingRatePerSqFt: 1033,
-      guidelineRatePerCent: 320000,
-      guidelineRatePerSqFt: 735,
-      status: ListingStatus.Active,
-      images: ['https://images.unsplash.com/photo-1541888946425-d0fbb186156f?w=800'],
-      documentsAvailable: [
-        { type: DocumentType.PattaChitta, verified: true, documentName: 'Patta_SIPCOT_104.pdf' },
-      ],
-      createdAt: '2026-10-02T08:00:00Z',
-      updatedAt: '2026-10-22T11:45:00Z',
-    },
-  ]);
-
-  const [adminDocuments, setAdminDocuments] = useState<DocumentSubmission[]>([
-    {
-      id: 'DOC-SUB-2026-001',
-      userId: 'USR-SEL-101',
-      uploaderName: 'K. Balasubramanian',
-      fileName: 'Patta_318_2B_Saravanampatti.pdf',
-      fileSizeBytes: 1420800,
-      fileChecksumSha256: '9f83a48e89547d7c95a0921a4fef7d8b5608b9c6f94a7374b5a26c48972e3891',
-      documentType: DocumentType.PattaChitta,
-      status: DocumentStatus.Verified,
-      surveyNumber: '318/2B',
-      locality: 'Saravanampatti',
-      district: 'Coimbatore',
-      extractedMetadata: {
-        pattaNumber: '1492',
-        surveyNumber: '318/2B',
-        ownerName: 'K. Balasubramanian',
-        extentCent: 5.5,
-        subDivision: '2B',
-      },
-      submittedAt: '2026-09-15T09:10:00Z',
-    },
-    {
-      id: 'DOC-SUB-2026-002',
-      userId: 'USR-SEL-103',
-      uploaderName: 'M. Senthilkumar',
-      fileName: 'SaleDeed_Avinashi_PendingReview.pdf',
-      fileSizeBytes: 3180400,
-      fileChecksumSha256: '3a47b1e8d99c438198f2c68e1a7b8e4f509c2d1b8e4a7d6e5c9b8a7f4e3d2c1b',
-      documentType: DocumentType.RegisteredSaleDeed,
-      status: DocumentStatus.Pending,
-      surveyNumber: '219/3',
-      locality: 'Avinashi',
-      district: 'Tiruppur',
-      extractedMetadata: {
-        surveyNumber: '219/3',
-        ownerName: 'M. Senthilkumar',
-        extentCent: 4.2,
-      },
-      submittedAt: '2026-10-24T08:30:00Z',
-    },
-  ]);
+  const [adminListings, setAdminListings] = useState<MarketplaceListing[]>([]);
+  const [adminDocuments, setAdminDocuments] = useState<DocumentSubmission[]>([]);
+  const [loadingListings, setLoadingListings] = useState(false);
+  const [listingsError, setListingsError] = useState<string | null>(null);
+  const [listingRefresh, setListingRefresh] = useState(0);
 
   const handleApproveListing = async (id: string) => {
     try {
-      await api.reviewMarketplaceListing(id, 'Approve', undefined, 'Approved by Administrative Reviewer');
+      const saved = await api.reviewMarketplaceListing(id, 'Approve', undefined, 'Approved by Administrative Reviewer');
       setAdminListings((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Active, isSellerVerified: true } : l))
+        prev.map((l) => (l.id === id ? saved : l))
       );
     } catch (err: any) {
       alert(err?.message || 'Failed to approve listing on server.');
@@ -305,9 +187,9 @@ export const App = () => {
 
   const handleRejectListing = async (id: string, reason: string) => {
     try {
-      await api.reviewMarketplaceListing(id, 'Reject', reason, 'Discrepancy detected during revenue audit');
+      const saved = await api.reviewMarketplaceListing(id, 'Reject', reason, 'Discrepancy detected during revenue audit');
       setAdminListings((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, status: ListingStatus.Rejected, rejectionReason: reason } : l))
+        prev.map((l) => (l.id === id ? saved : l))
       );
     } catch (err: any) {
       alert(err?.message || 'Failed to reject listing on server.');
@@ -426,7 +308,7 @@ export const App = () => {
   const [previewPage, setPreviewPage] = useState<number>(1);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Statewide Coverage & ML Readiness
+  // Coverage & data quality
   const [importHistory, setImportHistory] = useState<ImportBatchRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const [coverageSummary, setCoverageSummary] = useState<StatewideCoverageSummary | null>(null);
@@ -589,7 +471,7 @@ export const App = () => {
     if (!mapInstanceRef.current) {
       mapInstanceRef.current = L.map(mapContainerRef.current).setView([targetLat, targetLng], 15);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors & Greenart Properties',
+        attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19,
       }).addTo(mapInstanceRef.current);
 
@@ -969,21 +851,39 @@ export const App = () => {
     return filteredPreviews.slice(start, start + previewPageSize);
   }, [filteredPreviews, previewPage, previewPageSize]);
 
+  useEffect(() => {
+    if (activeTab !== 'marketplace') return;
+    let cancelled = false;
+    setLoadingListings(true);
+    setListingsError(null);
+    api.getPendingMarketplaceListings()
+      .then((listings) => { if (!cancelled) setAdminListings(listings); })
+      .catch((error) => { if (!cancelled) setListingsError(error.message || 'Could not load the review queue. Please try again.'); })
+      .finally(() => { if (!cancelled) setLoadingListings(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, adminKey, listingRefresh]);
+
   return (
     <div className="workspace-layout">
+      <a className="skip-link" href="#main-content">Skip to workspace</a>
       {/* =========================================================================
           SIDEBAR NAVIGATION
           ========================================================================= */}
-      <aside className="app-sidebar">
+      <aside className="app-sidebar" data-open={navigationOpen}>
         <div className="sidebar-brand-card">
           <div className="logo-container">
-            <img src="/logo.png" alt="Greenart Properties Logo" className="brand-logo-img" />
+            <span className="neutral-workspace-title">Property insights</span>
           </div>
+          <p className="sidebar-caption">Operations workspace</p>
+          <button ref={navigationToggleRef} className="admin-menu-toggle" type="button" aria-expanded={navigationOpen} aria-controls="admin-navigation" onClick={() => setNavigationOpen(value => !value)}><span aria-hidden="true">{navigationOpen ? '×' : '☰'}</span>{navigationOpen ? 'Close menu' : 'Menu'}</button>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav id="admin-navigation" className="sidebar-nav" aria-label="Administration" onClick={(event) => { if ((event.target as HTMLElement).closest('button')) setNavigationOpen(false); }}>
+          <span className="nav-section-label">Workspace</span>
+          <button className={`nav-item ${activeTab === 'price-research' ? 'active' : ''}`} aria-current={activeTab === 'price-research' ? 'page' : undefined} onClick={() => setActiveTab('price-research')}><span className="nav-icon"><Icons.Marketplace /></span><span>Price Research</span></button>
           <button
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+            aria-current={activeTab === 'dashboard' ? 'page' : undefined}
             onClick={() => setActiveTab('dashboard')}
           >
             <span className="nav-icon"><Icons.Dashboard /></span>
@@ -992,6 +892,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'marketplace' ? 'active' : ''}`}
+            aria-current={activeTab === 'marketplace' ? 'page' : undefined}
             onClick={() => setActiveTab('marketplace')}
           >
             <span className="nav-icon"><Icons.Marketplace /></span>
@@ -1003,6 +904,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'documents' ? 'active' : ''}`}
+            aria-current={activeTab === 'documents' ? 'page' : undefined}
             onClick={() => setActiveTab('documents')}
           >
             <span className="nav-icon"><Icons.Document /></span>
@@ -1014,6 +916,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
+            aria-current={activeTab === 'users' ? 'page' : undefined}
             onClick={() => setActiveTab('users')}
           >
             <span className="nav-icon"><Icons.Users /></span>
@@ -1024,6 +927,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'explorer' ? 'active' : ''}`}
+            aria-current={activeTab === 'explorer' ? 'page' : undefined}
             onClick={() => setActiveTab('explorer')}
           >
             <span className="nav-icon"><Icons.Map /></span>
@@ -1032,6 +936,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'records' ? 'active' : ''}`}
+            aria-current={activeTab === 'records' ? 'page' : undefined}
             onClick={() => setActiveTab('records')}
           >
             <span className="nav-icon"><Icons.Records /></span>
@@ -1041,6 +946,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'import' ? 'active' : ''}`}
+            aria-current={activeTab === 'import' ? 'page' : undefined}
             onClick={() => setActiveTab('import')}
           >
             <span className="nav-icon"><Icons.Upload /></span>
@@ -1051,6 +957,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'statewide' ? 'active' : ''}`}
+            aria-current={activeTab === 'statewide' ? 'page' : undefined}
             onClick={() => setActiveTab('statewide')}
           >
             <span className="nav-icon"><Icons.Globe /></span>
@@ -1059,6 +966,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'providers' ? 'active' : ''}`}
+            aria-current={activeTab === 'providers' ? 'page' : undefined}
             onClick={() => setActiveTab('providers')}
           >
             <span className="nav-icon"><Icons.Providers /></span>
@@ -1067,6 +975,7 @@ export const App = () => {
 
           <button
             className={`nav-item ${activeTab === 'methodology' ? 'active' : ''}`}
+            aria-current={activeTab === 'methodology' ? 'page' : undefined}
             onClick={() => setActiveTab('methodology')}
           >
             <span className="nav-icon"><Icons.Book /></span>
@@ -1089,17 +998,19 @@ export const App = () => {
         {/* Top App Bar */}
         <header className="app-topbar">
           <div className="topbar-left">
+            <span className="workspace-eyebrow">ADMINISTRATION</span>
             <span className="page-title">
-              {activeTab === 'dashboard' && 'Dashboard Overview & Executive KPI'}
-              {activeTab === 'users' && 'Application User Accounts Directory'}
-              {activeTab === 'marketplace' && 'Marketplace Listing Moderation Queue'}
-              {activeTab === 'documents' && 'Legal & Title Document Review Queue'}
-              {activeTab === 'explorer' && 'Land Price Explorer (Spatial PostGIS)'}
+              {activeTab === 'dashboard' && 'Overview'}
+              {activeTab === 'users' && 'User accounts'}
+              {activeTab === 'price-research' && 'Price research & broker review'}
+              {activeTab === 'marketplace' && 'Listing moderation'}
+              {activeTab === 'documents' && 'Document review'}
+              {activeTab === 'explorer' && 'Land price explorer'}
               {activeTab === 'records' && 'Land Records Registry'}
-              {activeTab === 'import' && 'Batch CSV Import & Ingestion'}
-              {activeTab === 'statewide' && 'Statewide Coverage & ML Readiness'}
-              {activeTab === 'providers' && 'Multi-Provider Health & Latency Monitor'}
-              {activeTab === 'methodology' && 'Valuation Methodology & Rules Sandbox'}
+              {activeTab === 'import' && 'Import records'}
+              {activeTab === 'statewide' && 'Coverage & data quality'}
+              {activeTab === 'providers' && 'Provider status'}
+              {activeTab === 'methodology' && 'Valuation methodology'}
             </span>
           </div>
 
@@ -1109,7 +1020,9 @@ export const App = () => {
               <input
                 type="text"
                 className="topbar-search-input"
-                placeholder="Search location or survey..."
+                placeholder="Search land records…"
+                aria-label="Search land records"
+                onKeyDown={(event) => { if (event.key === 'Enter') setActiveTab('records'); }}
                 value={filterSearch}
                 onChange={(e) => setFilterSearch(e.target.value)}
               />
@@ -1140,10 +1053,10 @@ export const App = () => {
             </button>
 
             <div className="user-profile-badge">
-              <div className="user-avatar">GA</div>
+              <div className="user-avatar">A</div>
               <div className="user-info">
-                <span className="user-name">Greenart Analyst</span>
-                <span className="user-role">Administrator</span>
+                <span className="user-name">Administration</span>
+                <span className="user-role">{adminKey ? 'Access key configured' : 'Access key required'}</span>
               </div>
             </div>
           </div>
@@ -1152,9 +1065,10 @@ export const App = () => {
         {/* Global Notifications */}
         {notification && (
           <div className="content-body" style={{ paddingBottom: 0 }}>
-            <div className="flash-banner flash-success">
+            <div className="flash-banner flash-success" role="status">
               <span>{notification}</span>
               <button
+                aria-label="Dismiss notification"
                 onClick={() => setNotification(null)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#166534' }}
               >
@@ -1164,12 +1078,18 @@ export const App = () => {
           </div>
         )}
 
-        <main className="content-body">
+        <main className="content-body" id="main-content" tabIndex={-1}>
           {/* =====================================================================
               VIEW 1: EXECUTIVE DASHBOARD
               ===================================================================== */}
           {activeTab === 'dashboard' && (
             <div>
+              <div className="workspace-intro">
+                <div className="workspace-eyebrow">YOUR DATA AT A GLANCE</div>
+                <h1>Property intelligence, in perspective.</h1>
+                <p className="workspace-description">Review your land records, monitor verification, and keep the evidence behind every estimate up to date.</p>
+                <div className="dashboard-actions"><button className="btn btn-primary" onClick={() => setActiveTab('price-research')}>Start price research <span aria-hidden="true">↗</span></button><button className="btn btn-secondary" onClick={() => setActiveTab('marketplace')}>Review listings</button><button className="btn btn-secondary" onClick={() => setActiveTab('records')}>Manage records</button></div>
+              </div>
               {/* Restrained KPI Grid */}
               <div className="kpi-grid">
                 <div className="kpi-card">
@@ -1206,15 +1126,15 @@ export const App = () => {
                   <div className="kpi-header">
                     <span className="kpi-title">Active Districts</span>
                   </div>
-                  <div className="kpi-value">{coverageSummary ? `${coverageSummary.activeDistrictsCount} / 38` : '1 / 38'}</div>
+                  <div className="kpi-value">{`${coverageSummary?.activeDistrictsCount ?? new Set(records.map(record => record.district)).size} / 38`}</div>
                   <div className="kpi-footer">
-                    <span>Coimbatore pilot hub active</span>
+                    <span>Districts represented in your records</span>
                   </div>
                 </div>
               </div>
 
               {/* Distribution Analytics Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '1.25rem', marginBottom: '1.25rem' }}>
                 {/* Source Category Breakdown */}
                 <div className="panel-card">
                   <div className="panel-card-header">
@@ -1323,14 +1243,15 @@ export const App = () => {
                 <div className="panel-card-header">
                   <div>
                     <h3>Pilot Localities</h3>
-                    <div className="panel-card-subtitle">Verified reference locations in Coimbatore corridor</div>
+                    <div className="panel-card-subtitle">Locations represented in your land records</div>
                   </div>
                   <button className="btn btn-sm btn-primary" onClick={() => setActiveTab('explorer')}>
                     Open Explorer
                   </button>
                 </div>
                 <div className="panel-card-body">
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '0.85rem' }}>
+                    {localities.length === 0 && <p className="workspace-description">No reference locations are available yet. Import land records to populate this view.</p>}
                     {localities.map((loc) => (
                       <div
                         key={loc.name}
@@ -1431,7 +1352,7 @@ export const App = () => {
                   </span>
                 </div>
                 <div className="panel-card-body">
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.85rem' }}>
                     <div style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
                       <div style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>POSTGIS VERSION</div>
                       <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>{health?.database?.postgisVersion || 'PostGIS 3.4'}</div>
@@ -1462,12 +1383,18 @@ export const App = () => {
           {/* =====================================================================
               VIEW: MARKETPLACE LISTING MODERATION
               ===================================================================== */}
+          {activeTab === 'price-research' && <PriceResearchView adminKey={adminKey} />}
+
           {activeTab === 'marketplace' && (
-            <ListingModerationView
-              listings={adminListings}
-              onApproveListing={handleApproveListing}
-              onRejectListing={handleRejectListing}
-            />
+            <div>
+              {loadingListings && <p role="status" className="workspace-description">Loading the listing review queue…</p>}
+              {listingsError && <div className="flash-banner flash-error" role="alert"><span>{listingsError}</span><button className="btn btn-sm" onClick={() => setListingRefresh(value => value + 1)}>Try again</button></div>}
+              <ListingModerationView
+                listings={adminListings}
+                onApproveListing={handleApproveListing}
+                onRejectListing={handleRejectListing}
+              />
+            </div>
           )}
 
           {/* =====================================================================
@@ -1617,6 +1544,7 @@ export const App = () => {
                 </div>
               </div>
 
+              {estimate?.guidelineLookupMessage && <div className="flash-banner" role="status" style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', marginBottom: 16 }}>{estimate.guidelineLookupMessage}</div>}
               {/* 2-Column Explorer Cockpit */}
               <div className="explorer-grid">
                 {/* Left Column: Interactive GIS Leaflet Map */}
@@ -2123,7 +2051,7 @@ export const App = () => {
                       <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '0.5rem' }}>
                         Canonical CSV Header Requirements & Formatting:
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
                         <div>
                           <div style={{ color: '#166534', fontWeight: 600, marginBottom: '0.25rem' }}>
                             ✓ Required Columns (9):
@@ -2564,7 +2492,7 @@ export const App = () => {
               <div className="kpi-grid">
                 <div className="kpi-card">
                   <span className="kpi-title">Active Districts</span>
-                  <div className="kpi-value">{coverageSummary ? `${coverageSummary.activeDistrictsCount} / 38` : '1 / 38'}</div>
+                  <div className="kpi-value">{`${coverageSummary?.activeDistrictsCount ?? new Set(records.map(record => record.district)).size} / 38`}</div>
                   <div className="kpi-footer">Tamil Nadu revenue districts</div>
                 </div>
 
@@ -2702,7 +2630,7 @@ export const App = () => {
                   </div>
                 </div>
                 <div className="panel-card-body">
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1rem' }}>
                     {providers.map((p) => (
                       <div
                         key={p.providerId}
@@ -2761,7 +2689,7 @@ export const App = () => {
                 </div>
               </div>
               <div className="panel-card-body">
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
                   <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                     <h4 style={{ color: '#0f172a', marginBottom: '0.35rem', fontSize: '0.9rem' }}>1. Target Location Independence</h4>
                     <p style={{ fontSize: '0.8125rem', color: '#475569', lineHeight: 1.5 }}>
@@ -3030,7 +2958,7 @@ export const App = () => {
                   onChange={(e) => setImportConfirmAcknowledged(e.target.checked)}
                 />
                 <span>
-                  I have inspected the previewed records and confirm committing these records to the Greenart production database.
+                  I have inspected the previewed records and confirm committing these records to the production database.
                 </span>
               </label>
             </div>

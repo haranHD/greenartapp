@@ -39,6 +39,14 @@ declare module 'react/jsx-runtime' {
 }
 
 declare module 'react-native' {
+  export const AccessibilityInfo: {
+    isReduceMotionEnabled(): Promise<boolean>;
+    addEventListener(event: 'reduceMotionChanged', listener: (enabled: boolean) => void): { remove(): void };
+  };
+  export const Keyboard: {
+    addListener(event: string, listener: () => void): { remove(): void };
+  };
+  export function useWindowDimensions(): { width: number; height: number; scale: number; fontScale: number };
   export const StyleSheet: {
     create<T extends Record<string, any>>(styles: T): T;
     absoluteFillObject?: any;

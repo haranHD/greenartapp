@@ -4,7 +4,7 @@ namespace Greenart.Domain.Entities;
 
 /// <summary>
 /// Domain entity representing an authenticated user account.
-/// Identity is federated via Google OAuth (GoogleSubjectId); passwords are never stored.
+/// Supports Google OAuth and email verification with salted password hashes.
 /// New users strictly default to Customer role, Active account status, and unverified seller status.
 /// </summary>
 public class User
@@ -22,7 +22,7 @@ public class User
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime? LastLoginAtUtc { get; private set; }
 
-    // First-time OTP & Password Authentication
+    // Email challenge state: OTP hash, or a registration:-prefixed single-use setup-token hash.
     public string? PasswordHash { get; private set; }
     public string? PasswordSalt { get; private set; }
     public string? OtpHash { get; private set; }

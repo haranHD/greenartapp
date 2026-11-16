@@ -1,140 +1,27 @@
 import React from 'react';
-import { View, Image, Text, TouchableOpacity, StyleSheet } from 'react-native';
-
-export interface AppHeaderProps {
-  isHealthy: boolean;
-  healthStatus?: string;
-  onPressProfile?: () => void;
-  user?: { fullName?: string; email?: string } | null;
-}
-
-export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, onPressProfile, user = null }) => {
-  const avatarInitials = user?.fullName
-    ? user.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2).toUpperCase()
-    : 'GA';
-
-  const badgeText = isHealthy
-    ? 'Live Data'
-    : healthStatus === 'Degraded'
-      ? 'Pilot Mode'
-      : 'Connecting';
-
-  const isOnlineOrPilot = isHealthy || healthStatus === 'Degraded';
-
-  return (
-    <View style={styles.header}>
-      {/* Client Logo */}
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('../../assets/logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </View>
-
-      {/* Right Controls: Live status & Profile Avatar */}
-      <View style={styles.rightGroup}>
-        <View style={[styles.statusBadge, isHealthy ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-          <View style={[styles.statusDot, isHealthy ? styles.statusDotGreen : (healthStatus === 'Degraded' ? styles.statusDotAmber : styles.statusDotAmber)]} />
-          <Text style={[styles.statusText, isHealthy ? styles.statusTextGreen : styles.statusTextAmber]}>
-            {badgeText}
-          </Text>
-        </View>
-
-        {onPressProfile && (
-          <TouchableOpacity
-            style={[styles.profileAvatar, user ? { borderColor: '#D4AF37', backgroundColor: '#240046' } : null]}
-            onPress={onPressProfile}
-            activeOpacity={0.75}
-            accessibilityLabel="View Analyst Profile"
-          >
-            <Text style={styles.profileAvatarText}>{avatarInitials}</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
+import { Premium } from '../theme/premium';
+export interface AppHeaderProps { isHealthy: boolean; healthStatus?: string; onPressProfile?: () => void; user?: { fullName?: string; email?: string } | null; }
+export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, onPressProfile }) => {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width < 360 || fontScale > 1.25;
+  const status = isHealthy ? 'Service online' : healthStatus === 'Degraded' ? 'Limited service' : healthStatus ? 'Service unavailable' : 'Connecting';
+  return <View style={styles.header}><View style={styles.inner}>
+    <Text style={styles.title}>Property insights</Text>
+    <View style={styles.controls}>
+      <View accessibilityLabel={status} style={styles.status}><View style={[styles.dot, { backgroundColor: isHealthy ? '#34805A' : '#94733A' }]} />{!compact && <Text style={styles.statusText}>{status}</Text>}</View>
+      {onPressProfile && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open your profile" onPress={onPressProfile} accessibilityHint="View your account and settings" style={styles.account}><Feather accessible={false} name="user" size={21} color={Premium.violet} /></TouchableOpacity>}
     </View>
-  );
+  </View></View>;
 };
-
 const styles = StyleSheet.create({
-  header: {
-    height: 52,
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3E8FF',
-    zIndex: 10,
-  },
-  logoContainer: {
-    justifyContent: 'center',
-  },
-  logo: {
-    width: 125,
-    height: 32,
-  },
-  rightGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 12,
-  },
-  statusBadgeOnline: {
-    backgroundColor: '#FEFCE8',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  statusBadgeOffline: {
-    backgroundColor: '#FAF5FF',
-    borderWidth: 1,
-    borderColor: '#E9D5FF',
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-  statusDotGreen: {
-    backgroundColor: '#D4AF37',
-  },
-  statusDotAmber: {
-    backgroundColor: '#8B5CF6',
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  statusTextGreen: {
-    color: '#92400E',
-  },
-  statusTextAmber: {
-    color: '#581C87',
-  },
-  profileAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#240046',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-  },
-  profileAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  header: { backgroundColor: '#FFFFFF', minHeight: 70, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 8, justifyContent: 'center' },
+  inner: { width: '100%', maxWidth: 1080, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  title: { fontSize: 18, lineHeight: 25, fontWeight: '600', letterSpacing: -.4, color: Premium.text, flexShrink: 1 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, color: Premium.secondary },
+  account: { width: 44, height: 44, backgroundColor: Premium.lavender, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 });
-

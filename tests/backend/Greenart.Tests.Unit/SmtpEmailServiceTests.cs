@@ -76,6 +76,93 @@ public class SmtpEmailServiceTests
         Assert.False(result);
     }
 
+
+    [Fact]
+    public async Task Resend_UsesConfiguredDomainSender_InsteadOfSilentlyUsingTestDomain()
+    {
+        string? sender = null;
+        var handler = new CapturingEmailHandler(request =>
+        {
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var json = System.Text.Json.JsonDocument.Parse(body);
+            sender = json.RootElement.GetProperty("from").GetString();
+            return new(System.Net.HttpStatusCode.OK) { Content = new StringContent("{\"id\":\"test-email\"}") };
+        });
+        var service = CreateResendService("otp@example.com", handler);
+        Assert.True(await service.SendOtpEmailAsync("buyer@example.net", "Buyer", "654321"));
+        Assert.Contains("otp@example.com", sender);
+        Assert.DoesNotContain("resend.dev", sender);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Resend_GmailSenderFailsClearly_WithoutSendingOrSubstitutingOnboarding()
+    {
+        var handler = new CapturingEmailHandler(_ => new(System.Net.HttpStatusCode.OK));
+        var service = CreateResendService("business@gmail.com", handler);
+        Assert.False(await service.SendOtpEmailAsync("buyer@example.net", "Buyer", "654321"));
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Resend_TestDomainIsOnlyUsedWhenExplicitlyConfigured()
+    {
+        var handler = new CapturingEmailHandler(request =>
+        {
+            Assert.Contains("onboarding@resend.dev", request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            return new(System.Net.HttpStatusCode.OK);
+        });
+        Assert.True(await CreateResendService("onboarding@resend.dev", handler)
+            .SendOtpEmailAsync("account-owner@example.net", "Owner", "654321"));
+    }
+
+    [Fact]
+    public async Task Resend_ProviderRejectionIsNotReportedAsSuccessfulDispatch()
+    {
+        var handler = new CapturingEmailHandler(_ => new(System.Net.HttpStatusCode.Forbidden));
+        Assert.False(await CreateResendService("otp@example.com", handler)
+            .SendOtpEmailAsync("buyer@example.net", "Buyer", "654321"));
+    }
+
+
+    [Fact]
+    public void ExplicitSmtpSelection_IsNotOverriddenByAnExistingResendKey()
+    {
+        var service = new SmtpEmailService(new TestConfiguration(new Dictionary<string, string?>
+        {
+            ["EMAIL_PROVIDER"] = "SMTP",
+            ["EmailSettings:ResendApiKey"] = "test-key",
+            ["EmailSettings:Username"] = "sender@gmail.com",
+            ["EmailSettings:Password"] = "test-app-password",
+            ["EmailSettings:FromEmail"] = "sender@gmail.com"
+        }), NullLogger<SmtpEmailService>.Instance);
+        Assert.Equal("Smtp", service.Provider);
+        Assert.True(service.IsConfigured);
+    }
+
+    [Fact]
+    public void InvalidExplicitProvider_DoesNotSilentlyFallBack()
+    {
+        var service = new SmtpEmailService(new TestConfiguration(new Dictionary<string, string?>
+        { ["EMAIL_PROVIDER"] = "Typo", ["EmailSettings:ResendApiKey"] = "test-key" }), NullLogger<SmtpEmailService>.Instance);
+        Assert.Equal("Invalid", service.Provider);
+        Assert.False(service.IsConfigured);
+    }
+
+    private static SmtpEmailService CreateResendService(string sender, CapturingEmailHandler handler) =>
+        new(new TestConfiguration(new Dictionary<string, string?>
+        {
+            ["EmailSettings:ResendApiKey"] = "test-only-resend-key",
+            ["EmailSettings:ResendFromEmail"] = sender
+        }), NullLogger<SmtpEmailService>.Instance, new HttpClient(handler));
+
+    private sealed class CapturingEmailHandler(Func<HttpRequestMessage, HttpResponseMessage> response) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        { Calls++; return Task.FromResult(response(request)); }
+    }
+
     private sealed class TestConfiguration : IConfiguration
     {
         private readonly IDictionary<string, string?> _data;

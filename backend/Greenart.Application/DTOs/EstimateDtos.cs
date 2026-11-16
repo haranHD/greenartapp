@@ -82,7 +82,9 @@ public record EstimateSuccessResponse(
     TotalValuationDto? TotalValuation = null,
     string? CalculationExplanation = null,
     ValuationFactorBreakdownDto? FactorBreakdown = null,
-    string SectionLabel = "Completed Transaction Evidence"
+    string SectionLabel = "Completed Transaction Evidence",
+    string? GuidelineLookupStatus = null,
+    string? GuidelineLookupMessage = null
 );
 
 public record EstimateInsufficientDataResponse(
@@ -97,5 +99,7 @@ public record EstimateInsufficientDataResponse(
     AskingPriceReferenceDto? AskingPriceReference = null,
     decimal? TotalGuidelineValuation = null,
     ValuationFactorBreakdownDto? FactorBreakdown = null,
-    string SectionLabel = "Completed Transaction Evidence"
+    string SectionLabel = "Completed Transaction Evidence",
+    string? GuidelineLookupStatus = null,
+    string? GuidelineLookupMessage = null
 );

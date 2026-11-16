@@ -1,15 +1,12 @@
 {
   "expo": {
-    "name": "Greenart Properties",
+    "name": "Property insights",
     "slug": "greenart-properties",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0E0B1F"
+      "backgroundColor": "#F6F7FB"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -19,15 +16,6 @@
       "bundleIdentifier": "group.greenart.mobile"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0E0B1F"
-      },
-      "splash": {
-        "image": "./assets/splash.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#0E0B1F"
-      },
       "package": "group.greenart.mobile",
       "config": {
         "googleMaps": {
@@ -35,9 +23,7 @@
         }
       }
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "web": {},
     "plugins": [
       "./plugins/withMonorepoPaths"
     ],

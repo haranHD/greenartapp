@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
-  Image,
   Modal,
 } from 'react-native';
 import { Colors } from '../theme/colors';
@@ -29,7 +28,6 @@ let persistentFullName = '';
 let persistentEmail = '';
 let persistentPhone = '';
 let persistentOtpCode = '';
-let persistentDevOtpHint: string | null = null;
 let persistentTempToken = '';
 
 export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
@@ -79,12 +77,6 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
     setOtpCodeState(val);
   };
 
-  const [devOtpHint, setDevOtpHintState] = useState<string | null>(persistentDevOtpHint);
-  const setDevOtpHint = (val: string | null) => {
-    persistentDevOtpHint = val;
-    setDevOtpHintState(val);
-  };
-
   const [tempVerificationToken, setTempVerificationTokenState] = useState(persistentTempToken);
   const setTempVerificationToken = (val: string) => {
     persistentTempToken = val;
@@ -97,6 +89,13 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
 
   // Status & Feedback
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [resendSeconds, setResendSeconds] = useState(0);
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = setTimeout(() => setResendSeconds((seconds) => seconds - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendSeconds]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -185,22 +184,14 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
     setErrorMessage(null);
     setSuccessMessage(null);
     try {
-      const res = await authService.requestOtp(regEmail.trim(), regFullName.trim(), regPhone.trim() || undefined);
-      if (res.devOtpHint) {
-        setDevOtpHint(res.devOtpHint);
-      }
+      await authService.requestOtp(regEmail.trim(), regFullName.trim(), regPhone.trim() || undefined);
       setSuccessMessage('A 6-digit verification code has been dispatched to your email.');
+      setResendSeconds(60);
+      setOtpCode('');
+      setTempVerificationToken('');
       setRegisterStep('otp');
     } catch (err: any) {
-      if (__DEV__) {
-        // In local development, fallback allows testing Step 2 & Step 3 if server is temporarily offline
-        const fallbackOtp = '123456';
-        setDevOtpHint(fallbackOtp);
-        setSuccessMessage(`Test OTP code generated: ${fallbackOtp}. Proceed with verification below.`);
-        setRegisterStep('otp');
-      } else {
-        setErrorMessage(err?.response?.data?.message || err?.message || 'Failed to dispatch verification code. Please try again.');
-      }
+      setErrorMessage(err?.message || 'Failed to dispatch verification code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -221,15 +212,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       setSuccessMessage('Email verified successfully! Now configure your password.');
       setRegisterStep('password');
     } catch (err: any) {
-      // In development or if server offline, accept matching dev OTP or valid 6-digit code
-      if (otpCode.trim() === devOtpHint || otpCode.trim() === '123456' || otpCode.trim().length === 6) {
-        const token = 'verified-temp-' + Date.now();
-        setTempVerificationToken(token);
-        setSuccessMessage('Email verified! Now configure your password.');
-        setRegisterStep('password');
-      } else {
-        setErrorMessage(err?.message || 'Invalid or expired verification code.');
-      }
+      setErrorMessage(err?.message || 'Invalid or expired verification code.');
     } finally {
       setLoading(false);
     }
@@ -263,7 +246,6 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       persistentEmail = '';
       persistentPhone = '';
       persistentOtpCode = '';
-      persistentDevOtpHint = null;
       persistentTempToken = '';
       onSuccess();
     } catch (err: any) {
@@ -279,20 +261,10 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Hero Visual Header (Strictly Zero Brand Name) */}
       <View style={styles.heroSection}>
-        <View style={styles.heroIconWrapper}>
-          <Image
-            source={require('../../assets/folded-map-routes.png')}
-            style={styles.heroMapImage}
-            resizeMode="contain"
-          />
-          <Image
-            source={require('../../assets/location-pin-blue.png')}
-            style={styles.heroPinImage}
-            resizeMode="contain"
-          />
-        </View>
+        <Text style={styles.brandEyebrow}>PROPERTY INSIGHTS</Text>
+        <Text style={styles.heroTitle}>Access your account</Text>
+        <Text style={styles.heroSubtitle}>Explore land records, understand local prices, and manage your property enquiries in one place.</Text>
       </View>
 
       {/* Main Authentication Card */}
@@ -300,6 +272,8 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
         {/* Mode Switcher Tabs */}
         <View style={styles.tabSwitcher}>
           <TouchableOpacity
+            disabled={loading}
+            accessibilityRole="tab"
             style={[styles.tabButton, authMode === 'login' && styles.tabButtonActive]}
             onPress={() => {
               setAuthMode('login');
@@ -314,6 +288,8 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity
+            disabled={loading}
+            accessibilityRole="tab"
             style={[styles.tabButton, authMode === 'register' && styles.tabButtonActive]}
             onPress={() => {
               setAuthMode('register');
@@ -323,16 +299,16 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
             activeOpacity={0.8}
           >
             <Text style={[styles.tabButtonText, authMode === 'register' && styles.tabButtonTextActive]}>
-              Register / First Time
+              Create account
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Global Error Banner */}
         {errorMessage && (
-          <View style={styles.alertError}>
-            <Text style={styles.alertErrorText}>⚠️ {errorMessage}</Text>
-            {(errorMessage.includes('reach API') || errorMessage.includes('Network') || errorMessage.includes('network') || errorMessage.includes('failed')) && (
+          <View style={styles.alertError} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+            <Text style={styles.alertErrorText}>{errorMessage}</Text>
+            {__DEV__ && (errorMessage.includes('reach API') || errorMessage.includes('Network') || errorMessage.includes('network') || errorMessage.includes('failed')) && (
               <TouchableOpacity
                 style={styles.errorActionBtn}
                 onPress={() => {
@@ -342,7 +318,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.errorActionBtnText}>⚙️ Configure Server URL / Test Host</Text>
+                <Text style={styles.errorActionBtnText}>Connection settings</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -350,8 +326,8 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
 
         {/* Global Success Banner */}
         {successMessage && (
-          <View style={styles.alertSuccess}>
-            <Text style={styles.alertSuccessText}>✓ {successMessage}</Text>
+          <View style={styles.alertSuccess} accessibilityLiveRegion="polite">
+            <Text style={styles.alertSuccessText}>{successMessage}</Text>
           </View>
         )}
 
@@ -360,15 +336,20 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
         {/* ------------------------------------------------------------- */}
         {authMode === 'login' && (
           <View style={styles.formContainer}>
-            <Text style={styles.formHeaderTitle}>Welcome Back</Text>
+            <Text style={styles.formHeaderTitle}>Welcome back</Text>
             <Text style={styles.formHeaderSubtitle}>
-              Sign in with your registered email/username or Google account
+              Sign in to continue to your property workspace.
             </Text>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Email or Username</Text>
               <TextInput
-                style={styles.textInput}
+                accessibilityLabel="Email or username"
+                autoComplete="email"
+                editable={!loading}
+                onFocus={() => setFocusedField('loginIdentifier')}
+                onBlur={() => setFocusedField(null)}
+                style={[styles.textInput, focusedField === 'loginIdentifier' && styles.inputFocused]}
                 placeholder="e.g. yourname@example.com"
                 placeholderTextColor="#94A3B8"
                 value={loginIdentifier}
@@ -388,7 +369,12 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 </TouchableOpacity>
               </View>
               <TextInput
-                style={styles.textInput}
+                accessibilityLabel="Password"
+                autoComplete="current-password"
+                editable={!loading}
+                onFocus={() => setFocusedField('loginPassword')}
+                onBlur={() => setFocusedField(null)}
+                style={[styles.textInput, focusedField === 'loginPassword' && styles.inputFocused]}
                 placeholder="Enter account password"
                 placeholderTextColor="#94A3B8"
                 value={loginPassword}
@@ -398,7 +384,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
             </View>
 
             <TouchableOpacity
-              style={styles.primaryBtn}
+              style={[styles.primaryBtn, loading && styles.buttonDisabled]}
               onPress={handlePasswordLogin}
               disabled={loading}
               activeOpacity={0.85}
@@ -408,19 +394,6 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
               ) : (
                 <Text style={styles.primaryBtnText}>Sign In</Text>
               )}
-            </TouchableOpacity>
-
-            {/* Quick Demo Credentials Fill Button */}
-            <TouchableOpacity
-              style={styles.demoFillBtn}
-              onPress={() => {
-                setLoginIdentifier('haricode04@gmail.com');
-                setLoginPassword('Admin@123');
-                setErrorMessage(null);
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.demoFillBtnText}>⚡ Use Demo Credentials (haricode04@gmail.com)</Text>
             </TouchableOpacity>
 
             <View style={styles.dividerRow}>
@@ -445,7 +418,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
             <View style={styles.switchHintWrap}>
               <Text style={styles.switchHintText}>First time using the app? </Text>
               <TouchableOpacity onPress={() => setAuthMode('register')}>
-                <Text style={styles.switchHintLink}>Verify via OTP →</Text>
+                <Text style={styles.switchHintLink}>Create an account</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -456,53 +429,37 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
         {/* ------------------------------------------------------------- */}
         {authMode === 'register' && (
           <View style={styles.formContainer}>
-            {/* Step Breadcrumb Indicators */}
+            <Text style={styles.stepCaption}>
+              {registerStep === 'details' ? 'STEP 1 OF 3 · YOUR DETAILS' : registerStep === 'otp' ? 'STEP 2 OF 3 · VERIFY EMAIL' : 'STEP 3 OF 3 · SET PASSWORD'}
+            </Text>
             <View style={styles.stepBar}>
-              <TouchableOpacity
-                style={[styles.stepDot, registerStep === 'details' && styles.stepDotActive]}
-                onPress={() => setRegisterStep('details')}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.stepDotText, registerStep === 'details' && styles.stepDotTextActive]}>1</Text>
-              </TouchableOpacity>
-              <View style={[styles.stepLine, registerStep !== 'details' && styles.stepLineActive]} />
-              <TouchableOpacity
-                style={[styles.stepDot, registerStep === 'otp' && styles.stepDotActive]}
-                onPress={() => {
-                  if (regEmail.trim()) {
-                    setRegisterStep('otp');
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.stepDotText, registerStep === 'otp' && styles.stepDotTextActive]}>2</Text>
-              </TouchableOpacity>
-              <View style={[styles.stepLine, registerStep === 'password' && styles.stepLineActive]} />
-              <TouchableOpacity
-                style={[styles.stepDot, registerStep === 'password' && styles.stepDotActive]}
-                onPress={() => {
-                  if (tempVerificationToken || registerStep === 'password') {
-                    setRegisterStep('password');
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.stepDotText, registerStep === 'password' && styles.stepDotTextActive]}>3</Text>
-              </TouchableOpacity>
+              {(['details', 'otp', 'password'] as RegisterStep[]).map((step, index) => (
+                <View key={step} style={styles.stepGroup} accessibilityLabel={`${index + 1}. ${['Your details', 'Verify email', 'Set password'][index]}${registerStep === step ? ', current step' : ''}`}>
+                  <View style={[styles.stepDot, registerStep === step && styles.stepDotActive]}>
+                    <Text style={[styles.stepDotText, registerStep === step && styles.stepDotTextActive]}>{index + 1}</Text>
+                  </View>
+                  <Text style={[styles.stepLabel, registerStep === step && styles.stepLabelActive]}>{['Details', 'Verify email', 'Password'][index]}</Text>
+                </View>
+              ))}
             </View>
 
             {/* Step 1: Contact Details & Request OTP */}
             {registerStep === 'details' && (
               <View>
-                <Text style={styles.formHeaderTitle}>Create New Account</Text>
+                <Text style={styles.formHeaderTitle}>Create your account</Text>
                 <Text style={styles.formHeaderSubtitle}>
-                  Register your account and verify ownership via a 6-digit one-time passcode (OTP).
+                  Add your details. We will send a code to verify your email.
                 </Text>
 
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Full Name *</Text>
                   <TextInput
-                    style={styles.textInput}
+                    accessibilityLabel="Full name"
+                    autoComplete="name"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('regFullName')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, focusedField === 'regFullName' && styles.inputFocused]}
                     placeholder="e.g. Ramesh Kannan"
                     placeholderTextColor="#94A3B8"
                     value={regFullName}
@@ -511,9 +468,14 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 </View>
 
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Google / Email Address *</Text>
+                  <Text style={styles.fieldLabel}>Email address *</Text>
                   <TextInput
-                    style={styles.textInput}
+                    accessibilityLabel="Email address"
+                    autoComplete="email"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('regEmail')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, focusedField === 'regEmail' && styles.inputFocused]}
                     placeholder="e.g. yourname@gmail.com"
                     placeholderTextColor="#94A3B8"
                     value={regEmail}
@@ -526,7 +488,12 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Phone Number (Optional)</Text>
                   <TextInput
-                    style={styles.textInput}
+                    accessibilityLabel="Phone number"
+                    autoComplete="tel"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('regPhone')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, focusedField === 'regPhone' && styles.inputFocused]}
                     placeholder="e.g. +91 98765 43210"
                     placeholderTextColor="#94A3B8"
                     value={regPhone}
@@ -536,7 +503,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, loading && styles.buttonDisabled]}
                   onPress={handleRequestOtp}
                   disabled={loading}
                   activeOpacity={0.85}
@@ -544,8 +511,22 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>Send Verification Code (OTP) →</Text>
+                    <Text style={styles.primaryBtnText}>Send verification code</Text>
                   )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Enter an existing email verification code"
+                  disabled={loading || !regEmail.includes('@')}
+                  style={styles.resendButton}
+                  onPress={() => {
+                    setErrorMessage(null);
+                    setSuccessMessage('Enter the latest code sent to this email address.');
+                    setTempVerificationToken('');
+                    setRegisterStep('otp');
+                  }}
+                >
+                  <Text style={styles.resendText}>Already have a code? Enter it</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -555,24 +536,18 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
               <View>
                 <Text style={styles.formHeaderTitle}>Verify Your Email</Text>
                 <Text style={styles.formHeaderSubtitle}>
-                  Please enter the 6-digit code sent to <Text style={{ fontWeight: '700', color: Colors.primary }}>{regEmail}</Text>
+                  Enter the 6-digit code sent to <Text style={{ fontWeight: '700', color: Colors.primary }}>{regEmail}</Text>
                 </Text>
-
-                {__DEV__ && devOtpHint && (
-                  <TouchableOpacity
-                    style={styles.devHintBanner}
-                    onPress={() => setOtpCode(devOtpHint)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.devHintTitle}>Development OTP Dispatched:</Text>
-                    <Text style={styles.devHintCode}>{devOtpHint} (Tap to autofill)</Text>
-                  </TouchableOpacity>
-                )}
 
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>6-Digit Verification Code</Text>
                   <TextInput
-                    style={[styles.textInput, styles.otpInput]}
+                    accessibilityLabel="6-digit verification code"
+                    autoComplete="one-time-code"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('otpCode')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, styles.otpInput, focusedField === 'otpCode' && styles.inputFocused]}
                     placeholder="• • • • • •"
                     placeholderTextColor="#CBD5E1"
                     value={otpCode}
@@ -583,7 +558,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, loading && styles.buttonDisabled]}
                   onPress={handleVerifyOtp}
                   disabled={loading}
                   activeOpacity={0.85}
@@ -591,16 +566,24 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>Verify OTP Code →</Text>
+                    <Text style={styles.primaryBtnText}>Verify email</Text>
                   )}
                 </TouchableOpacity>
 
+                <Text style={styles.helperText}>Your code expires in 5 minutes. Check your spam folder if it has not arrived.</Text>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  disabled={loading || resendSeconds > 0}
+                  onPress={handleRequestOtp}
+                  style={styles.resendButton}
+                >
+                  <Text style={[styles.resendText, (loading || resendSeconds > 0) && styles.mutedText]}>
+                    {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : 'Resend verification code'}
+                  </Text>
+                </TouchableOpacity>
                 <View style={styles.stepBackWrap}>
                   <TouchableOpacity onPress={() => setRegisterStep('details')}>
                     <Text style={styles.stepBackText}>← Change email or full name</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleRequestOtp}>
-                    <Text style={styles.resendText}>Resend code</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -609,9 +592,9 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
             {/* Step 3: Configure Password & Finalize */}
             {registerStep === 'password' && (
               <View>
-                <Text style={styles.formHeaderTitle}>Create Account Password</Text>
+                <Text style={styles.formHeaderTitle}>Choose a password</Text>
                 <Text style={styles.formHeaderSubtitle}>
-                  Configure a secure password for seamless returning logins
+                  Your email is verified. Complete your account setup within 10 minutes.
                 </Text>
 
                 <View style={styles.fieldGroup}>
@@ -622,7 +605,12 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                     </TouchableOpacity>
                   </View>
                   <TextInput
-                    style={styles.textInput}
+                    accessibilityLabel="Create password"
+                    autoComplete="new-password"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('regPassword')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, focusedField === 'regPassword' && styles.inputFocused]}
                     placeholder="Minimum 6 characters"
                     placeholderTextColor="#94A3B8"
                     value={regPassword}
@@ -634,7 +622,12 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Confirm Password *</Text>
                   <TextInput
-                    style={styles.textInput}
+                    accessibilityLabel="Confirm password"
+                    autoComplete="new-password"
+                    editable={!loading}
+                    onFocus={() => setFocusedField('regConfirmPassword')}
+                    onBlur={() => setFocusedField(null)}
+                    style={[styles.textInput, focusedField === 'regConfirmPassword' && styles.inputFocused]}
                     placeholder="Re-enter password"
                     placeholderTextColor="#94A3B8"
                     value={regConfirmPassword}
@@ -644,7 +637,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                 </View>
 
                 <TouchableOpacity
-                  style={styles.primaryBtn}
+                  style={[styles.primaryBtn, loading && styles.buttonDisabled]}
                   onPress={handleCompleteRegistration}
                   disabled={loading}
                   activeOpacity={0.85}
@@ -652,13 +645,13 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                   {loading ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={styles.primaryBtnText}>Complete Setup & Enter App ✓</Text>
+                    <Text style={styles.primaryBtnText}>Create account</Text>
                   )}
                 </TouchableOpacity>
 
                 <View style={styles.stepBackWrap}>
-                  <TouchableOpacity onPress={() => setRegisterStep('otp')}>
-                    <Text style={styles.stepBackText}>← Back to OTP verification</Text>
+                  <TouchableOpacity onPress={() => { setTempVerificationToken(''); setRegisterStep('details'); }}>
+                    <Text style={styles.stepBackText}>Start verification again</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setRegisterStep('details')}>
                     <Text style={styles.resendText}>Edit Details</Text>
@@ -669,6 +662,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
           </View>
         )}
       </View>
+      <Text style={styles.authFooter}>Land records and indicative valuations</Text>
 
       {/* API Server Configuration Modal */}
       <Modal
@@ -775,9 +769,23 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  brandLogo: { width: 170, height: 48, marginBottom: 20 },
+  brandEyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: Colors.violetAccent, marginBottom: 10 },
+  heroTitle: { fontSize: 27, lineHeight: 34, letterSpacing: -0.7, fontWeight: '700', textAlign: 'center', color: Colors.primary, maxWidth: 380 },
+  heroSubtitle: { fontSize: 14, lineHeight: 22, color: Colors.textSecondary, textAlign: 'center', marginTop: 12, maxWidth: 370 },
+  authFooter: { fontSize: 11, lineHeight: 18, color: Colors.textMuted, textAlign: 'center', marginTop: 24 },
+  inputFocused: { borderColor: Colors.violetAccent, backgroundColor: Colors.primaryMuted },
+  buttonDisabled: { opacity: 0.55 },
+  helperText: { fontSize: 12, lineHeight: 19, color: Colors.textSecondary, marginTop: 14 },
+  stepGroup: { flex: 1, alignItems: 'center', gap: 6 },
+  stepLabel: { fontSize: 11, color: Colors.textMuted },
+  stepLabelActive: { color: Colors.primary, fontWeight: '700' },
+  stepCaption: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: Colors.textMuted, marginBottom: 16 },
+  resendButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  mutedText: { color: Colors.textMuted },
   container: {
     flex: 1,
-    backgroundColor: '#FAF8FC',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -789,7 +797,9 @@ const styles = StyleSheet.create({
   },
   heroSection: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 28,
+    maxWidth: 460,
+    width: '100%',
   },
   heroIconWrapper: {
     width: 84,
@@ -811,26 +821,28 @@ const styles = StyleSheet.create({
   },
   authCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 460,
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 8,
+    padding: 28,
     borderWidth: 1,
-    borderColor: '#E9D5FF',
+    borderColor: Colors.border,
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 16,
     elevation: 4,
   },
   tabSwitcher: {
     flexDirection: 'row',
-    backgroundColor: '#F3E8FF',
-    borderRadius: 12,
+    backgroundColor: '#F1F3F7',
+    borderRadius: 10,
     padding: 3,
     marginBottom: 18,
   },
   tabButton: {
+    minHeight: 44,
+    justifyContent: 'center',
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
@@ -840,12 +852,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#240046',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0,
     shadowRadius: 4,
     elevation: 2,
   },
   tabButtonText: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '700',
     color: '#581C87',
   },
@@ -882,8 +894,8 @@ const styles = StyleSheet.create({
   },
   formContainer: {},
   formHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#1E1B4B',
     marginBottom: 4,
   },
@@ -914,13 +926,14 @@ const styles = StyleSheet.create({
     color: '#581C87',
   },
   textInput: {
-    backgroundColor: '#F8FAFC',
+    minHeight: 48,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
     borderColor: '#E2E8F0',
     borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
+    paddingVertical: 12,
+    fontSize: 15,
     color: '#0F172A',
   },
   otpInput: {
@@ -933,16 +946,18 @@ const styles = StyleSheet.create({
     borderColor: '#D4AF37',
   },
   primaryBtn: {
+    minHeight: 48,
+    justifyContent: 'center',
     backgroundColor: '#240046',
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
     marginTop: 6,
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
+    borderWidth: 1,
+    borderColor: Colors.primary,
     shadowColor: '#240046',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.08,
     shadowRadius: 5,
     elevation: 3,
   },
@@ -970,6 +985,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   googleBtn: {
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -994,7 +1010,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   googleBtnText: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -1114,8 +1130,8 @@ const styles = StyleSheet.create({
     marginTop: 18,
     backgroundColor: '#F3E8FF',
     borderWidth: 1,
-    borderColor: '#E9D5FF',
-    borderRadius: 20,
+    borderColor: Colors.border,
+    borderRadius: 8,
     paddingVertical: 6,
     paddingHorizontal: 14,
     gap: 6,
@@ -1151,13 +1167,13 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '100%',
-    maxWidth: 420,
+    maxWidth: 460,
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 8,
     padding: 22,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -1168,8 +1184,8 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#240046',
   },
   modalCloseText: {
@@ -1227,7 +1243,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAF5FF',
     borderWidth: 1,
     borderColor: '#D8B4FE',
-    borderRadius: 14,
+    borderRadius: 8,
     paddingVertical: 5,
     paddingHorizontal: 10,
   },

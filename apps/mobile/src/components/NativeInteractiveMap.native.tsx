@@ -1,3 +1,4 @@
+import Feather from '@expo/vector-icons/Feather';
 import React, { useRef, useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -365,14 +366,14 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
 
       // CartoDB Voyager High-DPI Vector-Style Tiles
       lStreetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; CartoDB & Greenart',
+        attribution: '&copy; CartoDB',
         subdomains: 'abcd',
         maxZoom: 20
       }).addTo(lMap);
 
       // Esri Satellite World Imagery
       lSatLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: '&copy; Esri World Imagery & Greenart',
+        attribution: '&copy; Esri World Imagery',
         maxZoom: 19
       });
 
@@ -528,7 +529,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           activeOpacity={0.85}
           accessibilityLabel="Recenter map pin"
         >
-          <Text style={styles.recenterIconText}>🎯</Text>
+          <Feather name="crosshair" size={20} color="#240046" />
         </TouchableOpacity>
       )}
 

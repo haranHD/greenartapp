@@ -53,9 +53,20 @@ describe('Task 2 Mobile API - Evidence-Based Valuation & Error Handling', () => 
       },
       (err: any) => {
         assert(err instanceof ApiUnavailableError, 'Expected ApiUnavailableError instance');
-        assert.equal(err.message, 'Could not reach the server. Please try again.');
+        assert.equal(err.message, 'The valuation service returned an error. Please retry shortly.');
         return true;
       }
+    );
+  });
+
+  test('calculateEstimate distinguishes a timeout from a connection failure', async () => {
+    globalThis.fetch = async () => {
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    };
+    await assert.rejects(
+      mobileApi.calculateEstimate(11.4471, 77.684),
+      (error: any) => error instanceof ApiUnavailableError &&
+        error.message === 'Valuation took too long. Please retry the calculation.'
     );
   });
 

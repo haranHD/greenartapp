@@ -86,6 +86,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(128);
 
         builder.Property(u => u.OtpHash)
+            .IsConcurrencyToken()
             .HasColumnName("otp_hash")
             .HasMaxLength(256);
 

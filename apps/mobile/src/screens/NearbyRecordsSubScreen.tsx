@@ -49,7 +49,7 @@ export const NearbyRecordsSubScreen: React.FC<NearbyRecordsSubScreenProps> = ({
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 110 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -261,7 +261,10 @@ export const NearbyRecordsSubScreen: React.FC<NearbyRecordsSubScreenProps> = ({
 
 const styles = StyleSheet.create({
   scrollBody: {
-    padding: 16,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+    padding: 20,
     gap: 16,
   },
   subBackBtn: {

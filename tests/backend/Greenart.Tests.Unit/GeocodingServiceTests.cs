@@ -1,4 +1,5 @@
 using System.Net;
+using Greenart.Application.Common.Exceptions;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Infrastructure.Services;
 using Microsoft.Extensions.Caching.Memory;
@@ -67,13 +68,14 @@ public class GeocodingServiceTests
     private static (IGeocodingService service, TestHttpMessageHandler handler) CreateService(
         HttpStatusCode statusCode,
         string responseContent,
-        string apiKey = "test-api-key")
+        string apiKey = "test-api-key",
+        Func<HttpRequestMessage, HttpResponseMessage>? responseFactory = null)
     {
-        var handler = new TestHttpMessageHandler(_ => new HttpResponseMessage
+        var handler = new TestHttpMessageHandler(responseFactory ?? (_ => new HttpResponseMessage
         {
             StatusCode = statusCode,
             Content = new StringContent(responseContent)
-        });
+        }));
 
         var httpClient = new HttpClient(handler);
         var memoryCache = new MemoryCache(new MemoryCacheOptions());
@@ -134,13 +136,13 @@ public class GeocodingServiceTests
     }
 
     [Fact]
-    public async Task SearchLocalitiesAsync_WhenHttpError_ReturnsEmptyWithoutLeaking()
+    public async Task SearchLocalitiesAsync_WhenHttpError_ReportsProviderFailureWithoutLeaking()
     {
         var (service, _) = CreateService(HttpStatusCode.Forbidden, "Forbidden");
 
-        var result = await service.SearchLocalitiesAsync("bhavani");
-
-        Assert.Empty(result);
+        var error = await Assert.ThrowsAsync<GeocodingException>(() => service.SearchLocalitiesAsync("bhavani"));
+        Assert.Equal(GeocodingFailure.PermissionDenied, error.Failure);
+        Assert.DoesNotContain("test-api-key", error.Message);
     }
 
     [Fact]
@@ -207,7 +209,7 @@ public class GeocodingServiceTests
     }
 
     [Fact]
-    public async Task GetPlaceDetailsAsync_WhenLocationMissing_ReturnsNull()
+    public async Task GetPlaceDetailsAsync_WhenLocationMissing_ReportsInvalidResponse()
     {
         var jsonResponse = """
         {
@@ -218,9 +220,8 @@ public class GeocodingServiceTests
 
         var (service, _) = CreateService(HttpStatusCode.OK, jsonResponse);
 
-        var result = await service.GetPlaceDetailsAsync("missing_loc");
-
-        Assert.Null(result);
+        var error = await Assert.ThrowsAsync<GeocodingException>(() => service.GetPlaceDetailsAsync("missing_loc"));
+        Assert.Equal(GeocodingFailure.InvalidResponse, error.Failure);
     }
 
     [Fact]
@@ -272,5 +273,75 @@ public class GeocodingServiceTests
         Assert.Equal("Kurumbapalayam", result.Locality);
         Assert.Equal("Coimbatore", result.District);
     }
+    [Fact]
+    public async Task MissingConfiguration_IsNotAnEmptySearchResult()
+    {
+        var (service, handler) = CreateService(HttpStatusCode.OK, "{}", apiKey: "");
+        var error = await Assert.ThrowsAsync<GeocodingException>(() => service.SearchLocalitiesAsync("Bhavani"));
+        Assert.Equal(GeocodingFailure.NotConfigured, error.Failure);
+        Assert.Equal(0, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(429, GeocodingFailure.RateLimited)]
+    [InlineData(500, GeocodingFailure.Unavailable)]
+    public async Task ProviderFailures_AreNotCachedOrReturnedAsNoMatches(int status, GeocodingFailure expected)
+    {
+        var (service, handler) = CreateService((HttpStatusCode)status, "private-provider-response");
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var error = await Assert.ThrowsAsync<GeocodingException>(() => service.SearchLocalitiesAsync("Bhavani"));
+            Assert.Equal(expected, error.Failure);
+            Assert.DoesNotContain("private-provider-response", error.Message);
+        }
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task GenuineEmptySearch_IsSuccessful()
+    {
+        var (service, handler) = CreateService(HttpStatusCode.OK, "{}");
+        Assert.Empty(await service.SearchLocalitiesAsync("no-matching-place"));
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task MalformedProviderResponse_IsNotAnEmptySearchResult()
+    {
+        var (service, _) = CreateService(HttpStatusCode.OK, "<html>error</html>");
+        var error = await Assert.ThrowsAsync<GeocodingException>(() => service.SearchLocalitiesAsync("Bhavani"));
+        Assert.Equal(GeocodingFailure.InvalidResponse, error.Failure);
+    }
+
+    [Fact]
+    public async Task MissingAdministrativeFields_AreNotInventedAsCoimbatore()
+    {
+        var (service, _) = CreateService(HttpStatusCode.OK, """{"id":"test-place","displayName":{"text":"Bhavani"},"location":{"latitude":11.4471,"longitude":77.684}}""");
+        var place = await service.GetPlaceDetailsAsync("test-place");
+        Assert.Equal("", place!.District);
+        Assert.Equal("", place.State);
+        Assert.Equal("", place.Country);
+    }
+
+    [Fact]
+    public async Task GenuineMissingPlace_IsNull()
+    {
+        var (service, _) = CreateService(HttpStatusCode.NotFound, "{}");
+        Assert.Null(await service.GetPlaceDetailsAsync("removed-place"));
+    }
+
+    [Fact]
+    public async Task CallerCancellation_IsPropagated_AndProviderTimeoutIsExplicit()
+    {
+        var (service, handler) = CreateService(HttpStatusCode.OK, "{}");
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.SearchLocalitiesAsync("Bhavani", cancel.Token));
+        Assert.Equal(0, handler.CallCount);
+        var (slow, _) = CreateService(HttpStatusCode.OK, "{}", responseFactory: _ => throw new TaskCanceledException());
+        var error = await Assert.ThrowsAsync<GeocodingException>(() => slow.SearchLocalitiesAsync("Bhavani"));
+        Assert.Equal(GeocodingFailure.Timeout, error.Failure);
+    }
+
 }
 

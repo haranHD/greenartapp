@@ -1,3 +1,5 @@
+> Historical report. For the current configuration, failure-handling and selection fixes, see [Locality search fix](LOCALITY_SEARCH_FIX.md).
+
 # Greenart Properties — Geocoding & Locality Search API Integration Report
 
 **Date:** October 23, 2026  

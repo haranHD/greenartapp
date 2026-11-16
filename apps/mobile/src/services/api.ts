@@ -1,3 +1,10 @@
+export interface BrokerPriceRange {
+  researchId: string; locality: string; district: string; landUsage: string; roadAccess: string;
+  coverageRadiusMeters: number; lowPerCent: number; highPerCent: number; lowPerSqFt: number;
+  highPerSqFt: number; observationCount: number; reviewedAtUtc: string; validUntilUtc: string;
+  label: string; notice: string;
+}
+
 // Centralized Typed API Client for Greenart Mobile Application
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
@@ -17,6 +24,13 @@ export class ApiValidationError extends Error {
     this.name = 'ApiValidationError';
     this.statusCode = statusCode;
     Object.setPrototypeOf(this, ApiValidationError.prototype);
+  }
+}
+
+export class LocalityApiError extends Error {
+  constructor(message: string, public readonly code: string = 'geocoding_unavailable') {
+    super(message);
+    this.name = 'LocalityApiError';
   }
 }
 
@@ -88,6 +102,8 @@ export interface AiLandPriceIntelligenceResponse {
   negotiationTips: string[];
   dueDiligenceChecklist: string[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  guidelineLookupStatus?: string | null;
+  guidelineLookupMessage?: string | null;
   totalValuation?: TotalValuationDto;
   model: string;
   generatedAtUtc: string;
@@ -107,6 +123,8 @@ export interface EstimateSuccessResponse {
   latestRecordDate: string;
   sourceBreakdown: SourceCategoryBreakdownDto[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  guidelineLookupStatus?: string | null;
+  guidelineLookupMessage?: string | null;
   disclaimer: string;
   askingPriceReference?: AskingPriceReferenceDto;
   totalValuation?: TotalValuationDto;
@@ -124,6 +142,8 @@ export interface EstimateInsufficientDataResponse {
   message: string;
   recommendations: string[];
   governmentGuidelineReference?: GuidelineReferenceDto;
+  guidelineLookupStatus?: string | null;
+  guidelineLookupMessage?: string | null;
   askingPriceReference?: AskingPriceReferenceDto;
   totalGuidelineValuation?: number;
   factorBreakdown?: ValuationFactorBreakdownDto;
@@ -198,45 +218,6 @@ export interface HealthStatusResponse {
     postgisVersion?: string;
   };
 }
-
-export const DEFAULT_FALLBACK_LOCALITIES: LocalityReference[] = [
-  {
-    name: 'Kannampalayam',
-    district: 'Coimbatore',
-    latitude: 11.0012,
-    longitude: 77.0874,
-    guidelineRatePerCent: 650000,
-    guidelineRatePerSqFt: 1492.20,
-    recordCount: 5,
-  },
-  {
-    name: 'Sulur',
-    district: 'Coimbatore',
-    latitude: 11.0264,
-    longitude: 77.1275,
-    guidelineRatePerCent: 800000,
-    guidelineRatePerSqFt: 1836.55,
-    recordCount: 4,
-  },
-  {
-    name: 'Saravanampatti',
-    district: 'Coimbatore',
-    latitude: 11.0805,
-    longitude: 76.9976,
-    guidelineRatePerCent: 1200000,
-    guidelineRatePerSqFt: 2754.82,
-    recordCount: 4,
-  },
-  {
-    name: 'Pollachi',
-    district: 'Coimbatore',
-    latitude: 10.6609,
-    longitude: 77.0089,
-    guidelineRatePerCent: 450000,
-    guidelineRatePerSqFt: 1033.06,
-    recordCount: 3,
-  },
-];
 
 export const DEFAULT_FALLBACK_LAND_RECORDS: LandRecordDto[] = [
   {
@@ -528,17 +509,16 @@ class MobileApiClient {
 
   private async doFetch(url: string, options: RequestInit = {}, timeoutMs: number): Promise<Response> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const callerSignal = options.signal;
+    const abort = () => controller.abort();
+    if (callerSignal?.aborted) controller.abort();
+    callerSignal?.addEventListener('abort', abort, { once: true });
+    const timeoutId = setTimeout(abort, timeoutMs);
     try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
       clearTimeout(timeoutId);
-      return response;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      throw err;
+      callerSignal?.removeEventListener('abort', abort);
     }
   }
 
@@ -553,24 +533,8 @@ class MobileApiClient {
     try {
       return await this.doFetch(primaryUrl, options, effectiveTimeout);
     } catch (primaryErr: any) {
-      // Auto Cloud Failover: if the local network host fails (e.g. phone on 4G LTE or laptop server offline),
-      // seamlessly attempt the live Render cloud deployment!
-      const cloudBase = 'https://greenartapp-1.onrender.com/api/v1';
-      if (!primaryBase.includes('onrender.com')) {
-        try {
-          const fallbackUrl = isFullUrl
-            ? primaryUrl.replace(primaryBase, cloudBase)
-            : `${cloudBase}${urlPathOrFull.startsWith('/') ? '' : '/'}${urlPathOrFull}`;
-          const cloudResp = await this.doFetch(fallbackUrl, options, 10000);
-          if (cloudResp.ok || cloudResp.status === 200 || (urlPathOrFull.includes('/health') && cloudResp.status === 503)) {
-            this.activeBaseUrl = cloudBase;
-            return cloudResp;
-          }
-        } catch {
-          // Cloud also timed out or device is offline
-        }
-      }
-
+      // Keep requests on the configured environment. An uncertain OTP send must
+      // never be replayed against another backend or replace the active API URL.
       const isNetFailed = primaryErr?.message?.includes('Network request failed') ||
         primaryErr?.message?.includes('Failed to fetch') ||
         primaryErr?.name === 'TypeError';
@@ -593,6 +557,13 @@ class MobileApiClient {
     } catch {
       return { status: 'Offline' };
     }
+  }
+
+  async getBrokerPriceRange(latitude: number, longitude: number, landUsage: number, roadAccess: string, signal?: AbortSignal): Promise<{ range: BrokerPriceRange | null }> {
+    const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), landUsage: String(landUsage), roadAccess });
+    const response = await this.fetchWithTimeout(`/pricing/broker-range?${query}`, { signal, headers: { Accept: 'application/json' } }, 10000);
+    if (!response.ok) throw new ApiUnavailableError('Broker-reviewed pricing is temporarily unavailable.');
+    return await response.json();
   }
 
   async calculateEstimate(
@@ -623,8 +594,11 @@ class MobileApiClient {
           roadFrontage,
           surroundingAmenities,
         }),
-      });
-    } catch {
+      }, 45000);
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new ApiUnavailableError('Valuation took too long. Please retry the calculation.');
+      }
       throw new ApiUnavailableError('Could not reach the server. Please try again.');
     }
 
@@ -640,7 +614,7 @@ class MobileApiClient {
       if (response.status === 400) {
         throw new ApiValidationError(errorMsg, 400);
       }
-      throw new ApiUnavailableError('Could not reach the server. Please try again.');
+      throw new ApiUnavailableError('The valuation service returned an error. Please retry shortly.');
     }
 
     return (await response.json()) as EstimateApiResponse;
@@ -706,11 +680,10 @@ class MobileApiClient {
         throw new Error(`Failed to load localities: ${response.statusText}`);
       }
       const data = (await response.json()) as LocalityReference[];
-      if (Array.isArray(data) && data.length > 0) return data;
-      return DEFAULT_FALLBACK_LOCALITIES;
+      return Array.isArray(data) ? data : [];
     } catch {
-      // Offline fallback: returns reliable default Tamil Nadu pilot localities for search suggestions
-      return DEFAULT_FALLBACK_LOCALITIES;
+      // An unavailable reference source must not invent counts or guideline prices.
+      return [];
     }
   }
 
@@ -774,55 +747,53 @@ class MobileApiClient {
     }
   }
 
-  async searchLocalities(query: string): Promise<LocalitySuggestionDto[]> {
-    if (!query || query.trim().length < 2) return [];
+  private async requestLocality(path: string, signal?: AbortSignal): Promise<Response> {
     try {
-      const response = await this.fetchWithTimeout(
-        `/localities/search?q=${encodeURIComponent(query.trim())}`,
-        { headers: { Accept: 'application/json' } },
-        8000
-      );
+      // Keep searches and details on the configured backend; do not switch environments.
+      const response = await this.doFetch(`${this.getBaseUrl()}${path}`, { signal, headers: { Accept: 'application/json' } }, 12000);
+      if (response.status === 404 && !path.startsWith('/localities/search')) return response;
       if (!response.ok) {
-        return [];
+        let payload: any = null;
+        try { payload = await response.json(); } catch { }
+        throw new LocalityApiError(payload?.error || payload?.message || 'Location search is temporarily unavailable. Please try again or choose on the map.', payload?.code);
       }
-      return (await response.json()) as LocalitySuggestionDto[];
-    } catch {
-      return [];
+      return response;
+    } catch (error: any) {
+      if (signal?.aborted) { const cancelled = new Error('Request cancelled'); cancelled.name = 'AbortError'; throw cancelled; }
+      if (error instanceof LocalityApiError) throw error;
+      throw new LocalityApiError(error?.name === 'AbortError'
+        ? 'Location search timed out. Please try again or choose on the map.'
+        : 'Cannot reach location search. Check your connection and try again, or choose on the map.');
     }
   }
 
-  async getLocalityDetails(placeId: string): Promise<LocalityDetailsDto | null> {
-    if (!placeId) return null;
-    try {
-      const response = await this.fetchWithTimeout(
-        `/localities/details?placeId=${encodeURIComponent(placeId.trim())}`,
-        { headers: { Accept: 'application/json' } },
-        8000
-      );
-      if (!response.ok) {
-        return null;
-      }
-      return (await response.json()) as LocalityDetailsDto;
-    } catch {
-      return null;
-    }
+  async searchLocalities(query: string, signal?: AbortSignal): Promise<LocalitySuggestionDto[]> {
+    if (!query || query.trim().length < 2) return [];
+    const response = await this.requestLocality(`/localities/search?q=${encodeURIComponent(query.trim())}`, signal);
+    let data: any;
+    try { data = await response.json(); } catch { throw new LocalityApiError('Location search returned an unreadable response. Please try again.', 'geocoding_invalidresponse'); }
+    if (!Array.isArray(data) || data.some(item => typeof item?.placeId !== 'string' || typeof item?.mainText !== 'string'))
+      throw new LocalityApiError('Location search returned an unreadable response. Please try again.', 'geocoding_invalidresponse');
+    return data as LocalitySuggestionDto[];
+  }
+
+  async getLocalityDetails(placeId: string, signal?: AbortSignal): Promise<LocalityDetailsDto | null> {
+    if (!placeId.trim()) return null;
+    const response = await this.requestLocality(`/localities/details?placeId=${encodeURIComponent(placeId.trim())}`, signal);
+    if (response.status === 404) return null;
+    let details: LocalityDetailsDto;
+    try { details = await response.json(); } catch { throw new LocalityApiError('Could not read the selected location. Please try again.'); }
+    if (!Number.isFinite(details?.latitude) || !Number.isFinite(details?.longitude) ||
+        Math.abs(details.latitude) > 90 || Math.abs(details.longitude) > 180)
+      throw new LocalityApiError('The selected place did not return valid coordinates. Please choose another result.');
+    return details;
   }
 
   async geocodeAddress(address: string): Promise<LocalityDetailsDto | null> {
-    if (!address || !address.trim()) return null;
-    try {
-      const response = await this.fetchWithTimeout(
-        `/localities/geocode?address=${encodeURIComponent(address.trim())}`,
-        { headers: { Accept: 'application/json' } },
-        8000
-      );
-      if (!response.ok) {
-        return null;
-      }
-      return (await response.json()) as LocalityDetailsDto;
-    } catch {
-      return null;
-    }
+    if (!address.trim()) return null;
+    const response = await this.requestLocality(`/localities/geocode?address=${encodeURIComponent(address.trim())}`);
+    if (response.status === 404) return null;
+    return await response.json() as LocalityDetailsDto;
   }
 
   public async loginWithGoogle(idToken: string): Promise<any> {
