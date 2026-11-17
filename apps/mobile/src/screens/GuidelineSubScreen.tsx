@@ -1,7 +1,7 @@
+import { AppText as Text } from '../components/AppText';
 import React from 'react';
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   subBackBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   card: {

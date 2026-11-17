@@ -1,7 +1,8 @@
+import { AppText as Text } from './src/components/AppText';
+import { AppFontLoader } from './src/components/AppFontLoader';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
-  Text,
   TouchableOpacity,
   BackHandler,
   Platform,
@@ -997,11 +998,11 @@ const WEB_INITIAL_METRICS = {
 
 export default function App() {
   return (
-    <SafeAreaProvider initialMetrics={Platform.OS === 'web' ? WEB_INITIAL_METRICS : undefined}>
+    <AppFontLoader><SafeAreaProvider initialMetrics={Platform.OS === 'web' ? WEB_INITIAL_METRICS : undefined}>
       <ErrorBoundary>
         <GreenartMobileApp />
       </ErrorBoundary>
-    </SafeAreaProvider>
+    </SafeAreaProvider></AppFontLoader>
   );
 }
 

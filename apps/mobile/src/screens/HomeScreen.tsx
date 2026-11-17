@@ -1,10 +1,9 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import React, { useEffect, useRef } from 'react';
 import Feather from '@expo/vector-icons/Feather';
 import {
   View,
-  Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
@@ -73,7 +72,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [searchFocused, setSearchFocused] = React.useState(false);
   const { width, fontScale } = useWindowDimensions();
   const wide = width >= 820;
-  const stacked = width < 360 || fontScale > 1.25;
+  const stacked = width / fontScale < 420;
   const { reduced: reducedMotion, ready } = useReducedMotion();
   const entrance = useRef(new Animated.Value(1)).current;
   const focus = useRef(new Animated.Value(0)).current;
@@ -97,7 +96,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
-      <Animated.View style={{ gap: 18, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
+      <Animated.View style={{ gap: 16, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
       <View style={[styles.heroSearchLayout, wide && styles.heroSearchLayoutWide]}>
       <PropertyHero wide={wide} compact={width < 360} />
 
@@ -199,7 +198,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         )}
 
         {/* Selected Location Pill */}
-        <View style={styles.selectedLocalityBar}>
+        <PremiumPressable reducedMotion={reducedMotion} accessibilityLabel="Change selected property location" style={styles.selectedLocalityBar} onPress={() => setActiveTab('search')}>
           <View style={styles.selectedPin}><Feather accessible={false} name="map-pin" size={17} color={Premium.purple} /></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.selectedLocalityName}>
@@ -209,8 +208,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {currentUsageObj.label} land · {targetLat.toFixed(4)}, {targetLng.toFixed(4)}
             </Text>
           </View>
-          <Feather accessible={false} name="check-circle" size={16} color={Premium.purple} />
-        </View>
+          <Feather accessible={false} name="chevron-right" size={17} color={Premium.purple} />
+        </PremiumPressable>
 
         {/* Action Buttons Row */}
         <View style={[styles.searchCtaRow, stacked && styles.actionsStacked]}>
@@ -221,7 +220,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={styles.primaryFindBtn}
             onPress={() => executeCalculation(targetLat, targetLng, currentUsageObj.id)}
           >
-            <Text style={styles.primaryFindBtnText}>Estimate land value</Text>
+            <Text style={styles.primaryFindBtnText}>Estimate land value</Text><Feather accessible={false} name="arrow-right" size={15} color={Premium.champagne} />
           </PremiumPressable>
 
           {/* Secondary Action */}
@@ -302,13 +301,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
 const styles = StyleSheet.create({
   scrollBody: { padding: 20, gap: 18, width: '100%', maxWidth: 1120, alignSelf: 'center' },
-  heroSearchLayout: { gap: 18 },
+  heroSearchLayout: { gap: 16 },
   heroSearchLayoutWide: { flexDirection: 'row', alignItems: 'stretch', gap: 24 },
-  primarySearchCard: { minWidth: 0, backgroundColor: Premium.surface, borderRadius: 20, padding: 20, borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 3 }, shadowOpacity: .045, shadowRadius: 12, elevation: 1 },
+  primarySearchCard: { minWidth: 0, backgroundColor: Premium.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 3 }, shadowOpacity: .045, shadowRadius: 12, elevation: 1 },
   searchHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 },
-  searchCardTitle: { fontSize: 19, fontWeight: '700', color: Premium.text, flexShrink: 1 },
+  searchCardTitle: { fontSize: 18, fontWeight: '700', color: Premium.text, flexShrink: 1 },
   searchCardSub: { fontSize: 13, lineHeight: 20, color: Premium.secondary, marginBottom: 16 },
-  searchBarBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FDFCFE', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, minHeight: 54, marginBottom: 12 },
+  searchBarBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FDFCFE', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, minHeight: 50, marginBottom: 12 },
   searchFocus: { backgroundColor: Premium.surface, shadowColor: Premium.highlight, shadowOffset: { width: 0, height: 0 }, shadowOpacity: .1, shadowRadius: 4, elevation: 1 },
   searchBarInput: { flex: 1, minWidth: 0, fontSize: 14, color: Premium.text, paddingVertical: 12 },
   suggestionsContainer: { backgroundColor: Premium.surface, borderRadius: 12, borderWidth: 1, borderColor: Premium.border, marginBottom: 12, overflow: 'hidden' },
@@ -320,26 +319,26 @@ const styles = StyleSheet.create({
   suggestionCountBadge: { backgroundColor: Premium.lightGold, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   suggestionCountText: { fontSize: 10, fontWeight: '600', color: Colors.goldText },
   noSuggestionsText: { padding: 14, fontSize: 12, color: Premium.secondary, textAlign: 'center' },
-  selectedLocalityBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Premium.lavender, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: Premium.border, marginBottom: 16, gap: 10 },
+  selectedLocalityBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Premium.lavender, padding: 11, borderRadius: 11, borderWidth: 1, borderColor: Premium.border, marginBottom: 14, gap: 10 },
   selectedPin: { width: 30, height: 34, alignItems: 'center', justifyContent: 'center' },
   selectedLocalityName: { fontSize: 14, fontWeight: '700', color: Premium.text },
   selectedLocalityDistrict: { fontSize: 12, lineHeight: 19, color: Premium.secondary, marginTop: 3 },
   searchCtaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   actionsStacked: { flexDirection: 'column' },
-  primaryActionContainer: { flex: 1, minWidth: 144 },
-  secondaryActionContainer: { flex: 1, minWidth: 150 },
+  primaryActionContainer: { flex: 1.2, minWidth: 156 },
+  secondaryActionContainer: { flex: 1, minWidth: 136 },
   actionStacked: { width: '100%' },
-  primaryFindBtn: { minHeight: 50, flexGrow: 1, backgroundColor: Premium.violet, borderRadius: 11, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Premium.violet },
-  primaryFindBtnText: { color: '#FFFFFF', fontSize: 13, lineHeight: 20, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
-  secondaryMapBtn: { minHeight: 50, flexGrow: 1, flexDirection: 'row', gap: 7, backgroundColor: Premium.surface, borderRadius: 11, paddingVertical: 14, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DDD0E8' },
-  secondaryMapBtnText: { color: Premium.violet, fontSize: 13, lineHeight: 20, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
+  primaryFindBtn: { minHeight: 46, flexGrow: 1, flexDirection: 'row', gap: 5, backgroundColor: Premium.violet, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#806032' },
+  primaryFindBtnText: { color: '#FFFFFF', fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
+  secondaryMapBtn: { minHeight: 50, flexGrow: 1, flexDirection: 'row', gap: 5, backgroundColor: Premium.surface, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DDD0E8' },
+  secondaryMapBtnText: { color: Premium.violet, fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
   sectionHeading: { gap: 4, marginTop: 4 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Premium.text },
   sectionCaption: { fontSize: 13, lineHeight: 20, color: Premium.secondary },
   quickAccessRow: { flexDirection: 'row', gap: 10 },
   toolsStacked: { flexDirection: 'column' },
   toolContainer: { flex: 1, minWidth: 0 },
-  quickAccessCard: { minHeight: 112, flexGrow: 1, justifyContent: 'center', backgroundColor: Premium.surface, borderRadius: 16, paddingVertical: 15, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 2 }, shadowOpacity: .035, shadowRadius: 8, elevation: 1 },
+  quickAccessCard: { minHeight: 96, flexGrow: 1, justifyContent: 'center', backgroundColor: Premium.surface, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 2 }, shadowOpacity: .035, shadowRadius: 8, elevation: 1 },
   quickIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   quickAccessTitle: { fontSize: 13, lineHeight: 19, fontWeight: '700', color: Premium.text, textAlign: 'center', maxWidth: '100%' },
   quickAccessSub: { fontSize: 11, lineHeight: 17, color: Premium.secondary, textAlign: 'center', maxWidth: '100%' },

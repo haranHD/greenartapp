@@ -1,6 +1,8 @@
+import { AppText as Text } from './AppText';
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, View, TouchableOpacity, StyleSheet } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
+import { Typography } from '../theme/typography';
 import { Colors } from '../theme/colors';
 
 export type MobileTab = 'home' | 'marketplace' | 'estimate' | 'sell' | 'profile' | 'search' | 'history' | 'records' | 'guideline';
@@ -95,6 +97,6 @@ const styles = StyleSheet.create({
   icon: { width: 23, height: 23, alignItems: 'center', justifyContent: 'center' },
   iconOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   labelBox: { alignItems: 'center', justifyContent: 'center', minHeight: 15, alignSelf: 'stretch' },
-  label: { fontSize: 10, lineHeight: 15, color: palette.muted, fontWeight: '500' },
-  activeLabel: { position: 'absolute', fontSize: 10, lineHeight: 15, color: palette.active, fontWeight: '700' },
+  label: { ...Typography.nav, color: palette.muted },
+  activeLabel: { ...Typography.nav, position: 'absolute', color: palette.active },
 });

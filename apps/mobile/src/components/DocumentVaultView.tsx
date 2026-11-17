@@ -1,10 +1,9 @@
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import { Premium as P } from '../theme/premium';
 import { ScreenUI, withScreenStyles } from '../theme/screenUI';
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -281,8 +280,8 @@ const styles = withScreenStyles({
   },
   uploadBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   uploadCard: {
     backgroundColor: '#FFFFFF',
@@ -357,8 +356,8 @@ const styles = withScreenStyles({
   },
   confirmUploadBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   docList: {
     gap: 12,

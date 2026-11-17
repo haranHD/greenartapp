@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Platform, TouchableOpacity } from 'react-native';
+import { fontForWeight, containsTamil } from '../theme/typography';
 import { Premium as P } from '../theme/premium';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
@@ -15,11 +16,11 @@ export function PremiumChoice({ label, selected, onPress, variant = 'chip' }: {
     animation.start(); return () => animation.stop();
   }, [selected, reduced, value]);
   const segment = variant === 'segment';
-  return <Animated.View style={{ flex: segment ? 1 : undefined, minWidth: 0, borderRadius: 11, borderWidth: 1,
-    backgroundColor: value.interpolate({ inputRange: [0, 1], outputRange: [P.lavender, segment ? P.surface : P.violet] }),
-    borderColor: value.interpolate({ inputRange: [0, 1], outputRange: [segment ? P.lavender : P.border, segment ? P.border : P.gold] }),
+  return <Animated.View style={{ flex: segment ? 1 : undefined, minWidth: 0, maxWidth: '100%', flexShrink: segment ? 1 : 0, borderRadius: 11, borderWidth: 1,
+    backgroundColor: value.interpolate({ inputRange: [0, 1], outputRange: [P.surface, P.violet] }),
+    borderColor: value.interpolate({ inputRange: [0, 1], outputRange: [P.border, P.gold] }),
   }}><TouchableOpacity accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} {...(Platform.OS === 'web' ? { 'aria-pressed': selected } : {})}
     onPress={onPress} activeOpacity={.8} style={{ minHeight: 44, justifyContent: 'center', alignItems: 'center', paddingHorizontal: segment ? 8 : 13, paddingVertical: 10 }}>
-    <Animated.Text style={{ fontSize: 12, lineHeight: 19, textAlign: 'center', fontWeight: selected ? '700' : '600', color: value.interpolate({ inputRange: [0, 1], outputRange: [P.secondary, segment ? P.violet : '#FFFFFF'] }) }}>{label}</Animated.Text>
+    <Animated.Text style={{ flexShrink: 1, maxWidth: '100%', fontSize: 12, lineHeight: 19, textAlign: 'center', fontFamily: fontForWeight('600', containsTamil(label)), fontWeight: 'normal', color: value.interpolate({ inputRange: [0, 1], outputRange: [P.secondary, '#FFFFFF'] }) }}>{label}</Animated.Text>
   </TouchableOpacity></Animated.View>;
 }

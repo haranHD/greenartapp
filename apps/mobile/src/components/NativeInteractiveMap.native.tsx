@@ -1,6 +1,7 @@
+import { AppText as Text } from './AppText';
 import Feather from '@expo/vector-icons/Feather';
 import React, { useRef, useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 export interface NativeInteractiveMapProps {
@@ -614,7 +615,7 @@ const styles = StyleSheet.create({
   },
   retryBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -11,11 +11,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Greenart.Api.Pricing;
 
-public static class PriceResearchEndpoints
+public static partial class PriceResearchEndpoints
 {
     public static void MapPriceResearch(this WebApplication app,
         Func<string?, IConfiguration, ClaimsPrincipal?, bool> authorize)
     {
+        MapMobileResearch(app);
         var admin = app.MapGroup("/api/v1/admin/price-research").WithTags("Price research")
             .AddEndpointFilter(async (context, next) => {
                 var http = context.HttpContext;
@@ -106,6 +107,53 @@ public static class PriceResearchEndpoints
                 .Where(x => x.Distance <= x.Item.CoverageRadiusMeters).OrderBy(x => x.Distance).FirstOrDefault()?.Item;
             return Results.Ok(new { range = match == null ? null : PublicDto(match) });
         }).WithTags("Price research").RequireRateLimiting("EstimatesRateLimit");
+        app.MapGet("/api/v1/pricing/market-range", async (double latitude, double longitude, LandUsageType landUsage,
+            string? roadAccess, LandPriceDbContext db, CancellationToken ct) => {
+            if (!double.IsFinite(latitude) || !double.IsFinite(longitude) || latitude < 6 || latitude > 38 ||
+                longitude < 68 || longitude > 98 || !Enum.IsDefined(landUsage))
+                return Results.BadRequest(new { error = "Valid India coordinates and land type are required." });
+            return Results.Ok(new { range = await FindMarketRange(latitude, longitude, landUsage, roadAccess, db, ct) });
+        }).WithTags("Price research").RequireRateLimiting("EstimatesRateLimit");
+    }
+    // Read saved research only. This public lookup never starts provider calls or changes approval state.
+    private static async Task<MarketPriceRangeDto?> FindMarketRange(double latitude, double longitude,
+        LandUsageType landUsage, string? roadAccess, LandPriceDbContext db, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        var target = new GeoCoordinate(latitude, longitude);
+        var rows = await db.PriceResearch.AsNoTracking().Where(x => x.LandUsage == landUsage &&
+            x.Latitude >= latitude - .02 && x.Latitude <= latitude + .02 &&
+            x.Longitude >= longitude - .02 && x.Longitude <= longitude + .02).ToListAsync(ct);
+        var matching = rows.Where(x => string.Equals(x.RoadAccess, roadAccess?.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Select(x => new { Item = x, Distance = target.DistanceToMeters(new GeoCoordinate(x.Latitude, x.Longitude)) })
+            .Where(x => x.Distance <= x.Item.CoverageRadiusMeters).ToList();
+        var approved = matching.Where(x => x.Item.Status == "Approved" && x.Item.ValidUntilUtc > now)
+            .OrderBy(x => x.Distance).ThenByDescending(x => x.Item.ApprovedAtUtc).FirstOrDefault()?.Item;
+        if (approved != null)
+            return new(approved.Id, approved.Locality, approved.District, approved.LandUsage.ToString(),
+                approved.RoadAccess, approved.CoverageRadiusMeters, approved.LowPerCent!.Value, approved.HighPerCent!.Value,
+                Math.Round(approved.LowPerCent.Value / 435.6m, 2), Math.Round(approved.HighPerCent.Value / 435.6m, 2),
+                "BrokerReviewed", approved.ObservationCount, approved.BrokerReviewedAtUtc, null, approved.ValidUntilUtc!.Value,
+                [], "Broker-reviewed market estimate", "Checked with a local broker and approved for publication. Not a registered-sale valuation or a guaranteed transaction price.");
+
+        // The newest exercise at the nearest location supersedes older suggestions, including rejection/withdrawal.
+        var candidate = matching.OrderBy(x => x.Distance).ThenByDescending(x => x.Item.CreatedAtUtc).FirstOrDefault()?.Item;
+        if (candidate == null || (candidate.Status != "Draft" && candidate.Status != "BrokerReviewed")) return null;
+        ModelPriceProposal[] proposals;
+        try { proposals = JsonSerializer.Deserialize<ModelPriceProposal[]>(candidate.ProposalsJson) ?? []; }
+        catch (JsonException) { return null; }
+        var valid = proposals.Where(p => p != null && p.Status == "Proposed" &&
+                (p.Provider == "OpenAI" || p.Provider == "Claude" || p.Provider == "Gemini") &&
+                p.LowPerCent > 0 && p.HighPerCent >= p.LowPerCent && p.HighPerCent <= 1000000000m &&
+                p.GeneratedAtUtc <= now && p.GeneratedAtUtc > now.AddDays(-14))
+            .OrderByDescending(p => p.GeneratedAtUtc).DistinctBy(p => p.Provider).ToArray();
+        if (valid.Length == 0) return null;
+        var low = valid.Min(p => p.LowPerCent!.Value); var high = valid.Max(p => p.HighPerCent!.Value);
+        var generated = valid.Min(p => p.GeneratedAtUtc);
+        return new(candidate.Id, candidate.Locality, candidate.District, candidate.LandUsage.ToString(),
+            candidate.RoadAccess, candidate.CoverageRadiusMeters, low, high, Math.Round(low / 435.6m, 2), Math.Round(high / 435.6m, 2),
+            "AiSuggested", 0, null, generated, generated.AddDays(14), valid.Select(p => p.Provider).ToArray(),
+            "AI suggested range · Not yet verified", "Unverified AI research awaiting admin review. May be inaccurate; confirm with a local broker before relying on it. Not a registered-sale valuation.");
     }
     private static void CheckVersion(PriceResearch item, Guid version) {
         if (version != item.Version) throw new InvalidOperationException("This research changed. Reload before continuing.");

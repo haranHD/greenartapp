@@ -1,5 +1,6 @@
+import { AppText as Text } from './AppText';
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../theme/colors';
 
 export function LocalitySearchError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -16,5 +17,5 @@ const styles = StyleSheet.create({
   notice: { padding: 14, backgroundColor: '#FFFBEB', borderBottomWidth: 1, borderBottomColor: '#FDE68A' },
   message: { fontSize: 13, lineHeight: 20, color: '#92400E' },
   retry: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
-  retryText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  retryText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
 });

@@ -1,8 +1,7 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
@@ -858,7 +857,7 @@ const styles = StyleSheet.create({
   },
   tabButtonText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#581C87',
   },
   tabButtonTextActive: {
@@ -963,8 +962,8 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '600',
     letterSpacing: 0.4,
   },
   dividerRow: {
@@ -1011,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   googleBtnText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#1E293B',
   },
   switchHintWrap: {
@@ -1120,8 +1119,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   errorActionBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#DC2626',
   },
   serverPillBtn: {
@@ -1267,8 +1266,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   testBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   saveServerBtn: {
@@ -1282,8 +1281,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   saveServerBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   demoFillBtn: {
@@ -1297,7 +1296,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   demoFillBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#64748B',
   },

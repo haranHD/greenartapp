@@ -9,6 +9,8 @@ declare namespace JSX {
 
 declare module 'react' {
   export const React: any;
+  export function createContext<T>(value: T): { Provider: any; _type?: T };
+  export function useContext<T>(context: { _type?: T }): T;
   export function useState<T>(initialState: T | (() => T)): [T, (value: T | ((prev: T) => T)) => void];
   export function useState<T = any>(): [T | undefined, (value: T | ((prev: T) => T)) => void];
   export function useEffect(effect: () => void | (() => void), deps?: any[]): void;
@@ -48,6 +50,7 @@ declare module 'react-native' {
   };
   export function useWindowDimensions(): { width: number; height: number; scale: number; fontScale: number };
   export const StyleSheet: {
+    flatten(styles: any): any;
     create<T extends Record<string, any>>(styles: T): T;
     absoluteFillObject?: any;
     absoluteFill?: any;

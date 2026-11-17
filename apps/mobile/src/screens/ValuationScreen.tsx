@@ -1,3 +1,4 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import Feather from '@expo/vector-icons/Feather';
 import { Premium as P } from '../theme/premium';
 import { ScreenUI, withScreenStyles } from '../theme/screenUI';
@@ -9,12 +10,11 @@ import React from 'react';
 import { BrokerPriceRangeCard } from '../components/BrokerPriceRangeCard';
 import {
   View,
-  Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -98,6 +98,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   setPreviousTab,
 }) => {
   const { reduced } = useReducedMotion();
+  const { width, fontScale } = useWindowDimensions();
+  const stackLocationHeader = width / fontScale < 640 || activeLocality.length > 32;
   const [showEvidenceDetails, setShowEvidenceDetails] = React.useState(false);
   React.useEffect(() => setShowEvidenceDetails(false), [estimate]);
   return (
@@ -118,8 +120,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
       {estimateStep === 'selection' && (
         <View style={styles.card}>
           {/* Target Location Header */}
-          <View style={styles.cardHeaderRow}>
-            <View style={{ flex: 1 }}>
+          <View style={[styles.cardHeaderRow, stackLocationHeader && styles.locationHeaderStacked]}>
+            <View style={[styles.locationSummary, stackLocationHeader && styles.locationSummaryStacked]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Feather accessible={false} name="map-pin" size={15} color={P.purple} /><Text style={styles.cardSectionLabel}>TARGET LOCATION</Text></View>
               <Text style={styles.cardTitle}>{activeLocality}</Text>
               <Text style={styles.cardSubtitle}>
@@ -127,11 +129,11 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
               </Text>
             </View>
             <TouchableOpacity
-              style={styles.changeLocBtn}
+              style={[styles.changeLocBtn, stackLocationHeader && styles.changeLocBtnStacked]}
               onPress={() => setActiveTab('search')}
               activeOpacity={0.8}
             >
-              <Text style={styles.changeLocBtnText}>Change on Map </Text>
+              <Text style={styles.changeLocBtnText}>Change on Map</Text>
             </TouchableOpacity>
           </View>
 
@@ -250,7 +252,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
       {/* STEP 2: VALUATION RESULTS */}
       {estimateStep === 'result' && (
         <>
-          {!loadingEstimate && <BrokerPriceRangeCard latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
+          {!loadingEstimate && <BrokerPriceRangeCard locality={activeLocality} district={activeDistrict} latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
           {!loadingEstimate && !estimateError && estimate?.guidelineLookupMessage && (
             <View accessibilityRole="alert" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 16 }}>
               <Text style={{ fontSize: 13, lineHeight: 20, color: '#92400E' }}>{estimate.guidelineLookupMessage}</Text>
@@ -767,6 +769,10 @@ const styles = withScreenStyles({
     shadowRadius: 6,
     elevation: 2,
   },
+  locationHeaderStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  locationSummary: { flex: 1, minWidth: 0 },
+  locationSummaryStacked: { flex: 0, width: '100%' },
+  changeLocBtnStacked: { alignSelf: 'flex-start', maxWidth: '100%' },
   cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -803,8 +809,8 @@ const styles = withScreenStyles({
     borderColor: '#E9D5FF',
   },
   changeLocBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   usageGrid: {
@@ -826,7 +832,7 @@ const styles = withScreenStyles({
     borderColor: '#D4AF37',
   },
   usageChipBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#334155',
   },
@@ -918,8 +924,8 @@ const styles = withScreenStyles({
     borderColor: '#D4AF37',
   },
   applyCoordBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   primaryActionBtn: {
@@ -939,7 +945,7 @@ const styles = withScreenStyles({
   primaryActionBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
   secondaryActionBtn: {
@@ -953,8 +959,8 @@ const styles = withScreenStyles({
   },
   secondaryActionBtnText: {
     color: '#240046',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   exportPdfBtn: {
     backgroundColor: '#240046',
@@ -972,8 +978,8 @@ const styles = withScreenStyles({
   },
   exportPdfBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
   loadingCard: {

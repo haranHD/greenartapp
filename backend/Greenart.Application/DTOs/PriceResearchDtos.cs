@@ -16,3 +16,12 @@ public record BrokerPriceRangeDto(Guid ResearchId, string Locality, string Distr
     decimal LowPerSqFt, decimal HighPerSqFt, int ObservationCount, DateTime ReviewedAtUtc,
     DateTime ValidUntilUtc, string Label = "Broker-reviewed market estimate",
     string Notice = "Indicative range checked with a local broker and approved for publication. Not a registered-sale valuation or a guaranteed transaction price.");
+
+public record MarketPriceRangeDto(Guid ResearchId, string Locality, string District, string LandUsage,
+    string RoadAccess, int CoverageRadiusMeters, decimal LowPerCent, decimal HighPerCent,
+    decimal LowPerSqFt, decimal HighPerSqFt, string Basis, int ObservationCount,
+    DateTime? ReviewedAtUtc, DateTime? GeneratedAtUtc, DateTime ValidUntilUtc,
+    string[] Providers, string Label, string Notice);
+
+public record MobilePriceResearchRequest(Guid RequestId, string Locality, string District, double Latitude,
+    double Longitude, LandUsageType LandUsage, string RoadAccess);

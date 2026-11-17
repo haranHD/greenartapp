@@ -1,3 +1,4 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { PremiumChoice } from '../components/PremiumChoice';
@@ -8,9 +9,7 @@ import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import {
   View,
-  Text,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
@@ -475,8 +474,8 @@ const styles = withScreenStyles({
   },
   locateBtnText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
   addressStatusBanner: {
@@ -808,13 +807,13 @@ const styles = withScreenStyles({
   },
   primaryFindBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
 }, {
   scrollView: ScreenUI.canvas, screenHeaderBox: { marginBottom: 0 }, viewTitle: ScreenUI.heading, viewSubtitle: { ...ScreenUI.subtitle, marginTop: 6 }, card: ScreenUI.card,
-  searchBarBox: { minHeight: 54, height: undefined, borderRadius: 12, borderColor: P.border, backgroundColor: '#FDFCFE' }, searchBarInput: { minWidth: 0, fontSize: 14, color: P.text, paddingVertical: 12 }, locateBtn: { minHeight: 44, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, borderColor: P.violet }, locateBtnText: { fontSize: 12, lineHeight: 18 },
+  searchBarBox: { minHeight: 54, height: undefined, borderRadius: 12, borderColor: P.border, backgroundColor: '#FDFCFE' }, searchBarInput: { minWidth: 0, fontSize: 14, color: P.text, paddingVertical: 12 }, locateBtn: { minHeight: 44, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, borderColor: P.violet }, locateBtnText: { fontSize: 14, lineHeight: 21 },
   addressStatusBanner: { backgroundColor: P.lavender, borderColor: P.border, borderRadius: 12, padding: 13 }, addressStatusText: { color: P.violet, fontSize: 12, lineHeight: 19 },
   localityChip: ScreenUI.chip, localityChipActive: ScreenUI.chipActive, localityChipText: ScreenUI.chipText, localityChipTextActive: ScreenUI.chipTextActive,
   mapCard: { borderRadius: 20, borderColor: P.border, shadowOpacity: .04 }, mapCardHeader: { padding: 16, borderBottomColor: P.border }, mapCardTitle: { color: P.text, fontSize: 16, lineHeight: 23 }, mapCardSubtitle: { color: P.secondary, fontSize: 12, lineHeight: 19 }, expandIconBtn: { minHeight: 44, width: 44, height: 44, borderRadius: 12, backgroundColor: P.lavender, borderColor: P.border, borderWidth: 1, elevation: 0 }, expandIconBtnActive: { backgroundColor: P.violet, borderColor: P.gold },

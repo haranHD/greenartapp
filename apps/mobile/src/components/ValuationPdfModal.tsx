@@ -1,7 +1,7 @@
+import { AppText as Text } from './AppText';
 import React from 'react';
 import {
   View,
-  Text,
   Modal,
   ScrollView,
   TouchableOpacity,
@@ -305,8 +305,8 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     color: '#F8FAFC',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   barTitle: {
     color: '#FFFFFF',
@@ -323,8 +323,8 @@ const styles = StyleSheet.create({
   },
   printBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   scrollContent: {
     padding: 16,

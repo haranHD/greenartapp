@@ -1,3 +1,5 @@
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
+import { EmptyPropertyIllustration } from './EmptyPropertyIllustration';
 import { PremiumPressable } from './PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Feather from '@expo/vector-icons/Feather';
@@ -9,8 +11,6 @@ import { PropertyThumbnail } from './PropertyThumbnail';
 import React, { useState, useMemo } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   Image,
@@ -151,7 +151,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
 
       {/* Listing Cards */}
       {filteredListings.length === 0 ? (
-        <View style={styles.emptyState}><View style={{ backgroundColor: P.lavender, padding: 14, borderRadius: 16, marginBottom: 14 }}><Feather accessible={false} name="map-pin" size={28} color={P.purple} /></View>
+        <View style={styles.emptyState}><EmptyPropertyIllustration kind="land" />
           <Text style={styles.emptyTitle}>No matching land listings</Text>
           <Text style={styles.emptyMessage}>
             No active listings found for the selected filters. Try broadening your district or land usage search.
@@ -165,7 +165,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
               setMaxBudget(null);
             }}
           >
-            <Text style={styles.resetFilterBtnText}>Reset All Filters</Text>
+            <Text style={styles.resetFilterBtnText}>Reset All Filters</Text><Feather accessible={false} name="rotate-ccw" size={15} color={P.champagne} />
           </PremiumPressable>
         </View>
       ) : (
@@ -334,9 +334,9 @@ const styles = withScreenStyles({
     padding: 6,
   },
   clearBtnText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#64748B',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   filterSection: {
     marginBottom: 10,
@@ -602,8 +602,8 @@ const styles = withScreenStyles({
     alignItems: 'center',
   },
   actionBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   emptyState: {
@@ -638,8 +638,8 @@ const styles = withScreenStyles({
   },
   resetFilterBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }, {
   container: ScreenUI.canvas,

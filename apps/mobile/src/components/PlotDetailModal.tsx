@@ -1,12 +1,11 @@
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   Modal,
   ScrollView,
   Image,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
   Alert,
 } from 'react-native';
@@ -393,8 +392,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   closeBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#0F172A',
   },
   navTitle: {
@@ -668,8 +667,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   runValuationBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   docList: {
@@ -830,8 +829,8 @@ const styles = StyleSheet.create({
   },
   sendEnquiryBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   enquirySuccessBox: {
     backgroundColor: '#FAF5FF',

@@ -1,3 +1,4 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Feather from '@expo/vector-icons/Feather';
@@ -8,10 +9,8 @@ import { PremiumChoice } from '../components/PremiumChoice';
 import React, { useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   StyleSheet,
   Alert,
@@ -238,7 +237,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                       : 'GA'}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.profileOrgName}>{currentUser.fullName}</Text>
                   <Text style={styles.profileRoleTitle}>{currentUser.email}</Text>
                   <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
@@ -410,7 +409,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                       style={[styles.secondaryActionBtn, { flex: 1 }]}
                       onPress={handleStartEdit}
                     >
-                      <Text style={styles.secondaryActionBtnText}>Edit Profile</Text>
+                      <Feather accessible={false} name="edit-3" size={16} color={P.purple} /><Text style={styles.secondaryActionBtnText}>Edit Profile</Text>
                     </PremiumPressable>
 
                     <PremiumPressable reducedMotion={reduced}
@@ -421,7 +420,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
                         setIsChangingPassword(true);
                       }}
                     >
-                      <Text style={styles.secondaryActionBtnText}>Change Password</Text>
+                      <Feather accessible={false} name="lock" size={16} color={P.purple} /><Text style={styles.secondaryActionBtnText}>Change Password</Text>
                     </PremiumPressable>
                   </View>
                 </View>
@@ -707,8 +706,8 @@ const styles = withScreenStyles({
   },
   primaryActionBtnText: {
     color: '#FFFFFF',
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '600',
   },
   secondaryActionBtn: {
     backgroundColor: '#FAF5FF',
@@ -720,13 +719,13 @@ const styles = withScreenStyles({
   },
   secondaryActionBtnText: {
     color: '#240046',
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '600',
   },
 }, {
   scrollBody: { ...ScreenUI.content }, screenHeaderBox: { marginBottom: 0 }, viewTitle: ScreenUI.heading,
   card: ScreenUI.card, cardTitle: { color: P.text, fontSize: 18, lineHeight: 25 }, cardSubtitle: ScreenUI.subtitle,
-  profileHeroRow: { gap: 14, alignItems: 'center' }, profileHeroAvatar: { backgroundColor: P.violet, width: 56, height: 56, borderRadius: 18 }, profileOrgName: { color: P.text, fontSize: 19, lineHeight: 27 }, profileRoleTitle: { ...ScreenUI.subtitle, fontSize: 13 },
+  profileHeroRow: { gap: 14, alignItems: 'center' }, profileHeroAvatar: { backgroundColor: P.violet, width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: P.gold }, profileOrgName: { color: P.text, fontSize: 19, lineHeight: 27 }, profileRoleTitle: { ...ScreenUI.subtitle, fontSize: 13 },
   detailsList: { borderTopColor: P.border, marginTop: 20, paddingTop: 12 }, detailRow: { flexWrap: 'wrap', gap: 8, paddingVertical: 10 }, detailKey: { color: P.secondary, fontSize: 13 }, detailVal: { color: P.text, fontSize: 13, flexShrink: 1 },
   textInput: ScreenUI.input, inputLabel: { ...ScreenUI.section, fontSize: 12 }, editSection: { borderTopColor: P.border, marginTop: 18, paddingTop: 18, gap: 14 }, sectionHeader: { fontSize: 16, lineHeight: 24, color: P.violet },
   primaryActionBtn: ScreenUI.primary, primaryActionBtnText: ScreenUI.primaryText, secondaryActionBtn: ScreenUI.secondary, secondaryActionBtnText: ScreenUI.secondaryText,

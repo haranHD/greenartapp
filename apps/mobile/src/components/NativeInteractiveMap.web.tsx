@@ -1,5 +1,6 @@
+import { AppText as Text } from './AppText';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 
 export interface NativeInteractiveMapProps {
   targetLat: number;

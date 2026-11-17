@@ -1,5 +1,6 @@
+import { AppText as Text } from './AppText';
 import React, { useEffect, useState } from 'react';
-import { Image, View, Text } from 'react-native';
+import { Image, View} from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { Premium as P } from '../theme/premium';
 export function PropertyThumbnail({ uri, style }: { uri?: string; style?: object }) {

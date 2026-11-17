@@ -1,7 +1,7 @@
+import { AppText as Text } from '../components/AppText';
 import React from 'react';
 import {
   View,
-  Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
     borderColor: '#E9D5FF',
   },
   historyViewBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
+    fontSize: 14.5,
+    fontWeight: '600',
     color: '#240046',
   },
   emptyCard: {
@@ -297,8 +297,8 @@ const styles = StyleSheet.create({
   },
   primaryActionBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -1,11 +1,12 @@
+import { AppText as Text } from './AppText';
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { Premium } from '../theme/premium';
 export interface AppHeaderProps { isHealthy: boolean; healthStatus?: string; onPressProfile?: () => void; user?: { fullName?: string; email?: string } | null; }
 export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, onPressProfile }) => {
   const { width, fontScale } = useWindowDimensions();
-  const compact = width < 360 || fontScale > 1.25;
+  const compact = width / fontScale < 380;
   const status = isHealthy ? 'Service online' : healthStatus === 'Degraded' ? 'Limited service' : healthStatus ? 'Service unavailable' : 'Connecting';
   return <View style={styles.header}><View style={styles.inner}>
     <Text style={styles.title}>Property insights</Text>
@@ -16,10 +17,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, o
   </View></View>;
 };
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#FFFFFF', minHeight: 70, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 8, justifyContent: 'center' },
+  header: { backgroundColor: '#FFFFFF', minHeight: 64, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 8, justifyContent: 'center' },
   inner: { width: '100%', maxWidth: 1080, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontSize: 18, lineHeight: 25, fontWeight: '600', letterSpacing: -.4, color: Premium.text, flexShrink: 1 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  title: { fontSize: 17, lineHeight: 24, fontWeight: '600', letterSpacing: -.4, color: Premium.text, flexShrink: 1 },
+  controls: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, color: Premium.secondary },

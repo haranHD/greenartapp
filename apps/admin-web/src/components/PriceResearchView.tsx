@@ -51,7 +51,7 @@ export function PriceResearchView({ adminKey }: { adminKey: string }) {
     {error && <div className="price-error" role="alert">{error} <button type="button" onClick={() => void load()} disabled={busy}>Reload</button></div>}
     <div className="price-layout">
       <section className="price-panel">
-        <h3>New price research</h3><p>One exercise can contain up to three AI proposals. They do not count as three sale observations.</p>
+        <h3>New price research</h3><p>Saved AI suggestions appear in the app as unverified for up to 14 days. Approval publishes the broker-checked range. AI proposals do not count as sale observations.</p>
         <form onSubmit={create} className="price-form">
           <label>Locality<input name="locality" required maxLength={150} /></label>
           <label>District<input name="district" required maxLength={150} /></label>

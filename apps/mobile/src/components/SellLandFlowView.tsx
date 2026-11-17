@@ -1,3 +1,5 @@
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
+import { EmptyPropertyIllustration } from './EmptyPropertyIllustration';
 import { PremiumPressable } from './PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Feather from '@expo/vector-icons/Feather';
@@ -8,8 +10,6 @@ import { PremiumChoice } from './PremiumChoice';
 import React, { useState } from 'react';
 import {
   View,
-  Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -147,7 +147,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
         /* Workspace Screen */
         <View style={styles.workspaceBox}>
           {userListings.length === 0 ? (
-            <View style={styles.emptyWorkspace}><View style={{ backgroundColor: P.lavender, padding: 15, borderRadius: 16, marginBottom: 14 }}><Feather accessible={false} name="file-plus" size={29} color={P.purple} /></View>
+            <View style={styles.emptyWorkspace}><EmptyPropertyIllustration kind="document" />
               <Text style={styles.emptyTitle}>No land plots listed yet</Text>
               <Text style={styles.emptyMsg}>
                 Post your land plot with survey numbers and title documents to connect with serious institutional and retail buyers.
@@ -156,7 +156,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 style={styles.ctaButton}
                 onPress={() => setActiveSubTab('create')}
               >
-                <Text style={styles.ctaButtonText}>Create First Plot Listing</Text>
+                <Feather accessible={false} name="plus" size={17} color={P.champagne} /><Text style={styles.ctaButtonText}>Create First Plot Listing</Text>
               </PremiumPressable>
             </View>
           ) : (
@@ -517,7 +517,7 @@ const styles = withScreenStyles({
     elevation: 2,
   },
   subTabBtnText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
     color: '#64748B',
   },
@@ -559,8 +559,8 @@ const styles = withScreenStyles({
   },
   ctaButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   listingStack: {
     gap: 12,
@@ -691,8 +691,8 @@ const styles = withScreenStyles({
     color: '#64748B',
   },
   footerActionText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#240046',
   },
   formContainer: {
@@ -858,8 +858,8 @@ const styles = withScreenStyles({
   },
   submitBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
   draftBtn: {
     backgroundColor: '#FFFFFF',
@@ -871,8 +871,8 @@ const styles = withScreenStyles({
   },
   draftBtnText: {
     color: '#475569',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
 }, {
   container: ScreenUI.canvas, header: { marginBottom: 0 }, badge: { backgroundColor: 'transparent', borderWidth: 0, padding: 0, marginBottom: 8 }, badgeText: ScreenUI.eyebrow, title: ScreenUI.heading, subtitle: { ...ScreenUI.subtitle, marginTop: 8 },

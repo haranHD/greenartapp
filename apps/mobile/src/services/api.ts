@@ -5,6 +5,19 @@ export interface BrokerPriceRange {
   label: string; notice: string;
 }
 
+export interface MarketPriceRange extends Omit<BrokerPriceRange, 'reviewedAtUtc'> {
+  basis: 'AiSuggested' | 'BrokerReviewed';
+  reviewedAtUtc: string | null; generatedAtUtc: string | null; providers: string[];
+}
+
+function validateMarketPriceRange(range: MarketPriceRange | null): void {
+  if (range != null && (!['AiSuggested', 'BrokerReviewed'].includes(range.basis) ||
+      !Number.isFinite(range.lowPerCent) || !Number.isFinite(range.highPerCent) || range.lowPerCent <= 0 || range.highPerCent < range.lowPerCent ||
+      !Number.isFinite(range.lowPerSqFt) || !Number.isFinite(range.highPerSqFt) || range.lowPerSqFt <= 0 || range.highPerSqFt < range.lowPerSqFt)) {
+    throw new ApiUnavailableError('The saved price range could not be validated.');
+  }
+}
+
 // Centralized Typed API Client for Greenart Mobile Application
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
@@ -557,6 +570,31 @@ class MobileApiClient {
     } catch {
       return { status: 'Offline' };
     }
+  }
+
+  async generatePriceResearch(input: { requestId: string; locality: string; district: string; latitude: number; longitude: number; landUsage: number; roadAccess: string }, accessToken: string): Promise<{ range: MarketPriceRange | null; status: string; cached: boolean; message: string }> {
+    const response = await this.fetchWithTimeout('/pricing/research', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(input),
+    }, 50000);
+    if (!response.ok) {
+      let message = response.status === 401 ? 'Your session has expired. Sign in again to generate an AI suggestion.' : 'Could not complete AI research. Refresh saved pricing before trying again.';
+      try { const body = await response.json(); message = body.error || message; } catch { }
+      throw new ApiUnavailableError(message);
+    }
+    const result = await response.json();
+    validateMarketPriceRange(result.range);
+    return result;
+  }
+
+  async getMarketPriceRange(latitude: number, longitude: number, landUsage: number, roadAccess: string, signal?: AbortSignal): Promise<{ range: MarketPriceRange | null }> {
+    const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), landUsage: String(landUsage), roadAccess });
+    const response = await this.fetchWithTimeout(`/pricing/market-range?${query}`, { signal, headers: { Accept: 'application/json' } }, 10000);
+    if (response.status === 404) throw new ApiUnavailableError('Pricing requires the updated backend. Restart the backend, then retry pricing.');
+    if (!response.ok) throw new ApiUnavailableError('Price research is temporarily unavailable.');
+    const result = await response.json();
+    validateMarketPriceRange(result.range);
+    return result;
   }
 
   async getBrokerPriceRange(latitude: number, longitude: number, landUsage: number, roadAccess: string, signal?: AbortSignal): Promise<{ range: BrokerPriceRange | null }> {
