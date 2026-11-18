@@ -38,6 +38,13 @@ export interface LiveMarketComps {
   sourcePortals: string[];
   resolvedLocality: string;
   citations?: SourceCitation[];
+  microMarketTier?: string;
+  minPricePerSqFt?: number;
+  maxPricePerSqFt?: number;
+  pricePerAcreLakhs?: number | null;
+  confidenceLevel?: string;
+  valuationRationale?: string;
+  isLiveSearchGrounded?: boolean;
 }
 
 export interface EstimateSuccessResult {

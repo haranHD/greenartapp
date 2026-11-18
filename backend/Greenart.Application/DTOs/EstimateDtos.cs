@@ -69,7 +69,14 @@ public record LiveMarketCompsDto(
     string SourceSummary,
     List<string> SourcePortals,
     string ResolvedLocality,
-    List<SourceCitationDto>? Citations = null
+    List<SourceCitationDto>? Citations = null,
+    string? MicroMarketTier = null,
+    decimal? MinPricePerSqFt = null,
+    decimal? MaxPricePerSqFt = null,
+    decimal? PricePerAcreLakhs = null,
+    string? ConfidenceLevel = null,
+    string? ValuationRationale = null,
+    bool IsLiveSearchGrounded = true
 );
 
 public record TotalValuationDto(

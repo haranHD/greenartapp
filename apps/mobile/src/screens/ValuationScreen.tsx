@@ -613,15 +613,23 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                     {liveComps ? (
                       <View style={styles.liveCompsCard}>
                         <View style={styles.liveCompsHeaderRow}>
-                          <View style={styles.liveBadge}>
-                            <View style={styles.liveBadgeDot} />
-                            <Text style={styles.liveBadgeText}>
-                              LIVE MARKET COMPS (GROUNDED SEARCH)
+                          <View style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadge : styles.fallbackBadge}>
+                            <View style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadgeDot : styles.fallbackBadgeDot} />
+                            <Text style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadgeText : styles.fallbackBadgeText}>
+                              {liveComps.isLiveSearchGrounded !== false
+                                ? 'LIVE MARKET COMPS (GROUNDED SEARCH)'
+                                : 'ESTIMATED GUIDELINE BENCHMARK (OFFLINE FALLBACK)'}
                             </Text>
                           </View>
-                          <Text style={styles.listingsCountText}>
-                            {liveComps.comparableListingsCount}+ active listings analyzed
-                          </Text>
+                          {liveComps.microMarketTier ? (
+                            <View style={styles.tierPill}>
+                              <Text style={styles.tierPillText}>{liveComps.microMarketTier}</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.listingsCountText}>
+                              {liveComps.comparableListingsCount}+ active listings analyzed
+                            </Text>
+                          )}
                         </View>
 
                         <View style={styles.liveCompsRateRow}>
@@ -642,21 +650,40 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           <Text style={styles.liveCompsLocalityText}>
                             {cleanAddress(liveComps.resolvedLocality)}
                           </Text>
-                          {liveComps.keyLandmarksUsed?.map((lm, idx) => (
-                            <View key={idx} style={styles.landmarkChip}>
-                              <Text style={styles.landmarkChipText}>{lm}</Text>
-                            </View>
-                          ))}
+                          {liveComps.keyLandmarksUsed
+                            ?.filter(lm => {
+                              if (!lm) return false;
+                              const lower = lm.trim().toLowerCase();
+                              return (
+                                lower.length > 0 &&
+                                lower !== 'taluk' &&
+                                !lower.endsWith(' taluk') &&
+                                !lower.startsWith('taluk ') &&
+                                !lower.includes('taluk') &&
+                                lower !== 'sublocality' &&
+                                lower !== 'locality' &&
+                                lower !== 'selected pin location' &&
+                                lower !== 'neighborhood' &&
+                                lower !== 'administrative_area'
+                              );
+                            })
+                            .map((lm, idx) => (
+                              <View key={idx} style={styles.landmarkChip}>
+                                <Text style={styles.landmarkChipText}>{lm}</Text>
+                              </View>
+                            ))}
                         </View>
 
-                        <View style={styles.portalBadgesRow}>
-                          <Text style={styles.listingsCountText}>Portals:</Text>
-                          {liveComps.sourcePortals?.map((p, idx) => (
-                            <View key={idx} style={styles.portalPill}>
-                              <Text style={styles.portalPillText}>{p}</Text>
-                            </View>
-                          ))}
-                        </View>
+                        {liveComps.sourcePortals && liveComps.sourcePortals.length > 0 && liveComps.isLiveSearchGrounded !== false ? (
+                          <View style={styles.portalBadgesRow}>
+                            <Text style={styles.listingsCountText}>Portals:</Text>
+                            {liveComps.sourcePortals.map((p, idx) => (
+                              <View key={idx} style={styles.portalPill}>
+                                <Text style={styles.portalPillText}>{p}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : null}
 
                         {liveComps.sourceSummary ? (
                           <View style={styles.liveCompsSummaryBox}>
@@ -666,7 +693,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           </View>
                         ) : null}
 
-                        {liveComps.citations && liveComps.citations.length > 0 ? (
+                        {liveComps.isLiveSearchGrounded !== false && liveComps.citations && liveComps.citations.length > 0 ? (
                           <View style={styles.citationsSection}>
                             <Text style={styles.citationsHeader}>Verified Property Portal Citations</Text>
                             {liveComps.citations.map((c, idx) => (
@@ -1335,6 +1362,43 @@ const styles = withScreenStyles({
     color: '#065F46',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+  },
+  fallbackBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  fallbackBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#D97706',
+  },
+  fallbackBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#92400E',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  tierPill: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D8B4FE',
+  },
+  tierPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6B21A8',
   },
   liveCompsRateRow: {
     marginTop: 2,

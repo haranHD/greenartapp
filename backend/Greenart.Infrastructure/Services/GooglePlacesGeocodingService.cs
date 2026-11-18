@@ -183,7 +183,10 @@ public class GooglePlacesGeocodingService : IGeocodingService
                                         district = TamilNaduGeoBounds.NormalizeDistrict(longName, "Tamil Nadu");
                                     else if (typeStr == "administrative_area_level_1")
                                         state = longName;
-                                    else if ((typeStr == "route" || typeStr == "point_of_interest" || typeStr == "transit_station" || typeStr == "establishment" || typeStr == "landmark" || typeStr == "natural_feature") && !landmarks.Contains(longName) && !string.IsNullOrWhiteSpace(longName))
+                                    else if ((typeStr == "route" || typeStr == "point_of_interest" || typeStr == "transit_station" || typeStr == "establishment" || typeStr == "landmark" || typeStr == "natural_feature")
+                                        && !string.IsNullOrWhiteSpace(longName)
+                                        && !landmarks.Contains(longName)
+                                        && !IsTechnicalOrTaluk(longName))
                                         landmarks.Add(longName);
                                 }
                             }
@@ -259,6 +262,7 @@ public class GooglePlacesGeocodingService : IGeocodingService
                 if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d{6}$")) continue;
                 if (trimmed.Equals("India", StringComparison.OrdinalIgnoreCase)) continue;
                 if (trimmed.Equals("Selected Pin Location", StringComparison.OrdinalIgnoreCase)) continue;
+                if (trimmed.Equals("taluk", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("sublocality", StringComparison.OrdinalIgnoreCase)) continue;
 
                 if (!seen.Contains(trimmed))
                 {
@@ -268,6 +272,18 @@ public class GooglePlacesGeocodingService : IGeocodingService
             }
         }
         return string.Join(", ", clean);
+    }
+
+    private static bool IsTechnicalOrTaluk(string name)
+    {
+        var lower = name.Trim().ToLowerInvariant();
+        return lower == "taluk" ||
+               lower.EndsWith(" taluk") ||
+               lower.StartsWith("taluk ") ||
+               lower == "sublocality" ||
+               lower == "locality" ||
+               lower == "selected pin location" ||
+               lower == "neighborhood";
     }
 
     public async Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)

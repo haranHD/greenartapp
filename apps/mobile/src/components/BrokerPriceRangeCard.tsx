@@ -11,7 +11,7 @@ export function cleanAddress(str?: string | null): string {
   const unique: string[] = [];
   for (const part of parts) {
     const lower = part.toLowerCase();
-    if (/^\d{6}$/.test(part) || lower === 'india' || lower === 'selected pin location') continue;
+    if (/^\d{6}$/.test(part) || lower === 'india' || lower === 'selected pin location' || lower === 'taluk' || lower === 'sublocality') continue;
     if (!seen.has(lower)) {
       seen.add(lower);
       unique.push(part);

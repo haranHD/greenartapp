@@ -37,27 +37,25 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         _httpClient = httpClient;
         _logger = logger;
 
-        _apiKey = configuration["GeminiSettings:ApiKey"]
-            ?? configuration["GEMINI_API_KEY"]
-            ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY")
-            ?? string.Empty;
+        _apiKey = ResolveConfigValue(configuration, "GeminiSettings:ApiKey", "GEMINI_API_KEY", "GeminiSettings__ApiKey");
 
-        _verifierApiKey = configuration["GeminiSettings:VerifierApiKey"]
-            ?? configuration["GEMINI_VERIFIER_API_KEY"]
-            ?? configuration["GEMINI_API_KEY_2"]
-            ?? Environment.GetEnvironmentVariable("GEMINI_VERIFIER_API_KEY")
-            ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY_2")
-            ?? _apiKey;
+        _verifierApiKey = ResolveConfigValue(configuration, "GeminiSettings:VerifierApiKey", "GEMINI_VERIFIER_API_KEY", "GEMINI_API_KEY_2", "GeminiSettings__VerifierApiKey");
+        if (string.IsNullOrWhiteSpace(_verifierApiKey))
+        {
+            _verifierApiKey = _apiKey;
+        }
 
-        _model = configuration["GeminiSettings:Model"]
-            ?? configuration["GEMINI_MODEL"]
-            ?? Environment.GetEnvironmentVariable("GEMINI_MODEL")
-            ?? "gemini-1.5-flash";
+        _model = ResolveConfigValue(configuration, "GeminiSettings:Model", "GEMINI_MODEL", "GeminiSettings__Model");
+        if (string.IsNullOrWhiteSpace(_model))
+        {
+            _model = "gemini-1.5-flash";
+        }
 
-        _baseUrl = configuration["GeminiSettings:BaseUrl"]
-            ?? configuration["GEMINI_BASE_URL"]
-            ?? Environment.GetEnvironmentVariable("GEMINI_BASE_URL")
-            ?? "https://generativelanguage.googleapis.com/v1beta";
+        _baseUrl = ResolveConfigValue(configuration, "GeminiSettings:BaseUrl", "GEMINI_BASE_URL", "GeminiSettings__BaseUrl");
+        if (string.IsNullOrWhiteSpace(_baseUrl))
+        {
+            _baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+        }
 
         var timeoutSeconds = 30;
         if (int.TryParse(configuration["GeminiSettings:TimeoutSeconds"], out var t) && t > 0)
@@ -66,6 +64,33 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         }
 
         _httpClient.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+
+        if (IsConfigured)
+        {
+            var maskedKey = _apiKey.Length > 8 ? $"{_apiKey[..4]}...{_apiKey[^4..]}" : "***";
+            _logger.LogInformation("GeminiLandIntelligenceService initialized. Configured: True, Key: {MaskedKey}, Model: {Model}, BaseUrl: {BaseUrl}", maskedKey, _model, _baseUrl);
+        }
+        else
+        {
+            _logger.LogWarning("GeminiLandIntelligenceService initialized without API key; live search grounding will fall back to offline calculation.");
+        }
+    }
+
+    private static string ResolveConfigValue(IConfiguration configuration, string sectionKey, params string[] envFallbackKeys)
+    {
+        var val = configuration[sectionKey];
+        if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+        foreach (var key in envFallbackKeys)
+        {
+            val = configuration[key];
+            if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+
+            val = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(val)) return val.Trim();
+        }
+
+        return string.Empty;
     }
 
     public async Task<AiLandPriceIntelligenceResponse?> AnalyzeLandPriceAsync(
@@ -417,6 +442,7 @@ Respond strictly in valid JSON format with the following keys:
         httpRequest.Headers.Add("x-goog-api-key", apiKey);
 
         using var response = await _httpClient.SendAsync(httpRequest, ct);
+        _logger.LogInformation("Gemini Grounding HTTP Call to {Endpoint} - Status: {StatusCode} ({StatusCodeInt})", endpoint, response.StatusCode, (int)response.StatusCode);
         if (!response.IsSuccessStatusCode)
         {
             var err = await response.Content.ReadAsStringAsync(ct);
@@ -437,46 +463,49 @@ Respond strictly in valid JSON format with the following keys:
         GuidelineReferenceDto? guidelineBenchmark)
     {
         var landmarksStr = landmarks.Count > 0 ? string.Join(", ", landmarks) : "State Highway / Town Main Road";
-        var guidelineFloorStr = guidelineBenchmark != null && guidelineBenchmark.GuidelineRatePerCent > 0
-            ? $"₹{guidelineBenchmark.GuidelineRatePerCent:N0}/Cent (₹{guidelineBenchmark.GuidelineRatePerSqFt:N0}/sq.ft)"
-            : "Not available for immediate radius";
+        var parts = localityName.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var sublocality = parts.Length > 0 ? parts[0] : localityName;
+        var city = parts.Length > 1 ? parts[1] : districtName;
 
-        return $@"You are a Senior Tamil Nadu Land Valuation Analyst with live web access via Google Search Grounding.
-Search Indian property portals (such as 99acres, MagicBricks, Housing.com) for real-time active retail plot market prices in:
+        return $@"You are an expert Indian Real Estate Valuation Analyst. Estimate the current live market rate for the exact pinned location below using real-time Google Search results from active Indian property portals (99acres, MagicBricks, Housing.com, CommonFloor, 1acre.in).
 
-Target Micro-Locality: {localityName}
-District: {districtName}, Tamil Nadu, India
-Coordinates: Latitude {latitude:F4}, Longitude {longitude:F4}
-Land Classification: {landUsage}
-Nearby Major Landmarks & Access Corridors: {landmarksStr}
-Government Guideline Baseline: {guidelineFloorStr}
+TARGET PROPERTY CONTEXT:
+- Coordinates: {latitude:F4}, {longitude:F4}
+- Micro-Locality: {sublocality}
+- Town/City: {city}
+- District & State: {districtName}, Tamil Nadu
+- Zoning Classification: {landUsage}
+- Nearby Landmarks / Roads (within 1.5 km): {landmarksStr}
 
-Strict Search, Filtering & Tamil Nadu Unit Math Directives:
-1. Google Search Grounding: Query property portals (99acres, MagicBricks, Housing.com) for active retail plot/land prices per sq.ft in '{localityName}' and '{districtName}' near '{landmarksStr}'.
-2. Outlier & Zoning Filtering:
-   - For {landUsage} land, focus strictly on retail layout plots.
-   - Filter out and IGNORE large bulk agricultural acreage tracts (> 15 Cents or unapproved farmlands) which have artificially low wholesale prices.
-   - Filter out extreme commercial or speculative outliers.
-3. Strict Unit Math:
-   - Portals quote prices in INR per sq. ft.
-   - Standard Tamil Nadu Land Conversion: 1 Cent = 435.6 sq. ft.
-   - Formula: Price per Cent (in Rupees) = Price per Sq. Ft. × 435.6.
-   - Formula: Price per Cent in Lakhs = (Price per Sq. Ft. × 435.6) / 100000.
-   - min_price_per_cent_lakhs = (min_price_per_sqft × 435.6) / 100000.
-   - max_price_per_cent_lakhs = (max_price_per_sqft × 435.6) / 100000.
-4. Output Requirement:
-   Respond ONLY with a JSON code block in this exact schema:
-   ```json
-   {{
-     ""min_price_per_cent_lakhs"": 12.5,
-     ""max_price_per_cent_lakhs"": 16.0,
-     ""price_per_sqft_range"": ""₹2,870 - ₹3,673 / sq.ft"",
-     ""comparable_listings_count"": 6,
-     ""key_landmarks_used"": [""{landmarksStr}""],
-     ""source_summary"": ""Active retail plot listings on 99acres and MagicBricks in {localityName}."",
-     ""source_portals"": [""99acres"", ""MagicBricks"", ""Housing.com""]
-   }}
-   ```";
+DYNAMIC VALUATION RULES:
+1. Hyper-Local Search Priority: Search specifically for active listings matching ""{sublocality} {city} {landUsage} land price"" and ""{landmarksStr} {city} plot rate"". Never fall back on broad district-wide averages if town or sub-locality data exists.
+2. Automatic Micro-Market Classification: Classify the pin dynamically into one of four tiers based on its proximity to transit hubs, main roads, and urban density:
+   - Tier 1 (Prime Town/City Center, Commercial/Station/Main Road Frontage)
+   - Tier 2 (Established Urban/Suburban Residential Colonies)
+   - Tier 3 (Developing Outer Layouts / Bypass Corridors)
+   - Tier 4 (Rural / Agricultural / Outskirt Villages)
+   Ensure the final price range strictly aligns with comparable listings in that same micro-market tier.
+3. Zoning & Size Outlier Filtering:
+   - If Zoning is Residential/Commercial: Filter out bulk multi-acre tracts (> 15 cents) and unapproved farmland that artificially depress per-sq.-ft. rates. Focus on retail plot sizes (1,000 – 5,000 sq. ft.).
+   - If Zoning is Agricultural: Evaluate per-acre rates based on road access and irrigation/crop potential rather than residential plot rates.
+4. Standardized Unit Conversion:
+   - Calculate the realistic low-to-high market range per Sq. Ft.
+   - Convert to Lakhs per Cent using exact math: 1 Cent = 435.6 sq. ft. (Price_Per_Cent_Lakhs = (Price_Per_SqFt * 435.6) / 100000).
+
+OUTPUT FORMAT (Strict JSON):
+```json
+{{
+  ""micro_market_tier"": ""Tier 2 (Established Urban/Suburban Residential Colonies)"",
+  ""min_price_per_sqft"": 2870,
+  ""max_price_per_sqft"": 3673,
+  ""min_price_per_cent_lakhs"": 12.5,
+  ""max_price_per_cent_lakhs"": 16.0,
+  ""price_per_acre_lakhs"": null,
+  ""confidence_level"": ""High"",
+  ""analyzed_landmarks"": [""{landmarksStr}""],
+  ""valuation_rationale"": ""Active retail plot listings in {sublocality}, {city} reflect steady residential demand with proximity to key access routes.""
+}}
+```";
     }
 
     private LiveMarketCompsDto? ParseGroundedCompsResponse(
@@ -511,8 +540,10 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
                 foundGrounding = true;
             }
 
+            int rawChunksCount = 0;
             if (foundGrounding && gmElement.TryGetProperty("groundingChunks", out var chunks) && chunks.ValueKind == JsonValueKind.Array)
             {
+                rawChunksCount = chunks.GetArrayLength();
                 foreach (var chunk in chunks.EnumerateArray())
                 {
                     string uri = "";
@@ -555,6 +586,8 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
                 }
             }
 
+            _logger.LogInformation("Gemini Grounding returned {RawChunksCount} Google Search groundingChunks ({CitationsCount} valid portal citations extracted)", rawChunksCount, citations.Count);
+
             if (!candidate.TryGetProperty("content", out var content) ||
                 !content.TryGetProperty("parts", out var parts) ||
                 parts.GetArrayLength() == 0)
@@ -579,6 +612,19 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
             var landmarksUsed = new List<string>();
             string summary = "";
             var innerPortals = new List<string>();
+            string microMarketTier = "";
+            decimal? minPricePerSqFt = null;
+            decimal? maxPricePerSqFt = null;
+            decimal? pricePerAcreLakhs = null;
+            string confidenceLevel = "High";
+            string valuationRationale = "";
+
+            if (innerRoot.TryGetProperty("micro_market_tier", out var tierElem)) microMarketTier = tierElem.GetString() ?? "";
+            if (innerRoot.TryGetProperty("min_price_per_sqft", out var minSqElem) && minSqElem.TryGetDecimal(out var minSqVal)) minPricePerSqFt = minSqVal;
+            if (innerRoot.TryGetProperty("max_price_per_sqft", out var maxSqElem) && maxSqElem.TryGetDecimal(out var maxSqVal)) maxPricePerSqFt = maxSqVal;
+            if (innerRoot.TryGetProperty("price_per_acre_lakhs", out var acreElem) && acreElem.ValueKind == JsonValueKind.Number && acreElem.TryGetDecimal(out var acreVal)) pricePerAcreLakhs = acreVal;
+            if (innerRoot.TryGetProperty("confidence_level", out var confElem)) confidenceLevel = confElem.GetString() ?? "High";
+            if (innerRoot.TryGetProperty("valuation_rationale", out var ratElem)) valuationRationale = ratElem.GetString() ?? "";
 
             if (innerRoot.TryGetProperty("min_price_per_cent_lakhs", out var minElem)) minElem.TryGetDecimal(out minLakhs);
             if (innerRoot.TryGetProperty("max_price_per_cent_lakhs", out var maxElem)) maxElem.TryGetDecimal(out maxLakhs);
@@ -586,12 +632,21 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
             if (innerRoot.TryGetProperty("comparable_listings_count", out var cElem)) cElem.TryGetInt32(out count);
             if (innerRoot.TryGetProperty("source_summary", out var sElem)) summary = sElem.GetString() ?? "";
 
+            if (innerRoot.TryGetProperty("analyzed_landmarks", out var almElem) && almElem.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in almElem.EnumerateArray())
+                {
+                    var val = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(val) && !IsTechnicalOrTalukTag(val) && !landmarksUsed.Contains(val)) landmarksUsed.Add(val);
+                }
+            }
+
             if (innerRoot.TryGetProperty("key_landmarks_used", out var lmElem) && lmElem.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in lmElem.EnumerateArray())
                 {
                     var val = item.GetString();
-                    if (!string.IsNullOrWhiteSpace(val)) landmarksUsed.Add(val);
+                    if (!string.IsNullOrWhiteSpace(val) && !IsTechnicalOrTalukTag(val) && !landmarksUsed.Contains(val)) landmarksUsed.Add(val);
                 }
             }
 
@@ -612,6 +667,16 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
                 portals.Add("Housing.com");
             }
 
+            // Standardize Tamil Nadu Unit Math: 1 Cent = 435.6 sq. ft.
+            if (minLakhs <= 0 && minPricePerSqFt.HasValue && minPricePerSqFt.Value > 0)
+            {
+                minLakhs = Math.Round((minPricePerSqFt.Value * 435.6m) / 100000m, 2);
+            }
+            if (maxLakhs <= 0 && maxPricePerSqFt.HasValue && maxPricePerSqFt.Value > 0)
+            {
+                maxLakhs = Math.Round((maxPricePerSqFt.Value * 435.6m) / 100000m, 2);
+            }
+
             if (minLakhs <= 0 && guidelineBenchmark != null && guidelineBenchmark.GuidelineRatePerCent > 0)
             {
                 minLakhs = Math.Round((guidelineBenchmark.GuidelineRatePerCent * 1.30m) / 100000m, 2);
@@ -620,23 +685,35 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
             {
                 maxLakhs = Math.Round(minLakhs * 1.25m, 2);
             }
+
             if (string.IsNullOrWhiteSpace(pricePerSqFt))
             {
-                var minSqFt = Math.Round((minLakhs * 100000m) / 435.6m, 0);
-                var maxSqFt = Math.Round((maxLakhs * 100000m) / 435.6m, 0);
+                var minSqFt = minPricePerSqFt ?? Math.Round((minLakhs * 100000m) / 435.6m, 0);
+                var maxSqFt = maxPricePerSqFt ?? Math.Round((maxLakhs * 100000m) / 435.6m, 0);
                 pricePerSqFt = $"₹{minSqFt:N0} - ₹{maxSqFt:N0} / sq.ft";
             }
+
+            var finalSummary = !string.IsNullOrWhiteSpace(valuationRationale)
+                ? valuationRationale
+                : (!string.IsNullOrWhiteSpace(summary) ? summary : $"Active retail plots verified via property portals around {locality}.");
 
             return new LiveMarketCompsDto(
                 MinPricePerCentLakhs: minLakhs,
                 MaxPricePerCentLakhs: maxLakhs,
                 PricePerSqFtRange: pricePerSqFt,
                 ComparableListingsCount: count > 0 ? count : 5,
-                KeyLandmarksUsed: landmarksUsed.Count > 0 ? landmarksUsed : landmarks.Take(3).ToList(),
-                SourceSummary: !string.IsNullOrWhiteSpace(summary) ? summary : $"Active retail plots verified via property portals around {locality}.",
+                KeyLandmarksUsed: landmarksUsed.Count > 0 ? landmarksUsed : landmarks.Where(lm => !IsTechnicalOrTalukTag(lm)).Take(3).ToList(),
+                SourceSummary: finalSummary,
                 SourcePortals: portals.ToList(),
                 ResolvedLocality: GooglePlacesGeocodingService.BuildCleanAddress(locality, district, "Tamil Nadu"),
-                Citations: citations
+                Citations: citations,
+                MicroMarketTier: !string.IsNullOrWhiteSpace(microMarketTier) ? microMarketTier : "Tier 2 (Established Urban/Suburban Residential Colonies)",
+                MinPricePerSqFt: minPricePerSqFt ?? Math.Round((minLakhs * 100000m) / 435.6m, 0),
+                MaxPricePerSqFt: maxPricePerSqFt ?? Math.Round((maxLakhs * 100000m) / 435.6m, 0),
+                PricePerAcreLakhs: pricePerAcreLakhs,
+                ConfidenceLevel: confidenceLevel,
+                ValuationRationale: finalSummary,
+                IsLiveSearchGrounded: true
             );
         }
         catch (Exception ex)
@@ -674,25 +751,48 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
         decimal minSqFt = Math.Round(minRatePerCent / 435.6m, 0);
         decimal maxSqFt = Math.Round(maxRatePerCent / 435.6m, 0);
 
-        var portalList = new List<string> { "99acres", "MagicBricks", "Housing.com" };
-        var citations = new List<SourceCitationDto>
-        {
-            new($"99acres Real Estate Portal - {district}", "https://www.99acres.com", "99acres"),
-            new($"MagicBricks Land Listings - {district}", "https://www.magicbricks.com", "MagicBricks"),
-            new($"Housing.com Verified Plots - {district}", "https://housing.com", "Housing.com")
-        };
+        var portalList = new List<string> { "TNREGINET Statutory Guideline Benchmark" };
+        var citations = new List<SourceCitationDto>(); // Offline fallback: do not return fake placeholder citations
+
+        var cleanLandmarks = (landmarks ?? new List<string>())
+            .Where(lm => !IsTechnicalOrTalukTag(lm))
+            .Take(3)
+            .ToList();
 
         return new LiveMarketCompsDto(
             MinPricePerCentLakhs: minLakhs,
             MaxPricePerCentLakhs: maxLakhs,
             PricePerSqFtRange: $"₹{minSqFt:N0} - ₹{maxSqFt:N0} / sq.ft",
-            ComparableListingsCount: 5,
-            KeyLandmarksUsed: landmarks.Take(3).ToList(),
-            SourceSummary: $"Active retail {landUsage.ToString().ToLowerInvariant()} plot comps verified on 99acres and MagicBricks along the {landmarks.FirstOrDefault() ?? "corridor"}.",
+            ComparableListingsCount: 0,
+            KeyLandmarksUsed: cleanLandmarks,
+            SourceSummary: $"Estimated baseline guideline benchmark derived from statutory Tamil Nadu registration rates for {locality}, {district} (Offline Fallback).",
             SourcePortals: portalList,
             ResolvedLocality: GooglePlacesGeocodingService.BuildCleanAddress(locality, district, "Tamil Nadu"),
-            Citations: citations
+            Citations: citations,
+            MicroMarketTier: "Tier 2 (Established Urban/Suburban Residential Colonies)",
+            MinPricePerSqFt: minSqFt,
+            MaxPricePerSqFt: maxSqFt,
+            PricePerAcreLakhs: null,
+            ConfidenceLevel: "Moderate",
+            ValuationRationale: $"Guideline benchmark rate for {locality}, {district} calculated offline without live Google search grounding.",
+            IsLiveSearchGrounded: false
         );
+    }
+
+    private static bool IsTechnicalOrTalukTag(string? tag)
+    {
+        if (string.IsNullOrWhiteSpace(tag)) return true;
+        var t = tag.Trim();
+        var lower = t.ToLowerInvariant();
+        return lower == "taluk" ||
+               lower.EndsWith(" taluk") ||
+               lower.StartsWith("taluk ") ||
+               lower.Contains("taluk") ||
+               lower == "sublocality" ||
+               lower == "locality" ||
+               lower == "selected pin location" ||
+               lower == "neighborhood" ||
+               lower == "administrative_area";
     }
 
     public async Task<CrossVerifiedPriceResultDto?> CrossVerifyIndicativeMarketPriceAsync(

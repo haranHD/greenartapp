@@ -46,8 +46,11 @@ else if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ASPNETCOR
 var envCandidatePaths = new[]
 {
     Path.Combine(builder.Environment.ContentRootPath, ".env"),
+    Path.Combine(builder.Environment.ContentRootPath, "..", ".env"),
     Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".env"),
-    Path.Combine(Directory.GetCurrentDirectory(), ".env")
+    Path.Combine(Directory.GetCurrentDirectory(), ".env"),
+    Path.Combine(Directory.GetCurrentDirectory(), "greenartapp", ".env"),
+    Path.Combine(Directory.GetCurrentDirectory(), "..", ".env")
 };
 
 foreach (var envPath in envCandidatePaths)
@@ -70,6 +73,26 @@ foreach (var envPath in envCandidatePaths)
         }
         break;
     }
+}
+
+// Map environment keys to typed configuration sections if not explicitly configured
+var envGeminiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+if (!string.IsNullOrWhiteSpace(envGeminiKey) && string.IsNullOrWhiteSpace(builder.Configuration["GeminiSettings:ApiKey"]))
+{
+    builder.Configuration["GeminiSettings:ApiKey"] = envGeminiKey;
+}
+
+var envGeminiVerifierKey = Environment.GetEnvironmentVariable("GEMINI_VERIFIER_API_KEY");
+if (!string.IsNullOrWhiteSpace(envGeminiVerifierKey) && string.IsNullOrWhiteSpace(builder.Configuration["GeminiSettings:VerifierApiKey"]))
+{
+    builder.Configuration["GeminiSettings:VerifierApiKey"] = envGeminiVerifierKey;
+}
+
+var envGeocodingKey = Environment.GetEnvironmentVariable("GEOCODING_API_KEY")
+    ?? Environment.GetEnvironmentVariable("GOOGLE_MAPS_API_KEY");
+if (!string.IsNullOrWhiteSpace(envGeocodingKey) && string.IsNullOrWhiteSpace(builder.Configuration["GeocodingSettings:ApiKey"]))
+{
+    builder.Configuration["GeocodingSettings:ApiKey"] = envGeocodingKey;
 }
 
 EnvironmentConfiguration.RefreshEnvironmentProviders((IConfigurationRoot)builder.Configuration);
