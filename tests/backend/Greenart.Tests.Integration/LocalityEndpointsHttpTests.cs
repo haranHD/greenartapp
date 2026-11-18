@@ -67,6 +67,20 @@ public class LocalityEndpointsHttpTests : IClassFixture<WebApplicationFactory<Pr
             }
             return Task.FromResult<LocalityDetailsDto?>(null);
         }
+
+        public Task<ReverseGeocodeResultDto?> ReverseGeocodeCoordinatesAsync(double latitude, double longitude, CancellationToken ct = default)
+        {
+            return Task.FromResult<ReverseGeocodeResultDto?>(new ReverseGeocodeResultDto(
+                FormattedAddress: "Kuruppanaickenpalayam, Bhavani, Erode, Tamil Nadu 638301, India",
+                Locality: "Bhavani",
+                Neighborhood: "Kuruppanaickenpalayam",
+                Taluk: "Bhavani",
+                District: "Erode",
+                State: "Tamil Nadu",
+                NearbyLandmarks: new List<string> { "Cauvery River Bridge", "Bhavani Main Road" },
+                SpecificLocationQuery: "Kuruppanaickenpalayam, Bhavani, Erode, Tamil Nadu"
+            ));
+        }
     }
 
     private readonly WebApplicationFactory<Program> _factory;

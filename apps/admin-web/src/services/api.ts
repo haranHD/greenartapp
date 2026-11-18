@@ -141,6 +141,24 @@ export interface BatchImportSummaryResponse {
   previews: ValidatedRecordPreview[];
 }
 
+export interface SourceCitationDto {
+  title: string;
+  url: string;
+  portal: string;
+}
+
+export interface LiveMarketCompsDto {
+  minPricePerCentLakhs: number;
+  maxPricePerCentLakhs: number;
+  pricePerSqFtRange: string;
+  comparableListingsCount: number;
+  keyLandmarksUsed: string[];
+  sourceSummary: string;
+  sourcePortals: string[];
+  resolvedLocality: string;
+  citations?: SourceCitationDto[];
+}
+
 export interface EstimateSuccessResponse {
   status: 'Success';
   targetCoordinates: { latitude: number; longitude: number };
@@ -156,6 +174,7 @@ export interface EstimateSuccessResponse {
   guidelineLookupStatus?: string | null;
   guidelineLookupMessage?: string | null;
   disclaimer: string;
+  liveMarketComps?: LiveMarketCompsDto;
 }
 
 export interface EstimateInsufficientDataResponse {
@@ -169,6 +188,7 @@ export interface EstimateInsufficientDataResponse {
   governmentGuidelineReference?: GuidelineReferenceDto;
   guidelineLookupStatus?: string | null;
   guidelineLookupMessage?: string | null;
+  liveMarketComps?: LiveMarketCompsDto;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -267,9 +287,33 @@ export interface PriceProposal {
   provider: string; model: string; status: string; lowPerCent: number | null; highPerCent: number | null;
   reasoning: string; sources: string[]; generatedAtUtc: string;
 }
+export interface MarketEvidence {
+  id: string; observation: { sourceName: string; sourceUrl: string; sourceCategory: string; locationDescription: string; landCategory: number; area: number; areaUnit: string; askingPrice: number; observationDate: string | null; askingContextQuote?: string; priceQuote: string; areaQuote: string; dateQuote: string; locationQuote: string; categoryQuote: string; coordinateQuote: string };
+  resolvedUrl: string; retrievalStatus: string; retrievedAtUtc: string; ratePerCent: number | null; ratePerSqFt: number | null; distanceMeters: number | null; status: string; checks: string[];
+}
+export interface GroundedResearch {
+  status: string; groundingStatus: string; modelName: string; promptVersion: string; researchTimestampUtc: string;
+  lowPerCent: number | null; highPerCent: number | null; typicalPerCent: number | null; typicalPerSqFt: number | null;
+  sourceCount: number; evidence: MarketEvidence[]; assumptions: string[]; limitations: string[]; searchAttributionHtml: string;
+  attemptedCalls: number; totalTokens: number;
+}
+export interface EvidenceReview {
+  status: string; evidenceQuality: string; reviewerModel: string; reviewedAtUtc: string; acceptedEvidenceIds: string[];
+  rejectedEvidenceIds: string[]; calculationErrors: string[]; locationMismatch: boolean; categoryMismatch: boolean;
+  contradictions: string[]; recommendedCorrections: string[]; attemptedCalls: number; totalTokens: number;
+}
+export interface ResearchDetail {
+  item: PriceResearchItem;
+  brokerObservations: { id: string; brokerName: string; brokerId: string; contactReference: string; brokerLocality: string; assessmentDateUtc: string; lowPerCent: number; typicalPerCent: number | null; highPerCent: number; evidenceNotes: string; documentReference: string; evidenceType: string; familiarity: string; sourceCategory: string; verificationStatus: string; differencePercentage: number | null }[];
+  history: { id: string; action: string; performedBy: string; timestampUtc: string; details: string }[];
+}
 export interface PriceResearchItem {
   id: string; version: string; locality: string; district: string; latitude: number; longitude: number;
   landUsage: number; coverageRadiusMeters: number; roadAccess: string; context: string; status: string;
+  createdAtUtc?: string; taluk?: string; inputArea?: number | null; inputAreaUnit?: string; pipelineVersion?: string;
+  researchStatus?: string; aiReviewStatus?: string; research?: GroundedResearch | null; evidenceReview?: EvidenceReview | null;
+  supersedesResearchId?: string | null;
+  authorizedSources?: { name: string; url: string; rightsReference: string; retrievalAndStorageAuthorized: boolean; publicDisplayAuthorized: boolean; registeredForResearchId?: string; registeredBy?: string; registeredAtUtc?: string }[];
   proposals: PriceProposal[]; brokerName: string; brokerEvidence: string; observationCount: number;
   lowPerCent: number | null; highPerCent: number | null; brokerLowPerCent: number | null; brokerHighPerCent: number | null;
   brokerReviewedAtUtc: string | null; validUntilUtc: string | null; reviewNotes: string; reviewedBy: string;
@@ -585,6 +629,58 @@ class ApiClient {
       body: JSON.stringify({ action, reason, notes }),
     });
   }
+
+  // 16. Location Surveys for Broker Ground Rate Verification
+  async getAdminSurveys(status?: string): Promise<SurveyVerificationRequestDto[]> {
+    const adminKey = this.getAdminKey();
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<SurveyVerificationRequestDto[]>(`/admin/surveys${query}`, {
+      headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+    });
+  }
+
+  async confirmAdminSurvey(
+    id: string,
+    request: ConfirmSurveyRequest
+  ): Promise<{ message: string; survey: SurveyVerificationRequestDto; recordId: string }> {
+    const adminKey = this.getAdminKey();
+    return this.request<{ message: string; survey: SurveyVerificationRequestDto; recordId: string }>(
+      `/admin/surveys/${id}/confirm`,
+      {
+        method: 'POST',
+        headers: adminKey ? { 'X-Admin-Key': adminKey } : {},
+        body: JSON.stringify(request),
+      }
+    );
+  }
+}
+
+export interface SurveyVerificationRequestDto {
+  id: string;
+  latitude: number;
+  longitude: number;
+  locality: string;
+  district: string;
+  landUsage: string;
+  targetArea?: number;
+  targetAreaUnit?: string;
+  estimatedRatePerCent: number;
+  estimatedRatePerSqFt: number;
+  guidelineRatePerCent?: number;
+  status: string;
+  createdAtUtc: string;
+  confirmedAtUtc?: string;
+  brokerName?: string;
+  brokerPhone?: string;
+  confirmedRatePerCent?: number;
+  notes?: string;
+}
+
+export interface ConfirmSurveyRequest {
+  brokerName: string;
+  brokerPhone: string;
+  confirmedRatePerCent: number;
+  notes?: string;
 }
 
 export interface AdminUserRecord {

@@ -561,6 +561,8 @@ function GreenartMobileApp() {
   const [addressLocateStatus, setAddressLocateStatus] = useState<string | null>(null);
 
   // Micro-Location Valuation Multiplier State
+  const [researchArea, setResearchArea] = useState('');
+  const [researchAreaUnit, setResearchAreaUnit] = useState('Cent');
   const [selectedRoadFrontage, setSelectedRoadFrontage] = useState<string>('Main Road / Highway (40ft-100ft)');
   const [selectedAmenities, setSelectedAmenities] = useState<string>('Near Bus Stand / Commercial Transit Apex');
 
@@ -632,7 +634,9 @@ function GreenartMobileApp() {
         subject.locality,
         subject.district || undefined,
         road,
-        amenities
+        amenities,
+        Number(researchArea) > 0 && Number.isFinite(Number(researchArea)) ? Number(researchArea) : undefined,
+        researchAreaUnit === 'SqFt' ? 1 : researchAreaUnit === 'Acre' ? 3 : 2
       );
       if (calculationSeqRef.current !== currentSeq) return;
       setEstimate(res);
@@ -830,6 +834,10 @@ function GreenartMobileApp() {
               setEstimateStep={setEstimateStep}
               activeLocality={activeLocality}
               activeDistrict={activeDistrict}
+              researchArea={researchArea}
+              setResearchArea={setResearchArea}
+              researchAreaUnit={researchAreaUnit}
+              setResearchAreaUnit={setResearchAreaUnit}
               targetLat={targetLat}
               targetLng={targetLng}
               landUsage={landUsage}

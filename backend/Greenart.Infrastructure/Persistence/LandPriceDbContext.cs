@@ -17,6 +17,8 @@ public class LandPriceDbContext : DbContext
     public DbSet<HistoricalEstimate> HistoricalEstimates => Set<HistoricalEstimate>();
     public DbSet<HistoricalEstimateObservation> HistoricalEstimateObservations => Set<HistoricalEstimateObservation>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+    public DbSet<MarketResearchEvidence> MarketResearchEvidence => Set<MarketResearchEvidence>();
+    public DbSet<BrokerMarketObservation> BrokerMarketObservations => Set<BrokerMarketObservation>();
     public DbSet<PriceResearch> PriceResearch => Set<PriceResearch>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<User> Users => Set<User>();
@@ -55,6 +57,19 @@ public class LandPriceDbContext : DbContext
 
     private void SyncSpatialLocations()
     {
+        foreach (var entry in ChangeTracker.Entries<PriceResearch>()) {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+                entry.Property<Point>("Location").CurrentValue = new Point(entry.Entity.Longitude, entry.Entity.Latitude) { SRID = 4326 };
+        }
+        foreach (var entry in ChangeTracker.Entries<MarketResearchEvidence>()) {
+            if (entry.State is EntityState.Added or EntityState.Modified && entry.Entity.Latitude.HasValue && entry.Entity.Longitude.HasValue &&
+                double.IsFinite(entry.Entity.Latitude.Value) && double.IsFinite(entry.Entity.Longitude.Value))
+                entry.Property<Point>("Location").CurrentValue = new Point(entry.Entity.Longitude!.Value, entry.Entity.Latitude!.Value) { SRID = 4326 };
+        }
+        foreach (var entry in ChangeTracker.Entries<BrokerMarketObservation>()) {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+                entry.Property<Point>("Location").CurrentValue = new Point(entry.Entity.Longitude, entry.Entity.Latitude) { SRID = 4326 };
+        }
         foreach (var entry in ChangeTracker.Entries<LandPriceRecord>())
         {
             if (entry.State == EntityState.Added || entry.State == EntityState.Modified)

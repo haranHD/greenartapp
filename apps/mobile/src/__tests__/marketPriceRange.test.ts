@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mobileApi } from '../services/api';
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
-const saved = { basis: 'AiSuggested', lowPerCent: 400000, highPerCent: 500000, lowPerSqFt: 918.27, highPerSqFt: 1147.84 };
+const saved = { basis: 'AiSuggested', groundingStatus: 'AuthorizedSourcesRetrieved', reviewStatus: 'PassedEvidenceReview', sourceCount: 3, lowPerCent: 400000, highPerCent: 500000, lowPerSqFt: 918.27, highPerSqFt: 1147.84 };
 test('market pricing reads saved suggestions using the exact pin, land type and road without a generation request', async () => {
   mobileApi.setBaseUrl('https://api.example.test/api/v1');
   globalThis.fetch = async (url, options) => {
@@ -51,4 +51,17 @@ test('generation preserves saved result and no-estimate status without supplying
 test('an older backend missing the pricing route is identified instead of reported as missing price data', async () => {
   globalThis.fetch = async () => new Response('', { status: 404 });
   await assert.rejects(mobileApi.getMarketPriceRange(11.4471, 77.684, 1, 'Road'), /updated backend.*Restart the backend/);
+});
+
+test('legacy text-only AI prices cannot be presented as evidence-backed asking research', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({ range: { ...saved, groundingStatus: 'Unavailable' } }), { status: 200 });
+  await assert.rejects(mobileApi.getMarketPriceRange(11.4471, 77.684, 1, 'Road'), /insufficient grounded evidence/);
+});
+test('research matching includes the selected area and unit', async () => {
+  globalThis.fetch = async url => {
+    const query = new URL(String(url)).searchParams;
+    assert.equal(query.get('area'), '5'); assert.equal(query.get('areaUnit'), 'Cent');
+    return new Response('{"range":null}', { status: 200 });
+  };
+  await mobileApi.getMarketPriceRange(11.4471, 77.684, 1, 'Road', undefined, 5, 'Cent');
 });

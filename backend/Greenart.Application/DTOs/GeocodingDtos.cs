@@ -26,3 +26,17 @@ public record LocalityDetailsDto(
     string Country
 );
 
+/// <summary>
+/// Domain model for reverse-geocoded location with neighborhood, landmarks, and formatted query.
+/// </summary>
+public record ReverseGeocodeResultDto(
+    string FormattedAddress,
+    string Locality,
+    string Neighborhood,
+    string Taluk,
+    string District,
+    string State,
+    List<string> NearbyLandmarks,
+    string SpecificLocationQuery
+);
+

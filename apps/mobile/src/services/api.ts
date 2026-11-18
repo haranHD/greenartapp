@@ -8,9 +8,19 @@ export interface BrokerPriceRange {
 export interface MarketPriceRange extends Omit<BrokerPriceRange, 'reviewedAtUtc'> {
   basis: 'AiSuggested' | 'BrokerReviewed';
   reviewedAtUtc: string | null; generatedAtUtc: string | null; providers: string[];
+  sourceCount?: number; evidenceUrl?: string | null; reviewStatus?: string; groundingStatus?: string; typicalPerCent?: number | null;
 }
 
+export interface PublicResearchEvidence {
+  researchId: string; locality: string; district: string; researchStatus: string; reviewStatus: string; groundingStatus: string;
+  sourceCategory: string; searchAttributionHtml: string; limitations: string[];
+  evidence: { id: string; sourceName: string; sourceUrl: string; sourceCategory: string; verificationStatus: string;
+    observationDate: string | null; retrievedAtUtc: string; locationDescription: string; distanceMeters: number | null;
+    originalArea: number; originalAreaUnit: string; originalAskingPrice: number; ratePerCent: number | null; ratePerSqFt: number | null }[];
+}
 function validateMarketPriceRange(range: MarketPriceRange | null): void {
+  if (range?.basis === 'AiSuggested' && (range.groundingStatus !== 'AuthorizedSourcesRetrieved' || range.reviewStatus !== 'PassedEvidenceReview' || (range.sourceCount ?? 0) < 3))
+    throw new ApiUnavailableError('Saved AI output has insufficient grounded evidence. Use the updated research workflow.');
   if (range != null && (!['AiSuggested', 'BrokerReviewed'].includes(range.basis) ||
       !Number.isFinite(range.lowPerCent) || !Number.isFinite(range.highPerCent) || range.lowPerCent <= 0 || range.highPerCent < range.lowPerCent ||
       !Number.isFinite(range.lowPerSqFt) || !Number.isFinite(range.highPerSqFt) || range.lowPerSqFt <= 0 || range.highPerSqFt < range.lowPerSqFt)) {
@@ -124,6 +134,24 @@ export interface AiLandPriceIntelligenceResponse {
   sectionLabel?: string;
 }
 
+export interface SourceCitationDto {
+  title: string;
+  url: string;
+  portal: string;
+}
+
+export interface LiveMarketCompsDto {
+  minPricePerCentLakhs: number;
+  maxPricePerCentLakhs: number;
+  pricePerSqFtRange: string;
+  comparableListingsCount: number;
+  keyLandmarksUsed: string[];
+  sourceSummary: string;
+  sourcePortals: string[];
+  resolvedLocality: string;
+  citations?: SourceCitationDto[];
+}
+
 export interface EstimateSuccessResponse {
   status: 'Success';
   targetCoordinates: { latitude: number; longitude: number };
@@ -144,6 +172,7 @@ export interface EstimateSuccessResponse {
   calculationExplanation?: string;
   factorBreakdown?: ValuationFactorBreakdownDto;
   sectionLabel?: string;
+  liveMarketComps?: LiveMarketCompsDto;
 }
 
 export interface EstimateInsufficientDataResponse {
@@ -161,6 +190,7 @@ export interface EstimateInsufficientDataResponse {
   totalGuidelineValuation?: number;
   factorBreakdown?: ValuationFactorBreakdownDto;
   sectionLabel?: string;
+  liveMarketComps?: LiveMarketCompsDto;
 }
 
 export type EstimateApiResponse = EstimateSuccessResponse | EstimateInsufficientDataResponse;
@@ -572,11 +602,11 @@ class MobileApiClient {
     }
   }
 
-  async generatePriceResearch(input: { requestId: string; locality: string; district: string; latitude: number; longitude: number; landUsage: number; roadAccess: string }, accessToken: string): Promise<{ range: MarketPriceRange | null; status: string; cached: boolean; message: string }> {
+  async generatePriceResearch(input: { requestId: string; locality: string; district: string; latitude: number; longitude: number; landUsage: number; roadAccess: string; area?: number; areaUnit?: string; taluk?: string }, accessToken: string): Promise<{ range: MarketPriceRange | null; status: string; cached: boolean; message: string }> {
     const response = await this.fetchWithTimeout('/pricing/research', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify(input),
-    }, 50000);
+    }, 130000);
     if (!response.ok) {
       let message = response.status === 401 ? 'Your session has expired. Sign in again to generate an AI suggestion.' : 'Could not complete AI research. Refresh saved pricing before trying again.';
       try { const body = await response.json(); message = body.error || message; } catch { }
@@ -587,8 +617,15 @@ class MobileApiClient {
     return result;
   }
 
-  async getMarketPriceRange(latitude: number, longitude: number, landUsage: number, roadAccess: string, signal?: AbortSignal): Promise<{ range: MarketPriceRange | null }> {
+  async getResearchEvidence(id: string, signal?: AbortSignal): Promise<PublicResearchEvidence> {
+    const response = await this.fetchWithTimeout(`/pricing/research/${encodeURIComponent(id)}/evidence`, { signal, headers: { Accept: 'application/json' } }, 10000);
+    if (!response.ok) throw new ApiUnavailableError('Supporting evidence is unavailable.');
+    return await response.json();
+  }
+
+  async getMarketPriceRange(latitude: number, longitude: number, landUsage: number, roadAccess: string, signal?: AbortSignal, area?: number, areaUnit?: string): Promise<{ range: MarketPriceRange | null }> {
     const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude), landUsage: String(landUsage), roadAccess });
+    if (area != null && Number.isFinite(area) && area > 0) { query.set('area', String(area)); query.set('areaUnit', areaUnit || 'Cent'); }
     const response = await this.fetchWithTimeout(`/pricing/market-range?${query}`, { signal, headers: { Accept: 'application/json' } }, 10000);
     if (response.status === 404) throw new ApiUnavailableError('Pricing requires the updated backend. Restart the backend, then retry pricing.');
     if (!response.ok) throw new ApiUnavailableError('Price research is temporarily unavailable.');
@@ -612,7 +649,7 @@ class MobileApiClient {
     localityName?: string,
     districtName?: string,
     roadFrontage?: string,
-    surroundingAmenities?: string
+    surroundingAmenities?: string, targetArea?: number, targetAreaUnit?: number
   ): Promise<EstimateApiResponse> {
     let response: Response;
     try {
@@ -631,6 +668,7 @@ class MobileApiClient {
           district: districtName,
           roadFrontage,
           surroundingAmenities,
+          targetArea, targetAreaUnit,
         }),
       }, 45000);
     } catch (error: any) {

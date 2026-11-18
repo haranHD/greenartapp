@@ -51,6 +51,7 @@ public class GeminiLandIntelligenceServiceTests
     {
         private readonly HttpResponseMessage _response;
         public HttpRequestMessage? LastRequest { get; private set; }
+        public string? LastRequestBody { get; private set; }
 
         public MockHttpMessageHandler(HttpResponseMessage response)
         {
@@ -60,6 +61,10 @@ public class GeminiLandIntelligenceServiceTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             LastRequest = request;
+            if (request.Content != null)
+            {
+                LastRequestBody = request.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
+            }
             return Task.FromResult(_response);
         }
     }
@@ -250,5 +255,124 @@ public class GeminiLandIntelligenceServiceTests
         Assert.Equal(0m, result.EstimatedCurrentPricePerSqFt);
         Assert.Null(result.TotalValuation);
         Assert.Null(result.FactorBreakdown);
+    }
+
+    [Fact]
+    public async Task FetchLiveMarketCompsWithGroundingAsync_SendsGoogleSearchToolAndParsesResponse()
+    {
+        var geminiResponseJson = """
+        {
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "```json\n{\n  \"min_price_per_cent_lakhs\": 12.5,\n  \"max_price_per_cent_lakhs\": 16.0,\n  \"price_per_sqft_range\": \"₹2,870 - ₹3,673 / sq.ft\",\n  \"comparable_listings_count\": 6,\n  \"key_landmarks_used\": [\"Cauvery River Bridge\", \"NH 544\"],\n  \"source_summary\": \"Active retail layout plot listings on 99acres and MagicBricks in Kuruppanaickenpalayam, Bhavani.\",\n  \"source_portals\": [\"99acres\", \"MagicBricks\", \"Housing.com\"]\n}\n```"
+                  }
+                ]
+              },
+              "groundingMetadata": {
+                "groundingChunks": [
+                  {
+                    "web": {
+                      "uri": "https://www.99acres.com/plots-in-bhavani-erode-ffid",
+                      "title": "Plots for Sale in Bhavani Erode"
+                    }
+                  },
+                  {
+                    "web": {
+                      "uri": "https://www.magicbricks.com/property-for-sale/residential-real-estate?cityName=Erode",
+                      "title": "Property for Sale in Erode"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        """;
+
+        var mockResponse = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(geminiResponseJson, System.Text.Encoding.UTF8, "application/json")
+        };
+
+        var config = new TestConfiguration(new Dictionary<string, string?>
+        {
+            ["GeminiSettings:ApiKey"] = "AQ.TestKey123",
+            ["GeminiSettings:Model"] = "gemini-1.5-flash"
+        });
+
+        var handler = new MockHttpMessageHandler(mockResponse);
+        var client = new HttpClient(handler);
+        var service = new GeminiLandIntelligenceService(client, config, NullLogger<GeminiLandIntelligenceService>.Instance);
+
+        var landmarks = new List<string> { "Cauvery River Bridge", "NH 544" };
+        var guideline = new GuidelineReferenceDto(
+            GuidelineRatePerCent: 800000m,
+            GuidelineRatePerSqFt: 1836.55m,
+            Locality: "Kuruppanaickenpalayam",
+            SurveyNumber: "SF 102",
+            LegalNotice: "TNREGINET"
+        );
+
+        var result = await service.FetchLiveMarketCompsWithGroundingAsync(
+            11.4500,
+            77.6800,
+            "Kuruppanaickenpalayam, Bhavani",
+            "Erode",
+            LandUsageType.Residential,
+            landmarks,
+            guideline
+        );
+
+        Assert.NotNull(result);
+        Assert.Equal(12.5m, result.MinPricePerCentLakhs);
+        Assert.Equal(16.0m, result.MaxPricePerCentLakhs);
+        Assert.Equal("₹2,870 - ₹3,673 / sq.ft", result.PricePerSqFtRange);
+        Assert.Equal(6, result.ComparableListingsCount);
+        Assert.Contains("99acres", result.SourcePortals);
+        Assert.Contains("MagicBricks", result.SourcePortals);
+        Assert.NotNull(result.Citations);
+        Assert.Equal(2, result.Citations.Count);
+        Assert.Equal("99acres", result.Citations[0].Portal);
+        Assert.Equal("MagicBricks", result.Citations[1].Portal);
+
+        // Verify request payload contained googleSearch tool
+        Assert.NotNull(handler.LastRequest);
+        Assert.NotNull(handler.LastRequestBody);
+        Assert.Contains("googleSearch", handler.LastRequestBody);
+    }
+
+    [Fact]
+    public async Task FetchLiveMarketCompsWithGroundingAsync_WhenUnconfigured_UsesDeterministic1CentEquals435SqFtMath()
+    {
+        var config = new TestConfiguration(new Dictionary<string, string?>());
+        var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)));
+        var service = new GeminiLandIntelligenceService(client, config, NullLogger<GeminiLandIntelligenceService>.Instance);
+
+        var guideline = new GuidelineReferenceDto(
+            GuidelineRatePerCent: 1000000m,
+            GuidelineRatePerSqFt: 2295.68m,
+            Locality: "Bhavani",
+            SurveyNumber: null,
+            LegalNotice: null
+        );
+
+        var result = await service.FetchLiveMarketCompsWithGroundingAsync(
+            11.4500,
+            77.6800,
+            "Bhavani",
+            "Erode",
+            LandUsageType.Residential,
+            new List<string> { "Main Road" },
+            guideline
+        );
+
+        Assert.NotNull(result);
+        Assert.True(result.MinPricePerCentLakhs > 0);
+        Assert.True(result.MaxPricePerCentLakhs > result.MinPricePerCentLakhs);
+        Assert.Contains("/ sq.ft", result.PricePerSqFtRange);
+        Assert.NotEmpty(result.SourcePortals);
     }
 }

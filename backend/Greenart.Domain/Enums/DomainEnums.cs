@@ -10,7 +10,8 @@ public enum SourceCategory
     VerifiedTransaction = 2,
     AdvertisedAskingPrice = 3,
     ClientResearch = 4,
-    SyntheticFixture = 5
+    SyntheticFixture = 5,
+    LocalRateSurvey = 6
 }
 
 public enum VerificationStatus
@@ -19,7 +20,8 @@ public enum VerificationStatus
     PendingReview = 1,
     Verified = 2,
     Rejected = 3,
-    Archived = 4
+    Archived = 4,
+    NeedsCorrection = 5
 }
 
 public enum LandUsageType

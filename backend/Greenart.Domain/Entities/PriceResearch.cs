@@ -5,6 +5,18 @@ namespace Greenart.Domain.Entities;
 /// <summary>One research exercise; model answers never count as independent sale observations.</summary>
 public class PriceResearch
 {
+    public string PipelineVersion { get; private set; } = "Legacy";
+    public Guid? RequestedByUserId { get; private set; }
+    public string Taluk { get; private set; } = "";
+    public decimal? InputArea { get; private set; }
+    public string InputAreaUnit { get; private set; } = "";
+    public decimal? AreaSqFt { get; private set; }
+    public string AuthorizedSourcesJson { get; private set; } = "[]";
+    public string ResearchResultJson { get; private set; } = "{}";
+    public string ReviewResultJson { get; private set; } = "{}";
+    public string ResearchStatus { get; private set; } = "NotStarted";
+    public string AiReviewStatus { get; private set; } = "NotReviewed";
+    public Guid? SupersedesResearchId { get; private set; }
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid Version { get; private set; } = Guid.NewGuid();
     public string Locality { get; private set; } = "";
@@ -48,6 +60,35 @@ public class PriceResearch
         RoadAccess = roadAccess.Trim(); Context = context.Trim();
     }
 
+    public void ConfigureGroundedRequest(Guid? userId, string taluk, decimal? area, string unit, decimal? areaSqFt, Guid? supersedes = null) {
+        RequireStatus("Draft");
+        if (ProposalsJson != "[]" || ResearchResultJson != "{}") throw new InvalidOperationException("Saved research inputs are immutable.");
+        if ((taluk ?? "").Length > 150 || (unit ?? "").Length > 30 || area <= 0 || areaSqFt <= 0)
+            throw new ArgumentException("Invalid taluk, area or unit.");
+        PipelineVersion = "GroundedGeminiV1"; RequestedByUserId = userId; Taluk = (taluk ?? "").Trim();
+        InputArea = area; InputAreaUnit = unit ?? ""; AreaSqFt = areaSqFt; SupersedesResearchId = supersedes;
+    }
+    public void SetAuthorizedSources(string sourcesJson) {
+        RequireStatus("Draft");
+        if (ResearchResultJson != "{}" || ProposalsJson != "[]") throw new InvalidOperationException("Original research inputs cannot be overwritten. Create a follow-up exercise.");
+        if (string.IsNullOrWhiteSpace(sourcesJson) || sourcesJson.Length > 50000) throw new ArgumentException("Invalid authorized-source input.");
+        AuthorizedSourcesJson = sourcesJson; Touch();
+    }
+    public void FinishGroundedResearch(string researchJson, string reviewJson, string proposalsJson, string researchStatus, string reviewStatus) {
+        RequireStatus("Researching");
+        if (ResearchResultJson != "{}") throw new InvalidOperationException("Original AI evidence cannot be overwritten.");
+        ResearchResultJson = researchJson; ReviewResultJson = reviewJson;
+        ResearchStatus = researchStatus; AiReviewStatus = reviewStatus;
+        FinishResearch(proposalsJson);
+    }
+    public void RequestCorrection(string notes, string actor) {
+        if (Status != "Draft" && Status != "BrokerReviewed" && Status != "InsufficientEvidence") throw new InvalidOperationException("This research cannot request correction.");
+        RecordDecision("NeedsCorrection", notes, actor);
+    }
+    public void MarkInsufficient(string notes, string actor) {
+        if (Status != "Draft" && Status != "NeedsCorrection") throw new InvalidOperationException("This research cannot be marked insufficient.");
+        RecordDecision("InsufficientEvidence", notes, actor);
+    }
     public void StartResearch()
     {
         RequireStatus("Draft");
@@ -61,7 +102,8 @@ public class PriceResearch
     public void RecordBrokerReview(string brokerName, string evidence, int observationCount,
         decimal lowPerCent, decimal highPerCent, DateTime observedAtUtc)
     {
-        RequireStatus("Draft");
+        if (Status != "Draft" && Status != "NeedsCorrection" && Status != "InsufficientEvidence")
+            throw new InvalidOperationException("This research is not awaiting broker assessment.");
         if (string.IsNullOrWhiteSpace(brokerName) || brokerName.Length > 150 ||
             string.IsNullOrWhiteSpace(evidence) || evidence.Trim().Length < 20 || evidence.Length > 6000 ||
             observationCount < 1 || observationCount > 10000 ||

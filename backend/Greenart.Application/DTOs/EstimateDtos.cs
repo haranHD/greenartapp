@@ -54,6 +54,24 @@ public record AskingPriceReferenceDto(
     string SectionLabel = "Asking Price Benchmark"
 );
 
+public record SourceCitationDto(
+    string Title,
+    string Url,
+    string Portal
+);
+
+public record LiveMarketCompsDto(
+    decimal MinPricePerCentLakhs,
+    decimal MaxPricePerCentLakhs,
+    string PricePerSqFtRange,
+    int ComparableListingsCount,
+    List<string> KeyLandmarksUsed,
+    string SourceSummary,
+    List<string> SourcePortals,
+    string ResolvedLocality,
+    List<SourceCitationDto>? Citations = null
+);
+
 public record TotalValuationDto(
     decimal TotalEstimatedPrice,
     decimal TotalPriceMin,
@@ -84,7 +102,8 @@ public record EstimateSuccessResponse(
     ValuationFactorBreakdownDto? FactorBreakdown = null,
     string SectionLabel = "Completed Transaction Evidence",
     string? GuidelineLookupStatus = null,
-    string? GuidelineLookupMessage = null
+    string? GuidelineLookupMessage = null,
+    LiveMarketCompsDto? LiveMarketComps = null
 );
 
 public record EstimateInsufficientDataResponse(
@@ -101,5 +120,6 @@ public record EstimateInsufficientDataResponse(
     ValuationFactorBreakdownDto? FactorBreakdown = null,
     string SectionLabel = "Completed Transaction Evidence",
     string? GuidelineLookupStatus = null,
-    string? GuidelineLookupMessage = null
+    string? GuidelineLookupMessage = null,
+    LiveMarketCompsDto? LiveMarketComps = null
 );

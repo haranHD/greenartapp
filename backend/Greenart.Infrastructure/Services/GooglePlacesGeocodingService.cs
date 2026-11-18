@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Greenart.Application.Common.Interfaces;
 using Greenart.Application.DTOs;
+using Greenart.Domain.ValueObjects;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -115,6 +116,133 @@ public class GooglePlacesGeocodingService : IGeocodingService
         var details = MapPlace(data, placeId.Trim());
         _cache.Set(cacheKey, details, TimeSpan.FromHours(24));
         return details;
+    }
+
+    public async Task<ReverseGeocodeResultDto?> ReverseGeocodeCoordinatesAsync(double latitude, double longitude, CancellationToken ct = default)
+    {
+        var cacheKey = $"reverse_geo_{latitude:F4}_{longitude:F4}";
+        if (_cache.TryGetValue(cacheKey, out ReverseGeocodeResultDto? cached) && cached != null)
+        {
+            return cached;
+        }
+
+        var defaultDistrict = TamilNaduGeoBounds.NormalizeDistrict(null, "Coimbatore");
+        var defaultState = "Tamil Nadu";
+        var defaultLocality = "Selected Pin Location";
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            return CreateDefaultFallback(latitude, longitude, defaultLocality, defaultDistrict, defaultState);
+        }
+
+        try
+        {
+            var url = $"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude.ToString(CultureInfo.InvariantCulture)},{longitude.ToString(CultureInfo.InvariantCulture)}&key={_options.ApiKey}";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            using var resp = await _httpClient.SendAsync(req, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Google Geocoding reverse lookup returned HTTP {Code}", resp.StatusCode);
+                return CreateDefaultFallback(latitude, longitude, defaultLocality, defaultDistrict, defaultState);
+            }
+
+            using var doc = await JsonDocument.ParseAsync(await resp.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("status", out var statusElem) && statusElem.GetString() == "OK" &&
+                root.TryGetProperty("results", out var resultsElem) && resultsElem.GetArrayLength() > 0)
+            {
+                var firstResult = resultsElem[0];
+                var formattedAddress = firstResult.TryGetProperty("formatted_address", out var fa) ? fa.GetString() ?? "" : "";
+
+                string neighborhood = "";
+                string locality = "";
+                string taluk = "";
+                string district = "";
+                string state = "Tamil Nadu";
+                var landmarks = new List<string>();
+
+                foreach (var resultItem in resultsElem.EnumerateArray())
+                {
+                    if (resultItem.TryGetProperty("address_components", out var components))
+                    {
+                        foreach (var comp in components.EnumerateArray())
+                        {
+                            var longName = comp.TryGetProperty("long_name", out var ln) ? ln.GetString() ?? "" : "";
+                            if (comp.TryGetProperty("types", out var types))
+                            {
+                                foreach (var t in types.EnumerateArray())
+                                {
+                                    var typeStr = t.GetString() ?? "";
+                                    if (string.IsNullOrEmpty(neighborhood) && (typeStr == "sublocality_level_1" || typeStr == "sublocality" || typeStr == "neighborhood"))
+                                        neighborhood = longName;
+                                    else if (string.IsNullOrEmpty(locality) && typeStr == "locality")
+                                        locality = longName;
+                                    else if (string.IsNullOrEmpty(taluk) && typeStr == "administrative_area_level_3")
+                                        taluk = longName;
+                                    else if (string.IsNullOrEmpty(district) && typeStr == "administrative_area_level_2")
+                                        district = TamilNaduGeoBounds.NormalizeDistrict(longName, "Tamil Nadu");
+                                    else if (typeStr == "administrative_area_level_1")
+                                        state = longName;
+                                    else if ((typeStr == "route" || typeStr == "point_of_interest" || typeStr == "transit_station" || typeStr == "establishment" || typeStr == "landmark" || typeStr == "natural_feature") && !landmarks.Contains(longName) && !string.IsNullOrWhiteSpace(longName))
+                                        landmarks.Add(longName);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(locality)) locality = !string.IsNullOrWhiteSpace(neighborhood) ? neighborhood : defaultLocality;
+                if (string.IsNullOrWhiteSpace(district)) district = defaultDistrict;
+                if (landmarks.Count == 0) landmarks.AddRange(new[] { "Main Arterial Road / State Highway", "Town Center Corridor" });
+
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(neighborhood) && !neighborhood.Equals(locality, StringComparison.OrdinalIgnoreCase))
+                    parts.Add(neighborhood);
+                if (!string.IsNullOrWhiteSpace(locality))
+                    parts.Add(locality);
+                if (!string.IsNullOrWhiteSpace(taluk) && !taluk.Equals(locality, StringComparison.OrdinalIgnoreCase) && !taluk.Equals(district, StringComparison.OrdinalIgnoreCase))
+                    parts.Add(taluk);
+                if (!string.IsNullOrWhiteSpace(district))
+                    parts.Add(district);
+                parts.Add(state);
+
+                var specificLocationQuery = string.Join(", ", parts);
+
+                var dto = new ReverseGeocodeResultDto(
+                    FormattedAddress: formattedAddress,
+                    Locality: locality,
+                    Neighborhood: neighborhood,
+                    Taluk: taluk,
+                    District: district,
+                    State: state,
+                    NearbyLandmarks: landmarks.Take(4).ToList(),
+                    SpecificLocationQuery: specificLocationQuery
+                );
+
+                _cache.Set(cacheKey, dto, TimeSpan.FromHours(24));
+                return dto;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reverse-geocode coordinates ({Lat}, {Lng})", latitude, longitude);
+        }
+
+        return CreateDefaultFallback(latitude, longitude, defaultLocality, defaultDistrict, defaultState);
+    }
+
+    private static ReverseGeocodeResultDto CreateDefaultFallback(double latitude, double longitude, string locality, string district, string state)
+    {
+        return new ReverseGeocodeResultDto(
+            FormattedAddress: $"{locality}, {district}, {state}",
+            Locality: locality,
+            Neighborhood: locality,
+            Taluk: district,
+            District: district,
+            State: state,
+            NearbyLandmarks: new List<string> { "Main Arterial Highway", "Local Town Center" },
+            SpecificLocationQuery: $"{locality}, {district}, {state}"
+        );
     }
 
     public async Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)

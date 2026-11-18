@@ -6,7 +6,8 @@ import { ScreenEntrance } from '../components/ScreenEntrance';
 import { PremiumChoice } from '../components/PremiumChoice';
 import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import React from 'react';
+import React, { useRef } from 'react';
+import { ResearchAreaFields } from '../components/ResearchAreaFields';
 import { BrokerPriceRangeCard } from '../components/BrokerPriceRangeCard';
 import {
   View,
@@ -15,6 +16,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -38,6 +40,7 @@ export interface ValuationScreenProps {
   setEstimateStep: (step: EstimateStep) => void;
   activeLocality: string;
   activeDistrict?: string;
+  researchArea: string; setResearchArea: (value: string) => void; researchAreaUnit: string; setResearchAreaUnit: (value: string) => void;
   targetLat: number;
   targetLng: number;
   landUsage: number;
@@ -70,7 +73,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   estimateStep,
   setEstimateStep,
   activeLocality,
-  activeDistrict,
+  activeDistrict, researchArea, setResearchArea, researchAreaUnit, setResearchAreaUnit,
   targetLat,
   targetLng,
   landUsage,
@@ -97,13 +100,14 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   setActiveTab,
   setPreviousTab,
 }) => {
+  const scrollRef = useRef<any>(null);
   const { reduced } = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
   const stackLocationHeader = width / fontScale < 640 || activeLocality.length > 32;
   const [showEvidenceDetails, setShowEvidenceDetails] = React.useState(false);
   React.useEffect(() => setShowEvidenceDetails(false), [estimate]);
   return (
-    <ScrollView
+    <ScrollView ref={scrollRef}
       style={{ flex: 1, backgroundColor: P.background }}
       contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
@@ -111,573 +115,446 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
       nestedScrollEnabled={true}
     >
       <ScreenEntrance>
-      <View style={styles.stepTabsRow}>
-        <PremiumChoice variant="segment" label="1. Location & Zoning" selected={estimateStep === 'selection'} onPress={() => setEstimateStep('selection')} />
-        <PremiumChoice variant="segment" label="2. Valuation Result" selected={estimateStep === 'result'} onPress={() => { if (estimate) setEstimateStep('result'); else executeCalculation(targetLat, targetLng, landUsage); }} />
-      </View>
+        <View style={styles.stepTabsRow}>
+          <PremiumChoice variant="segment" label="1. Location & Zoning" selected={estimateStep === 'selection'} onPress={() => setEstimateStep('selection')} />
+          <PremiumChoice variant="segment" label="2. Valuation Result" selected={estimateStep === 'result'} onPress={() => { if (estimate) setEstimateStep('result'); else executeCalculation(targetLat, targetLng, landUsage); }} />
+        </View>
 
-      {/* STEP 1: SELECTION */}
-      {estimateStep === 'selection' && (
-        <View style={styles.card}>
-          {/* Target Location Header */}
-          <View style={[styles.cardHeaderRow, stackLocationHeader && styles.locationHeaderStacked]}>
-            <View style={[styles.locationSummary, stackLocationHeader && styles.locationSummaryStacked]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Feather accessible={false} name="map-pin" size={15} color={P.purple} /><Text style={styles.cardSectionLabel}>TARGET LOCATION</Text></View>
-              <Text style={styles.cardTitle}>{activeLocality}</Text>
-              <Text style={styles.cardSubtitle}>
-                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E{activeDistrict ? ` · ${activeDistrict}` : ''}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.changeLocBtn, stackLocationHeader && styles.changeLocBtnStacked]}
-              onPress={() => setActiveTab('search')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.changeLocBtnText}>Change on Map</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.cardDivider} />
-
-          {/* Zoning Classification */}
-          <Text style={styles.cardSectionLabel}>LAND ZONING</Text>
-          <Text style={styles.cardSubtitle}>Select classification to match valuation rules:</Text>
-
-          <View style={styles.usageGrid}>
-            {LAND_USAGES.map((u) => {
-              const isSelected = landUsage === u.id;
-              return (
-                <PremiumChoice key={u.id} label={u.label} selected={isSelected} onPress={() => setLandUsage(u.id)} />
-              );
-            })}
-          </View>
-
-          <View style={styles.cardDivider} />
-
-          {/* Road Frontage & Width Multiplier */}
-          <Text style={styles.cardSectionLabel}>ROAD FRONTAGE & ACCESS WIDTH</Text>
-          <Text style={styles.cardSubtitle}>Choose the access type that matches the property and its supporting records:</Text>
-
-          <View style={styles.optionsWrapRow}>
-            {ROAD_FRONTAGE_OPTIONS.map((opt) => {
-              const isSelected = selectedRoadFrontage === opt.id;
-              return (
-                <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedRoadFrontage(opt.id)} />
-              );
-            })}
-          </View>
-
-          <View style={styles.cardDivider} />
-
-          {/* Surrounding Civic & Social Anchors */}
-          <Text style={styles.cardSectionLabel}>SURROUNDING CIVIC & TRANSIT ANCHORS</Text>
-          <Text style={styles.cardSubtitle}>Proximity to bus stands, hospitals & schools drives local demand:</Text>
-
-          <View style={styles.optionsWrapRow}>
-            {AMENITY_OPTIONS.map((opt) => {
-              const isSelected = selectedAmenities === opt.id;
-              return (
-                <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedAmenities(opt.id)} />
-              );
-            })}
-          </View>
-
-          <View style={styles.cardDivider} />
-
-          {/* Unit Toggle */}
-          <View style={styles.unitToggleRow}>
-            <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
-            <View style={styles.unitPillBox}>
-              <PremiumChoice variant="segment" label="Per Cent" selected={displayUnit === 'Cent'} onPress={() => setDisplayUnit('Cent')} />
-              <PremiumChoice variant="segment" label="Per Sq.Ft" selected={displayUnit === 'SqFt'} onPress={() => setDisplayUnit('SqFt')} />
-            </View>
-          </View>
-
-          {/* Collapsible Advanced Coordinates Drawer */}
-          <TouchableOpacity
-            accessibilityRole="button" accessibilityState={{ expanded: showAdvancedCoords }}
-            style={styles.advancedDrawerToggle}
-            onPress={() => setShowAdvancedCoords(!showAdvancedCoords)}
-          >
-            <Text style={styles.advancedDrawerText}>
-              {showAdvancedCoords ? 'Hide coordinate inputs' : 'Manual coordinate override'}
-            </Text>
-          </TouchableOpacity>
-
-          {showAdvancedCoords && (
-            <View style={styles.advancedDrawerContent}>
-              <View style={styles.coordInputsRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputMiniLabel}>Latitude</Text>
-                  <TextInput
-                    accessibilityLabel="Override latitude"
-                    style={styles.coordTextInput}
-                    value={latInput}
-                    onChangeText={setLatInput}
-                    keyboardType="numeric"
-                    placeholder="11.0012"
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputMiniLabel}>Longitude</Text>
-                  <TextInput
-                    accessibilityLabel="Override longitude"
-                    style={styles.coordTextInput}
-                    value={lngInput}
-                    onChangeText={setLngInput}
-                    keyboardType="numeric"
-                    placeholder="77.0874"
-                  />
-                </View>
+        {/* STEP 1: SELECTION */}
+        {estimateStep === 'selection' && (
+          <View style={styles.card}>
+            {/* Target Location Header */}
+            <View style={[styles.cardHeaderRow, stackLocationHeader && styles.locationHeaderStacked]}>
+              <View style={[styles.locationSummary, stackLocationHeader && styles.locationSummaryStacked]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Feather accessible={false} name="map-pin" size={15} color={P.purple} /><Text style={styles.cardSectionLabel}>TARGET LOCATION</Text></View>
+                <Text style={styles.cardTitle}>{activeLocality}</Text>
+                <Text style={styles.cardSubtitle}>
+                  {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E{activeDistrict ? ` · ${activeDistrict}` : ''}
+                </Text>
               </View>
               <TouchableOpacity
-                style={styles.applyCoordBtn}
-                onPress={handleManualCoordSubmit}
+                style={[styles.changeLocBtn, stackLocationHeader && styles.changeLocBtnStacked]}
+                onPress={() => setActiveTab('search')}
+                activeOpacity={0.8}
               >
-                <Text style={styles.applyCoordBtnText}>Apply Coordinates</Text>
+                <Text style={styles.changeLocBtnText}>Change on Map</Text>
               </TouchableOpacity>
             </View>
-          )}
 
-          {/* Primary Calculate Valuation CTA */}
-          <PremiumPressable reducedMotion={reduced}
-            style={[styles.primaryActionBtn, { marginTop: 16 }]}
-            onPress={() => executeCalculation(targetLat, targetLng, landUsage, selectedRoadFrontage, selectedAmenities)}
-          >
-            <Text style={styles.primaryActionBtnText}>Calculate Land Valuation</Text>
-          </PremiumPressable>
-        </View>
-      )}
+            <View style={styles.cardDivider} />
 
-      {/* STEP 2: VALUATION RESULTS */}
-      {estimateStep === 'result' && (
-        <>
-          {!loadingEstimate && <BrokerPriceRangeCard locality={activeLocality} district={activeDistrict} latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
-          {!loadingEstimate && !estimateError && estimate?.guidelineLookupMessage && (
-            <View accessibilityRole="alert" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, lineHeight: 20, color: '#92400E' }}>{estimate.guidelineLookupMessage}</Text>
+            {/* Zoning Classification */}
+            <Text style={styles.cardSectionLabel}>LAND ZONING</Text>
+            <Text style={styles.cardSubtitle}>Select classification to match valuation rules:</Text>
+
+            <View style={styles.usageGrid}>
+              {LAND_USAGES.map((u) => {
+                const isSelected = landUsage === u.id;
+                return (
+                  <PremiumChoice key={u.id} label={u.label} selected={isSelected} onPress={() => setLandUsage(u.id)} />
+                );
+              })}
             </View>
-          )}
-          {loadingEstimate ? (
-            <View style={styles.loadingCard}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingCardTitle}>Analyzing Verified Comparables...</Text>
-              <Text style={styles.loadingCardSub}>
-                Checking nearby sale evidence and the available guideline benchmark. This may take a moment.
+
+            <View style={styles.cardDivider} />
+
+            <ResearchAreaFields area={researchArea} unit={researchAreaUnit} onArea={setResearchArea} onUnit={setResearchAreaUnit} />
+            <View style={styles.cardDivider} />
+
+            {/* Road Frontage & Width Multiplier */}
+            <Text style={styles.cardSectionLabel}>ROAD FRONTAGE & ACCESS WIDTH</Text>
+            <Text style={styles.cardSubtitle}>Choose the access type that matches the property and its supporting records:</Text>
+
+            <View style={styles.optionsWrapRow}>
+              {ROAD_FRONTAGE_OPTIONS.map((opt) => {
+                const isSelected = selectedRoadFrontage === opt.id;
+                return (
+                  <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedRoadFrontage(opt.id)} />
+                );
+              })}
+            </View>
+
+            <View style={styles.cardDivider} />
+
+            {/* Surrounding Civic & Social Anchors */}
+            <Text style={styles.cardSectionLabel}>SURROUNDING CIVIC & TRANSIT ANCHORS</Text>
+            <Text style={styles.cardSubtitle}>Proximity to bus stands, hospitals & schools drives local demand:</Text>
+
+            <View style={styles.optionsWrapRow}>
+              {AMENITY_OPTIONS.map((opt) => {
+                const isSelected = selectedAmenities === opt.id;
+                return (
+                  <PremiumChoice key={opt.id} label={opt.label} selected={isSelected} onPress={() => setSelectedAmenities(opt.id)} />
+                );
+              })}
+            </View>
+
+            <View style={styles.cardDivider} />
+
+            {/* Unit Toggle */}
+            <View style={styles.unitToggleRow}>
+              <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
+              <View style={styles.unitPillBox}>
+                <PremiumChoice variant="segment" label="Per Cent" selected={displayUnit === 'Cent'} onPress={() => setDisplayUnit('Cent')} />
+                <PremiumChoice variant="segment" label="Per Sq.Ft" selected={displayUnit === 'SqFt'} onPress={() => setDisplayUnit('SqFt')} />
+              </View>
+            </View>
+
+            {/* Collapsible Advanced Coordinates Drawer */}
+            <TouchableOpacity
+              accessibilityRole="button" accessibilityState={{ expanded: showAdvancedCoords }}
+              style={styles.advancedDrawerToggle}
+              onPress={() => setShowAdvancedCoords(!showAdvancedCoords)}
+            >
+              <Text style={styles.advancedDrawerText}>
+                {showAdvancedCoords ? 'Hide coordinate inputs' : 'Manual coordinate override'}
               </Text>
-              <Text style={[styles.loadingCardSub, { fontSize: 11, color: '#94A3B8', marginTop: 4 }]}>
-                Filtering strictly verified completed-sale records. No artificial or guessed prices.
-              </Text>
-            </View>
-          ) : estimateError ? (
-            <View style={styles.errorCard}>
-              <Text style={styles.errorCardTitle}>Valuation Calculation Notice</Text>
-              <Text style={styles.errorCardSub}>{estimateError}</Text>
-              <TouchableOpacity
-                style={styles.primaryActionBtn}
-                onPress={() => executeCalculation(targetLat, targetLng, landUsage, selectedRoadFrontage, selectedAmenities)}
-              >
-                <Text style={styles.primaryActionBtnText}>Retry Calculation</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.secondaryActionBtn, { marginTop: 8 }]}
-                onPress={() => setEstimateStep('selection')}
-              >
-                <Text style={styles.secondaryActionBtnText}>Back to Location & Zoning</Text>
-              </TouchableOpacity>
-            </View>
-          ) : estimate && estimate.status === 'Success' ? (
-            (() => {
-              const estSuccess = estimate as EstimateSuccessResponse;
-              const medianCent = estSuccess.priceRangePerCent.medianRate;
-              const medianSqFt = estSuccess.priceRangePerSqFt.medianRate;
-              const iqrCent25 = estSuccess.priceRangePerCent.percentile25;
-              const iqrCent75 = estSuccess.priceRangePerCent.percentile75;
-              const iqrSqFt25 = estSuccess.priceRangePerSqFt.percentile25;
-              const iqrSqFt75 = estSuccess.priceRangePerSqFt.percentile75;
-              const minCent = estSuccess.priceRangePerCent.minRate;
-              const maxCent = estSuccess.priceRangePerCent.maxRate;
-              const minSqFt = estSuccess.priceRangePerSqFt.minRate;
-              const maxSqFt = estSuccess.priceRangePerSqFt.maxRate;
-              const guideline = estSuccess.governmentGuidelineReference;
-              const asking = estSuccess.askingPriceReference;
+            </TouchableOpacity>
 
-              return (
-                <>
-                  {/* Section 1: Completed Transaction Evidence */}
-                  <View style={styles.valuationHeroCard}>
-                    <View style={styles.valHeaderRow}>
-                      <View style={{ flex: 1, marginRight: 8 }}>
-                        <Text style={styles.valTag}>
-                          {estSuccess.sectionLabel || 'Completed Transaction Evidence'}
-                        </Text>
-                        <Text style={styles.valLocalityTitle}>
-                          {activeLocality} • {currentUsageObj.label}
-                        </Text>
+            {showAdvancedCoords && (
+              <View style={styles.advancedDrawerContent}>
+                <View style={styles.coordInputsRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputMiniLabel}>Latitude</Text>
+                    <TextInput
+                      accessibilityLabel="Override latitude"
+                      style={styles.coordTextInput}
+                      value={latInput}
+                      onChangeText={setLatInput}
+                      keyboardType="numeric"
+                      placeholder="11.0012"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.inputMiniLabel}>Longitude</Text>
+                    <TextInput
+                      accessibilityLabel="Override longitude"
+                      style={styles.coordTextInput}
+                      value={lngInput}
+                      onChangeText={setLngInput}
+                      keyboardType="numeric"
+                      placeholder="77.0874"
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.applyCoordBtn}
+                  onPress={handleManualCoordSubmit}
+                >
+                  <Text style={styles.applyCoordBtnText}>Apply Coordinates</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Primary Calculate Valuation CTA */}
+            <PremiumPressable reducedMotion={reduced}
+              style={[styles.primaryActionBtn, { marginTop: 16 }]}
+              onPress={() => executeCalculation(targetLat, targetLng, landUsage, selectedRoadFrontage, selectedAmenities)}
+            >
+              <Text style={styles.primaryActionBtnText}>Calculate Land Valuation</Text>
+            </PremiumPressable>
+          </View>
+        )}
+
+        {/* STEP 2: VALUATION RESULTS */}
+        {estimateStep === 'result' && (
+          <>
+            {!loadingEstimate && estimate?.status !== 'Success' && <BrokerPriceRangeCard area={Number(researchArea) > 0 ? Number(researchArea) : undefined} areaUnit={researchAreaUnit} latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
+            {!loadingEstimate && !estimateError && estimate?.guidelineLookupMessage && (
+              <View accessibilityRole="alert" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, lineHeight: 20, color: '#92400E' }}>{estimate.guidelineLookupMessage}</Text>
+              </View>
+            )}
+            {loadingEstimate ? (
+              <View style={styles.loadingCard}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.loadingCardTitle}>Analyzing Verified Comparables...</Text>
+                <Text style={styles.loadingCardSub}>
+                  Checking nearby sale evidence and the available guideline benchmark. This may take a moment.
+                </Text>
+                <Text style={[styles.loadingCardSub, { fontSize: 11, color: '#94A3B8', marginTop: 4 }]}>
+                  Filtering strictly verified completed-sale records. No artificial or guessed prices.
+                </Text>
+              </View>
+            ) : estimateError ? (
+              <View style={styles.errorCard}>
+                <Text style={styles.errorCardTitle}>Valuation Calculation Notice</Text>
+                <Text style={styles.errorCardSub}>{estimateError}</Text>
+                <TouchableOpacity
+                  style={styles.primaryActionBtn}
+                  onPress={() => executeCalculation(targetLat, targetLng, landUsage, selectedRoadFrontage, selectedAmenities)}
+                >
+                  <Text style={styles.primaryActionBtnText}>Retry Calculation</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.secondaryActionBtn, { marginTop: 8 }]}
+                  onPress={() => setEstimateStep('selection')}
+                >
+                  <Text style={styles.secondaryActionBtnText}>Back to Location & Zoning</Text>
+                </TouchableOpacity>
+              </View>
+            ) : estimate && estimate.status === 'Success' ? (
+              (() => {
+                const estSuccess = estimate as EstimateSuccessResponse;
+                const medianCent = estSuccess.priceRangePerCent.medianRate;
+                const medianSqFt = estSuccess.priceRangePerSqFt.medianRate;
+                const iqrCent25 = estSuccess.priceRangePerCent.percentile25;
+                const iqrCent75 = estSuccess.priceRangePerCent.percentile75;
+                const iqrSqFt25 = estSuccess.priceRangePerSqFt.percentile25;
+                const iqrSqFt75 = estSuccess.priceRangePerSqFt.percentile75;
+                const minCent = estSuccess.priceRangePerCent.minRate;
+                const maxCent = estSuccess.priceRangePerCent.maxRate;
+                const minSqFt = estSuccess.priceRangePerSqFt.minRate;
+                const maxSqFt = estSuccess.priceRangePerSqFt.maxRate;
+                const guideline = estSuccess.governmentGuidelineReference;
+                const asking = estSuccess.askingPriceReference;
+
+                return (
+                  <>
+                    {/* Section 1: Completed Transaction Evidence */}
+                    <View style={styles.valuationHeroCard}>
+                      <View style={styles.valHeaderRow}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={styles.valTag}>
+                            Transaction-Based Market Estimate
+                          </Text>
+                          <Text style={styles.valLocalityTitle}>
+                            {activeLocality} • {currentUsageObj.label}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.confidencePill,
+                            estSuccess.confidence === 'High'
+                              ? styles.confidencePillHigh
+                              : styles.confidencePillModerate,
+                          ]}
+                        >
+                          <Text style={styles.confidencePillText}>
+                            {estSuccess.confidence} Confidence ({estSuccess.comparableRecordCount} Verified Deeds)
+                          </Text>
+                        </View>
                       </View>
-                      <View
-                        style={[
-                          styles.confidencePill,
-                          estSuccess.confidence === 'High'
-                            ? styles.confidencePillHigh
-                            : styles.confidencePillModerate,
-                        ]}
-                      >
-                        <Text style={styles.confidencePillText}>
-                          {estSuccess.confidence} Confidence ({estSuccess.comparableRecordCount} Verified Deeds)
-                        </Text>
-                      </View>
-                    </View>
 
-                    {(() => {
-                      const activeUnit = displayUnit === 'Cent' ? 'Cent' : 'Sq.Ft';
-                      const activeRate = displayUnit === 'Cent' ? medianCent : medianSqFt;
-                      const activeBuffer = calculateMarketRateBuffer(activeRate, activeUnit);
-                      const altUnit = displayUnit === 'Cent' ? 'Sq.Ft' : 'Cent';
-                      const altRate = displayUnit === 'Cent' ? medianSqFt : medianCent;
-                      const altBuffer = calculateMarketRateBuffer(altRate, altUnit);
+                      {(() => {
+                        const activeUnit = displayUnit === 'Cent' ? 'Cent' : 'Sq.Ft';
+                        const activeRate = displayUnit === 'Cent' ? medianCent : medianSqFt;
+                        const activeBuffer = calculateMarketRateBuffer(activeRate, activeUnit);
+                        const altUnit = displayUnit === 'Cent' ? 'Sq.Ft' : 'Cent';
+                        const altRate = displayUnit === 'Cent' ? medianSqFt : medianCent;
+                        const altBuffer = calculateMarketRateBuffer(altRate, altUnit);
 
-                      return (
-                        <>
-                          {/* Estimated Range Market Buffer Banner */}
-                          <View style={styles.estimatedRangeBanner}>
-                            <Text style={styles.estimatedRangeLabel}>Estimated Range</Text>
-                            <Text style={styles.estimatedRangeVal}>
-                              {activeBuffer.rangeFormatted} / {activeUnit}
+                        return (
+                          <>
+                            {/* Estimated Range Market Buffer Banner */}
+                            <View style={styles.estimatedRangeBanner}>
+                              <Text style={styles.estimatedRangeLabel}>Estimated Range</Text>
+                              <Text style={styles.estimatedRangeVal}>
+                                {activeBuffer.rangeFormatted} / {activeUnit}
+                              </Text>
+                            </View>
+
+                            {/* Rate Display with Approximate Market Rate Anchor */}
+                            <View style={styles.bigRateDisplay}>
+                              <View>
+                                <Text style={styles.approxRateLabel}>Approximate Market Rate</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                                  <Text style={styles.bigRateNumber}>
+                                    {activeBuffer.approximateFormatted}
+                                  </Text>
+                                  <Text style={styles.bigRateUnit}>
+                                    / {activeUnit}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            <Text style={styles.convertedRateSub}>
+                              Equivalent to approx. {altBuffer.approximateFormatted} / {altUnit}
                             </Text>
-                          </View>
 
-                          {/* Rate Display with Approximate Market Rate Anchor */}
-                          <View style={styles.bigRateDisplay}>
-                            <View>
-                              <Text style={styles.approxRateLabel}>Approximate Market Rate</Text>
-                              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                                <Text style={styles.bigRateNumber}>
-                                  {activeBuffer.approximateFormatted}
+                            {/* Range Metrics */}
+                            <View style={styles.rangesGrid}>
+                              <View style={styles.rangeBox}>
+                                <Text style={styles.rangeBoxLabel}>Estimated Range (Buffer)</Text>
+                                <Text style={[styles.rangeBoxVal, { color: '#240046', fontWeight: '800' }]}>
+                                  {activeBuffer.rangeFormatted}
                                 </Text>
-                                <Text style={styles.bigRateUnit}>
-                                  / {activeUnit}
+                              </View>
+                              <View style={styles.rangeBox}>
+                                <Text style={styles.rangeBoxLabel}>Typical Range (25th–75th)</Text>
+                                <Text style={styles.rangeBoxVal}>
+                                  {displayUnit === 'Cent'
+                                    ? `${formatLakhs(iqrCent25)} – ${formatLakhs(iqrCent75)}`
+                                    : `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')} – ₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}`}
+                                </Text>
+                              </View>
+                              <View style={styles.rangeBox}>
+                                <Text style={styles.rangeBoxLabel}>Observed Range (Min–Max)</Text>
+                                <Text style={styles.rangeBoxVal}>
+                                  {displayUnit === 'Cent'
+                                    ? `${formatLakhs(minCent)} – ${formatLakhs(maxCent)}`
+                                    : `₹${Math.round(minSqFt).toLocaleString('en-IN')} – ₹${Math.round(maxSqFt).toLocaleString('en-IN')}`}
                                 </Text>
                               </View>
                             </View>
-                          </View>
+                          </>
+                        );
+                      })()}
 
-                          <Text style={styles.convertedRateSub}>
-                            Equivalent to approx. {altBuffer.approximateFormatted} / {altUnit}
-                          </Text>
-
-                          {/* Range Metrics */}
-                          <View style={styles.rangesGrid}>
-                            <View style={styles.rangeBox}>
-                              <Text style={styles.rangeBoxLabel}>Estimated Range (Buffer)</Text>
-                              <Text style={[styles.rangeBoxVal, { color: '#240046', fontWeight: '800' }]}>
-                                {activeBuffer.rangeFormatted}
-                              </Text>
-                            </View>
-                            <View style={styles.rangeBox}>
-                              <Text style={styles.rangeBoxLabel}>Typical Range (25th–75th)</Text>
-                              <Text style={styles.rangeBoxVal}>
-                                {displayUnit === 'Cent'
-                                  ? `${formatLakhs(iqrCent25)} – ${formatLakhs(iqrCent75)}`
-                                  : `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')} – ₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}`}
-                              </Text>
-                            </View>
-                            <View style={styles.rangeBox}>
-                              <Text style={styles.rangeBoxLabel}>Observed Range (Min–Max)</Text>
-                              <Text style={styles.rangeBoxVal}>
-                                {displayUnit === 'Cent'
-                                  ? `${formatLakhs(minCent)} – ${formatLakhs(maxCent)}`
-                                  : `₹${Math.round(minSqFt).toLocaleString('en-IN')} – ₹${Math.round(maxSqFt).toLocaleString('en-IN')}`}
-                              </Text>
-                            </View>
-                          </View>
-                        </>
-                      );
-                    })()}
-
-                    <Text style={styles.estimateDisclaimer}>
-                      {estSuccess.disclaimer ||
-                        'Indicative statistical estimate derived strictly from recent 1,000m verified comparables; not an official legal appraisal or guaranteed sale price.'}
-                    </Text>
-                  </View>
-
-                  {/* Micro-Location Attributes / Breakdown */}
-                  {estSuccess.factorBreakdown && (
-                    <View style={styles.breakdownCard}>
-                      <View style={styles.breakdownHeaderRow}>
-                        <Text style={styles.breakdownTitle}> Micro-Location Context</Text>
-                        <View style={styles.breakdownBadgePill}>
-                          <Text style={styles.breakdownBadgeText}>Attributes</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.breakdownNotice}>
-                        Selected road hierarchy and civic proximity parameters:
+                      <Text style={styles.estimateDisclaimer}>
+                        {estSuccess.disclaimer ||
+                          'Indicative statistical estimate derived strictly from recent 1,000m verified comparables; not an official legal appraisal or guaranteed sale price.'}
                       </Text>
+                    </View>
 
-                      {estSuccess.factorBreakdown.baseLocalityRatePerCent > 0 ? (
-                        <>
-                          <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownKey}>Base Locality Rate:</Text>
-                            <Text style={styles.breakdownVal}>
-                              {formatLakhs(estSuccess.factorBreakdown.baseLocalityRatePerCent)} / Cent
-                            </Text>
+                    {/* Micro-Location Attributes / Breakdown */}
+                    {estSuccess.factorBreakdown && (
+                      <View style={styles.breakdownCard}>
+                        <View style={styles.breakdownHeaderRow}>
+                          <Text style={styles.breakdownTitle}> Micro-Location Context</Text>
+                          <View style={styles.breakdownBadgePill}>
+                            <Text style={styles.breakdownBadgeText}>Attributes</Text>
                           </View>
+                        </View>
+                        <Text style={styles.breakdownNotice}>
+                          Selected road hierarchy and civic proximity parameters:
+                        </Text>
 
-                          <View style={styles.breakdownRow}>
-                            <View style={{ flex: 1, paddingRight: 8 }}>
-                              <Text style={styles.breakdownKey}>Road Frontage Impact:</Text>
-                              <Text style={styles.breakdownSub}>
+                        {estSuccess.factorBreakdown.baseLocalityRatePerCent > 0 ? (
+                          <>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownKey}>Base Locality Rate:</Text>
+                              <Text style={styles.breakdownVal}>
+                                {formatLakhs(estSuccess.factorBreakdown.baseLocalityRatePerCent)} / Cent
+                              </Text>
+                            </View>
+
+                            <View style={styles.breakdownRow}>
+                              <View style={{ flex: 1, paddingRight: 8 }}>
+                                <Text style={styles.breakdownKey}>Road Frontage Impact:</Text>
+                                <Text style={styles.breakdownSub}>
+                                  {estSuccess.factorBreakdown.roadFrontageType}
+                                </Text>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.breakdownVal,
+                                  {
+                                    color:
+                                      estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent >= 0
+                                        ? '#15803D'
+                                        : '#B91C1C',
+                                  },
+                                ]}
+                              >
+                                {estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent >= 0 ? '+' : ''}
+                                {formatLakhs(estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent)} / Cent
+                              </Text>
+                            </View>
+
+                            <View style={styles.breakdownRow}>
+                              <View style={{ flex: 1, paddingRight: 8 }}>
+                                <Text style={styles.breakdownKey}>Civic Anchors & Transit:</Text>
+                                <Text style={styles.breakdownSub}>
+                                  {estSuccess.factorBreakdown.surroundingAmenitiesType}
+                                </Text>
+                              </View>
+                              <Text style={[styles.breakdownVal, { color: '#805A13' }]}>
+                                +{formatLakhs(estSuccess.factorBreakdown.amenitiesAdjustmentPerCent)} / Cent
+                              </Text>
+                            </View>
+
+                            <View style={styles.breakdownDivider} />
+
+                            <View style={styles.breakdownTotalRow}>
+                              <Text style={styles.breakdownTotalLabel}>Net Market Valuation:</Text>
+                              <Text style={styles.breakdownTotalVal}>
+                                {formatLakhs(medianCent)} / Cent
+                              </Text>
+                            </View>
+                          </>
+                        ) : (
+                          <>
+                            <View style={styles.breakdownRow}>
+                              <Text style={styles.breakdownKey}>Road Frontage:</Text>
+                              <Text style={styles.breakdownVal}>
                                 {estSuccess.factorBreakdown.roadFrontageType}
                               </Text>
                             </View>
-                            <Text
-                              style={[
-                                styles.breakdownVal,
-                                {
-                                  color:
-                                    estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent >= 0
-                                      ? '#15803D'
-                                      : '#B91C1C',
-                                },
-                              ]}
-                            >
-                              {estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent >= 0 ? '+' : ''}
-                              {formatLakhs(estSuccess.factorBreakdown.roadFrontageAdjustmentPerCent)} / Cent
-                            </Text>
-                          </View>
-
-                          <View style={styles.breakdownRow}>
-                            <View style={{ flex: 1, paddingRight: 8 }}>
+                            <View style={styles.breakdownRow}>
                               <Text style={styles.breakdownKey}>Civic Anchors & Transit:</Text>
-                              <Text style={styles.breakdownSub}>
+                              <Text style={styles.breakdownVal}>
                                 {estSuccess.factorBreakdown.surroundingAmenitiesType}
                               </Text>
                             </View>
-                            <Text style={[styles.breakdownVal, { color: '#805A13' }]}>
-                              +{formatLakhs(estSuccess.factorBreakdown.amenitiesAdjustmentPerCent)} / Cent
-                            </Text>
-                          </View>
-
-                          <View style={styles.breakdownDivider} />
-
-                          <View style={styles.breakdownTotalRow}>
-                            <Text style={styles.breakdownTotalLabel}>Net Market Valuation:</Text>
-                            <Text style={styles.breakdownTotalVal}>
-                              {formatLakhs(medianCent)} / Cent
-                            </Text>
-                          </View>
-                        </>
-                      ) : (
-                        <>
-                          <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownKey}>Road Frontage:</Text>
-                            <Text style={styles.breakdownVal}>
-                              {estSuccess.factorBreakdown.roadFrontageType}
-                            </Text>
-                          </View>
-                          <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownKey}>Civic Anchors & Transit:</Text>
-                            <Text style={styles.breakdownVal}>
-                              {estSuccess.factorBreakdown.surroundingAmenitiesType}
-                            </Text>
-                          </View>
-                        </>
-                      )}
-                    </View>
-                  )}
-
-                  {/* Section 2: Asking Price Benchmark */}
-                  {asking && asking.listingCount > 0 && (
-                    <View style={styles.askingCard}>
-                      <View style={styles.askingTopRow}>
-                        <View>
-                          <Text style={styles.askingTag}>
-                            {asking.sectionLabel || 'Asking Price Benchmark'}
-                          </Text>
-                          <Text style={styles.askingSubTitle}>
-                            Active Seller Listings ({asking.listingCount} listings)
-                          </Text>
-                        </View>
-                        <Text style={styles.askingRateVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
-                            : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
-                        </Text>
-                      </View>
-                      <Text style={styles.askingNotice}>
-                        {asking.notice ||
-                          'Seller asking prices from active listings. Kept strictly separate from verified completed transaction evidence.'}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Section 3: Government Guideline Benchmark */}
-                  {guideline && guideline.guidelineRatePerCent > 0 && (
-                    <View style={styles.guidelineCard}>
-                      <View style={styles.guidelineTopRow}>
-                        <View>
-                          <Text style={styles.guidelineTag}>
-                            {guideline.sectionLabel || 'Government Guideline Benchmark'}
-                          </Text>
-                          <Text style={styles.guidelineSubTitle}>
-                            TNREGINET Official Benchmark • {guideline.locality}
-                          </Text>
-                        </View>
-                        <Text style={styles.guidelineRateVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
-                            : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
-                        </Text>
-                      </View>
-                      <Text style={styles.guidelineNotice}>
-                        {guideline.legalNotice ||
-                          'Government statutory minimum used for stamp duty registration. Kept strictly separate from open-market valuations.'}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Action Links */}
-                  <View style={{ gap: 8, marginTop: 8 }}>
-                    <TouchableOpacity
-                      style={styles.exportPdfBtn}
-                      onPress={() => handleGenerateValuationPdf(estSuccess)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.exportPdfBtnText}>
-                         Export valuation report
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.primaryActionBtn}
-                      onPress={() => {
-                        setPreviousTab('estimate');
-                        setActiveTab('records');
-                      }}
-                    >
-                      <Text style={styles.primaryActionBtnText}>
-                        View 1 km Comparables ({estSuccess.comparableRecordCount})
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.secondaryActionBtn}
-                      onPress={() => setEstimateStep('selection')}
-                    >
-                      <Text style={styles.secondaryActionBtnText}>
-                        Change Location or Zoning
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.secondaryActionBtn, { borderColor: Colors.primary }]}
-                      onPress={() => setActiveTab('search')}
-                    >
-                      <Text style={[styles.secondaryActionBtnText, { color: Colors.primary }]}>
-                        Adjust Pin on Interactive Map
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              );
-            })()
-          ) : estimate && estimate.status === 'InsufficientData' ? (
-            (() => {
-              const insuff = estimate as EstimateInsufficientDataResponse;
-              const guideline = insuff.governmentGuidelineReference;
-              const asking = insuff.askingPriceReference;
-
-              return (
-                <>
-                  {/* Section 1: Completed Transaction Evidence */}
-                  <View style={styles.insufficientDataCard}>
-                    <View style={styles.insufficientBadge}>
-                      <Text style={styles.insufficientBadgeText}>
-                        {insuff.sectionLabel || 'Completed Transaction Evidence'}
-                      </Text>
-                    </View>
-                    <Text style={styles.insufficientTitle}>
-                      {insuff.comparableRecordsFound} comparable sales found
-                    </Text>
-                    <Text style={styles.insufficientSub}>
-                      At least {insuff.minimumRequiredRecords || 3} verified sales are needed for a registered-sale estimate.
-                    </Text>
-                    <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: showEvidenceDetails }} style={styles.evidenceDetailsButton} onPress={() => setShowEvidenceDetails((value: boolean) => !value)}>
-                      <Text style={styles.evidenceDetailsText}>{showEvidenceDetails ? 'Hide details −' : 'Why this estimate is unavailable +'}</Text>
-                    </TouchableOpacity>
-                    {showEvidenceDetails && <View>
-                      <Text style={styles.insufficientSub}>{insuff.message || `Search radius: ${insuff.searchRadiusMeters || 1000} metres · ${currentUsageObj.label} land.`}</Text>
-                    <Text style={styles.insufficientNoticeHighlight}>
-                      Registered-sale estimates require enough verified deed evidence. Any broker-reviewed range is shown separately above.
-                    </Text>
-
-                    {insuff.recommendations && insuff.recommendations.length > 0 && (
-                      <View style={styles.recommendationsBox}>
-                        <Text style={styles.recommendationsHeader}>Next Steps & Guidance:</Text>
-                        {insuff.recommendations.map((rec, idx) => (
-                          <View key={idx} style={styles.recommendationItem}>
-                            <Text style={styles.recommendationBullet}>•</Text>
-                            <Text style={styles.recommendationText}>{rec}</Text>
-                          </View>
-                        ))}
+                          </>
+                        )}
                       </View>
                     )}
-                    </View>}
-                  </View>
 
-                  {/* Section 2: Asking Price Benchmark */}
-                  {asking && asking.listingCount > 0 && (
-                    <View style={styles.askingCard}>
-                      <View style={styles.askingTopRow}>
-                        <View>
-                          <Text style={styles.askingTag}>
-                            {asking.sectionLabel || 'Asking Price Benchmark'}
-                          </Text>
-                          <Text style={styles.askingSubTitle}>
-                            Active Seller Listings ({asking.listingCount} listings)
+                    {/* Section 2: Asking Price Benchmark */}
+                    {asking && asking.listingCount > 0 && (
+                      <View style={styles.askingCard}>
+                        <View style={styles.askingTopRow}>
+                          <View>
+                            <Text style={styles.askingTag}>
+                              {asking.sectionLabel || 'Asking Price Benchmark'}
+                            </Text>
+                            <Text style={styles.askingSubTitle}>
+                              Active Seller Listings ({asking.listingCount} listings)
+                            </Text>
+                          </View>
+                          <Text style={styles.askingRateVal}>
+                            {displayUnit === 'Cent'
+                              ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
+                              : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
                           </Text>
                         </View>
-                        <Text style={styles.askingRateVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
-                            : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                        <Text style={styles.askingNotice}>
+                          {asking.notice ||
+                            'Seller asking prices from active listings. Kept strictly separate from verified completed transaction evidence.'}
                         </Text>
                       </View>
-                      <Text style={styles.askingNotice}>
-                        {asking.notice ||
-                          'Seller asking prices from active listings. Kept strictly separate from verified completed transaction evidence.'}
-                      </Text>
-                    </View>
-                  )}
+                    )}
 
-                  {/* Section 3: Government Guideline Benchmark */}
-                  {guideline && guideline.guidelineRatePerCent > 0 && (
-                    <View style={styles.guidelineCard}>
-                      <View style={styles.guidelineTopRow}>
-                        <View>
-                          <Text style={styles.guidelineTag}>
-                            {guideline.sectionLabel || 'Government Guideline Benchmark'}
-                          </Text>
-                          <Text style={styles.guidelineSubTitle}>
-                            TNREGINET Official Benchmark • {guideline.locality}
+                    {/* Section 3: Government Guideline Benchmark */}
+                    {guideline && guideline.guidelineRatePerCent > 0 && (
+                      <View style={styles.guidelineCard}>
+                        <View style={styles.guidelineTopRow}>
+                          <View>
+                            <Text style={styles.guidelineTag}>
+                              {guideline.sectionLabel || 'Government Guideline Benchmark'}
+                            </Text>
+                            <Text style={styles.guidelineSubTitle}>
+                              TNREGINET Official Benchmark • {guideline.locality}
+                            </Text>
+                          </View>
+                          <Text style={styles.guidelineRateVal}>
+                            {displayUnit === 'Cent'
+                              ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
+                              : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
                           </Text>
                         </View>
-                        <Text style={styles.guidelineRateVal}>
-                          {displayUnit === 'Cent'
-                            ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
-                            : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                        <Text style={styles.guidelineNotice}>
+                          {guideline.legalNotice ||
+                            'Government statutory minimum used for stamp duty registration. Kept strictly separate from open-market valuations.'}
                         </Text>
                       </View>
-                      <Text style={styles.guidelineNotice}>
-                        {guideline.legalNotice ||
-                          'Government statutory minimum used for stamp duty registration. Kept strictly separate from open-market valuations.'}
-                      </Text>
-                    </View>
-                  )}
+                    )}
 
-                  {/* Action Buttons */}
-                  <View style={{ gap: 8, marginTop: 14 }}>
-                    {insuff.comparableRecordsFound > 0 && (
+                    {/* Action Links */}
+                    <View style={{ gap: 8, marginTop: 8 }}>
+                      <TouchableOpacity
+                        style={styles.exportPdfBtn}
+                        onPress={() => handleGenerateValuationPdf(estSuccess)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.exportPdfBtnText}>
+                          Export valuation report
+                        </Text>
+                      </TouchableOpacity>
+
                       <TouchableOpacity
                         style={styles.primaryActionBtn}
                         onPress={() => {
@@ -686,33 +563,251 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                         }}
                       >
                         <Text style={styles.primaryActionBtnText}>
-                          View Available Comparables ({insuff.comparableRecordsFound})
+                          View 1 km Comparables ({estSuccess.comparableRecordCount})
                         </Text>
                       </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.secondaryActionBtn}
+                        onPress={() => setEstimateStep('selection')}
+                      >
+                        <Text style={styles.secondaryActionBtnText}>
+                          Change Location or Zoning
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.secondaryActionBtn, { borderColor: Colors.primary }]}
+                        onPress={() => setActiveTab('search')}
+                      >
+                        <Text style={[styles.secondaryActionBtnText, { color: Colors.primary }]}>
+                          Adjust Pin on Interactive Map
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()
+            ) : estimate && estimate.status === 'InsufficientData' ? (
+              (() => {
+                const insuff = estimate as EstimateInsufficientDataResponse;
+                const guideline = insuff.governmentGuidelineReference;
+                const asking = insuff.askingPriceReference;
+
+                const liveComps = insuff.liveMarketComps;
+
+                return (
+                  <>
+                    {/* Section 1: Completed Transaction Evidence / Live Market Comps */}
+                    {liveComps ? (
+                      <View style={styles.liveCompsCard}>
+                        <View style={styles.liveCompsHeaderRow}>
+                          <View style={styles.liveBadge}>
+                            <View style={styles.liveBadgeDot} />
+                            <Text style={styles.liveBadgeText}>
+                              LIVE MARKET COMPS (GROUNDED SEARCH)
+                            </Text>
+                          </View>
+                          <Text style={styles.listingsCountText}>
+                            {liveComps.comparableListingsCount}+ active listings analyzed
+                          </Text>
+                        </View>
+
+                        <View style={styles.liveCompsRateRow}>
+                          <Text style={styles.liveCompsMainRate}>
+                            {displayUnit === 'Cent'
+                              ? `₹${liveComps.minPricePerCentLakhs.toFixed(2)}L – ₹${liveComps.maxPricePerCentLakhs.toFixed(2)}L / Cent`
+                              : liveComps.pricePerSqFtRange}
+                          </Text>
+                          <Text style={styles.liveCompsSubRate}>
+                            {displayUnit === 'Cent'
+                              ? `Rate: ${liveComps.pricePerSqFtRange} (1 Cent = 435.6 sq.ft)`
+                              : `Rate: ₹${liveComps.minPricePerCentLakhs.toFixed(2)}L – ₹${liveComps.maxPricePerCentLakhs.toFixed(2)}L / Cent`}
+                          </Text>
+                        </View>
+
+                        <View style={styles.liveCompsLocalityRow}>
+                          <Feather name="map-pin" size={13} color="#059669" />
+                          <Text style={styles.liveCompsLocalityText}>
+                            {liveComps.resolvedLocality}
+                          </Text>
+                          {liveComps.keyLandmarksUsed?.map((lm, idx) => (
+                            <View key={idx} style={styles.landmarkChip}>
+                              <Text style={styles.landmarkChipText}>{lm}</Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        <View style={styles.portalBadgesRow}>
+                          <Text style={styles.listingsCountText}>Portals:</Text>
+                          {liveComps.sourcePortals?.map((p, idx) => (
+                            <View key={idx} style={styles.portalPill}>
+                              <Text style={styles.portalPillText}>{p}</Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        {liveComps.sourceSummary ? (
+                          <View style={styles.liveCompsSummaryBox}>
+                            <Text style={styles.liveCompsSummaryText}>
+                              {liveComps.sourceSummary}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {liveComps.citations && liveComps.citations.length > 0 ? (
+                          <View style={styles.citationsSection}>
+                            <Text style={styles.citationsHeader}>Verified Property Portal Citations</Text>
+                            {liveComps.citations.map((c, idx) => (
+                              <TouchableOpacity
+                                key={idx}
+                                style={styles.citationItem}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                  if (c.url) {
+                                    Linking.openURL(c.url).catch(() => { });
+                                  }
+                                }}
+                              >
+                                <View style={styles.citationItemLeft}>
+                                  <Text style={styles.citationTitle} numberOfLines={1}>
+                                    {c.title || `Listing on ${c.portal}`}
+                                  </Text>
+                                  <Text style={styles.citationPortal}>
+                                    {c.portal}
+                                  </Text>
+                                </View>
+                                <Feather name="external-link" size={14} color="#059669" />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : (
+                      <View style={styles.insufficientDataCard}>
+                        <View style={styles.insufficientBadge}>
+                          <Text style={styles.insufficientBadgeText}>
+                            {insuff.sectionLabel || 'Completed Transaction Evidence'}
+                          </Text>
+                        </View>
+                        <Text style={styles.insufficientTitle}>
+                          {insuff.comparableRecordsFound} comparable sales found
+                        </Text>
+                        <Text style={styles.insufficientSub}>
+                          At least {insuff.minimumRequiredRecords || 3} verified sales are needed for a registered-sale estimate.
+                        </Text>
+                        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: showEvidenceDetails }} style={styles.evidenceDetailsButton} onPress={() => setShowEvidenceDetails((value: boolean) => !value)}>
+                          <Text style={styles.evidenceDetailsText}>{showEvidenceDetails ? 'Hide details −' : 'Why this estimate is unavailable +'}</Text>
+                        </TouchableOpacity>
+                        {showEvidenceDetails && <View>
+                          <Text style={styles.insufficientSub}>{insuff.message || `Search radius: ${insuff.searchRadiusMeters || 1000} metres · ${currentUsageObj.label} land.`}</Text>
+                          <Text style={styles.insufficientNoticeHighlight}>
+                            Registered-sale estimates require enough verified deed evidence.
+                          </Text>
+
+                          {insuff.recommendations && insuff.recommendations.length > 0 && (
+                            <View style={styles.recommendationsBox}>
+                              <Text style={styles.recommendationsHeader}>Next Steps & Guidance:</Text>
+                              {insuff.recommendations.map((rec, idx) => (
+                                <View key={idx} style={styles.recommendationItem}>
+                                  <Text style={styles.recommendationBullet}>•</Text>
+                                  <Text style={styles.recommendationText}>{rec}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>}
+                      </View>
                     )}
 
-                    <TouchableOpacity
-                      style={styles.primaryActionBtn}
-                      onPress={() => setActiveTab('search')}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.primaryActionBtnText}>Adjust Pin on Interactive Map</Text>
-                    </TouchableOpacity>
+                    {/* Section 2: Asking Price Benchmark */}
+                    {asking && asking.listingCount > 0 && (
+                      <View style={styles.askingCard}>
+                        <View style={styles.askingTopRow}>
+                          <View>
+                            <Text style={styles.askingTag}>
+                              {asking.sectionLabel || 'Asking Price Benchmark'}
+                            </Text>
+                            <Text style={styles.askingSubTitle}>
+                              Active Seller Listings ({asking.listingCount} listings)
+                            </Text>
+                          </View>
+                          <Text style={styles.askingRateVal}>
+                            {displayUnit === 'Cent'
+                              ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
+                              : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                          </Text>
+                        </View>
+                        <Text style={styles.askingNotice}>
+                          {asking.notice ||
+                            'Seller asking prices from active listings. Kept strictly separate from verified completed transaction evidence.'}
+                        </Text>
+                      </View>
+                    )}
 
-                    <TouchableOpacity
-                      style={styles.secondaryActionBtn}
-                      onPress={() => setEstimateStep('selection')}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.secondaryActionBtnText}>Change Location or Zoning</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              );
-            })()
-          ) : null}
-        </>
-      )}
+                    {/* Section 3: Government Guideline Benchmark */}
+                    {guideline && guideline.guidelineRatePerCent > 0 && (
+                      <View style={styles.guidelineCard}>
+                        <View style={styles.guidelineTopRow}>
+                          <View>
+                            <Text style={styles.guidelineTag}>
+                              {guideline.sectionLabel || 'Government Guideline Benchmark'}
+                            </Text>
+                            <Text style={styles.guidelineSubTitle}>
+                              TNREGINET Official Benchmark • {guideline.locality}
+                            </Text>
+                          </View>
+                          <Text style={styles.guidelineRateVal}>
+                            {displayUnit === 'Cent'
+                              ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
+                              : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                          </Text>
+                        </View>
+                        <Text style={styles.guidelineNotice}>
+                          {guideline.legalNotice ||
+                            'Government statutory minimum used for stamp duty registration. Kept strictly separate from open-market valuations.'}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Action Buttons */}
+                    <View style={{ gap: 8, marginTop: 14 }}>
+                      {insuff.comparableRecordsFound > 0 && (
+                        <TouchableOpacity
+                          style={styles.primaryActionBtn}
+                          onPress={() => {
+                            setPreviousTab('estimate');
+                            setActiveTab('records');
+                          }}
+                        >
+                          <Text style={styles.primaryActionBtnText}>
+                            View Available Comparables ({insuff.comparableRecordsFound})
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.primaryActionBtn}
+                        onPress={() => setActiveTab('search')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.primaryActionBtnText}>Adjust Pin on Interactive Map</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.secondaryActionBtn}
+                        onPress={() => setEstimateStep('selection')}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.secondaryActionBtnText}>Change Location or Zoning</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                );
+              })()
+            ) : null}
+          </>
+        )}
       </ScreenEntrance>
     </ScrollView>
   );
@@ -1189,6 +1284,166 @@ const styles = withScreenStyles({
     marginTop: 8,
     lineHeight: 19,
   },
+  liveCompsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderLeftWidth: 4,
+    borderLeftColor: '#059669',
+    gap: 10,
+  },
+  liveCompsHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  liveBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#059669',
+  },
+  liveBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#065F46',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  liveCompsRateRow: {
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  liveCompsMainRate: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#065F46',
+    letterSpacing: -0.3,
+  },
+  liveCompsSubRate: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#047857',
+    marginTop: 2,
+  },
+  liveCompsLocalityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  liveCompsLocalityText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  landmarkChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  landmarkChipText: {
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  portalBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  portalPill: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  portalPillText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#1D4ED8',
+  },
+  listingsCountText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  liveCompsSummaryBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    padding: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+    marginTop: 4,
+  },
+  liveCompsSummaryText: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 18,
+  },
+  citationsSection: {
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
+    gap: 6,
+  },
+  citationsHeader: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  citationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  citationItemLeft: {
+    flex: 1,
+    marginRight: 8,
+  },
+  citationTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  citationPortal: {
+    fontSize: 10.5,
+    color: '#059669',
+    fontWeight: '600',
+    marginTop: 1,
+  },
   insufficientDataCard: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 18, borderWidth: 1, borderColor: '#E5E2E9', borderLeftWidth: 2, borderLeftColor: '#D4AF37' },
   insufficientBadge: { alignSelf: 'flex-start', marginBottom: 10 },
   insufficientBadgeText: { fontSize: 10, fontWeight: '600', color: '#79717F', letterSpacing: .5, textTransform: 'uppercase' },
@@ -1401,7 +1656,7 @@ const styles = withScreenStyles({
   advancedDrawerToggle: { minHeight: 46, paddingVertical: 12, borderColor: P.border }, advancedDrawerText: { color: P.purple, fontSize: 13 }, advancedDrawerContent: { backgroundColor: P.lavender, borderRadius: 14, padding: 14 }, coordInputsRow: { flexWrap: 'wrap', gap: 12 }, coordTextInput: ScreenUI.input, applyCoordBtn: ScreenUI.secondary, applyCoordBtnText: ScreenUI.secondaryText,
   primaryActionBtn: ScreenUI.primary, primaryActionBtnText: ScreenUI.primaryText, secondaryActionBtn: ScreenUI.secondary, secondaryActionBtnText: ScreenUI.secondaryText,
   valuationHeroCard: { ...ScreenUI.card, borderTopWidth: 2, borderTopColor: P.gold }, valHeaderRow: { flexWrap: 'wrap', gap: 12 }, valLocalityTitle: { color: P.text, fontSize: 20 }, estimatedRangeBanner: { flexWrap: 'wrap', gap: 12, borderRadius: 14, backgroundColor: P.lavender, borderColor: P.border },
-  guidelineCard: { ...ScreenUI.card, backgroundColor: P.lavender }, askingCard: { ...ScreenUI.card, backgroundColor: '#FFFCF4' }, insufficientDataCard: { ...ScreenUI.card, borderLeftWidth: 2, borderLeftColor: P.gold },
+  guidelineCard: { ...ScreenUI.card, backgroundColor: P.lavender }, askingCard: { ...ScreenUI.card, backgroundColor: '#FFFCF4' }, insufficientDataCard: { ...ScreenUI.card, borderLeftWidth: 2, borderLeftColor: P.gold }, liveCompsCard: { ...ScreenUI.card, borderLeftWidth: 4, borderLeftColor: '#059669', borderColor: '#10B981' },
   guidelineSubTitle: { color: P.violet, fontSize: 13, lineHeight: 20 }, askingSubTitle: { fontSize: 13, lineHeight: 20 }, estimateDisclaimer: { ...ScreenUI.subtitle, fontSize: 12 }, breakdownCard: ScreenUI.card, loadingCard: ScreenUI.card,
 });
 

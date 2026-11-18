@@ -21,5 +21,10 @@ public interface IGeocodingService
     /// Directly geocodes an address or location name into geographic coordinates.
     /// </summary>
     Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reverse-geocodes coordinates into a detailed locality string with neighborhood, district, and landmarks.
+    /// </summary>
+    Task<ReverseGeocodeResultDto?> ReverseGeocodeCoordinatesAsync(double latitude, double longitude, CancellationToken ct = default);
 }
 

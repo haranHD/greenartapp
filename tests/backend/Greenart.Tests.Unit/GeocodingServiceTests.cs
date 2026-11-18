@@ -343,5 +343,38 @@ public class GeocodingServiceTests
         Assert.Equal(GeocodingFailure.Timeout, error.Failure);
     }
 
+    [Fact]
+    public async Task ReverseGeocodeCoordinatesAsync_ParsesNeighborhoodLocalityAndDistrict()
+    {
+        var json = """
+        {
+          "status": "OK",
+          "results": [
+            {
+              "formatted_address": "Kuruppanaickenpalayam, Bhavani, Tamil Nadu 638301, India",
+              "address_components": [
+                { "long_name": "Kuruppanaickenpalayam", "types": ["neighborhood", "sublocality"] },
+                { "long_name": "Bhavani", "types": ["locality"] },
+                { "long_name": "Bhavani", "types": ["administrative_area_level_3"] },
+                { "long_name": "Erode", "types": ["administrative_area_level_2"] },
+                { "long_name": "Tamil Nadu", "types": ["administrative_area_level_1"] },
+                { "long_name": "Cauvery River Bridge", "types": ["establishment"] }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var (service, handler) = CreateService(HttpStatusCode.OK, json);
+        var result = await service.ReverseGeocodeCoordinatesAsync(11.4500, 77.6800);
+
+        Assert.NotNull(result);
+        Assert.Equal("Kuruppanaickenpalayam", result.Neighborhood);
+        Assert.Equal("Bhavani", result.Locality);
+        Assert.Equal("Erode", result.District);
+        Assert.Equal("Tamil Nadu", result.State);
+        Assert.Contains("Cauvery River Bridge", result.NearbyLandmarks);
+        Assert.Contains("Kuruppanaickenpalayam", result.SpecificLocationQuery);
+    }
 }
 

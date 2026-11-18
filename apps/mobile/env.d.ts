@@ -66,6 +66,7 @@ declare module 'react-native' {
   export const FlatList: any;
   export const ActivityIndicator: any;
   export const Platform: any;
+  export const Linking: { openURL(url: string): Promise<any> };
   export const Modal: any;
   export const Alert: any;
   export const NativeModules: any;

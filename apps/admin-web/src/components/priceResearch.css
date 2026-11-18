@@ -35,3 +35,16 @@
 .price-note { padding: 12px; background: #fffbec; border-radius: 8px; }
 @media (max-width: 1000px) { .price-layout { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .price-panel, .price-banner { padding: 18px; } .price-fields { grid-template-columns: 1fr; } }
+
+.market-evidence-details { display: grid; gap: 12px; min-width: 0; }
+.market-evidence-details h4 { margin-top: 20px; }
+.market-evidence-list { display: grid; gap: 12px; }
+.grounding-attribution { width: 100%; min-height: 110px; border: 1px solid #e9e2f0; border-radius: 10px; background: white; }
+.market-queue-scroll { max-width: 100%; overflow-x: auto; }
+.market-queue { border-collapse: collapse; width: 100%; font-size: 12px; }
+.market-queue th,.market-queue td { text-align: left; padding: 10px; border-bottom: 1px solid #e9e2f0; vertical-align: top; min-width: 110px; }
+.market-filters { padding: 14px; background: #faf9fc; border-radius: 12px; margin-bottom: 16px; }
+.market-evidence-details a,.market-evidence-details code { overflow-wrap: anywhere; word-break: break-word; }
+
+.price-form input[type="checkbox"] { width: auto; flex-shrink: 0; margin-top: 3px; }
+.price-form label:has(input[type="checkbox"]) { display: flex; flex-direction: row; gap: 9px; align-items: flex-start; }

@@ -22,6 +22,24 @@ export interface EstimateSourceBreakdown {
   count: number;
 }
 
+export interface SourceCitation {
+  title: string;
+  url: string;
+  portal: string;
+}
+
+export interface LiveMarketComps {
+  minPricePerCentLakhs: number;
+  maxPricePerCentLakhs: number;
+  pricePerSqFtRange: string;
+  comparableListingsCount: number;
+  keyLandmarksUsed: string[];
+  sourceSummary: string;
+  sourcePortals: string[];
+  resolvedLocality: string;
+  citations?: SourceCitation[];
+}
+
 export interface EstimateSuccessResult {
   status: 'Success';
   targetCoordinates: Coordinates;
@@ -39,6 +57,7 @@ export interface EstimateSuccessResult {
     surveyNumber?: string;
   };
   disclaimer: string;
+  liveMarketComps?: LiveMarketComps;
 }
 
 export interface EstimateInsufficientDataResult {
@@ -49,6 +68,7 @@ export interface EstimateInsufficientDataResult {
   minimumRequiredRecords: number;
   message: string;
   recommendations: string[];
+  liveMarketComps?: LiveMarketComps;
 }
 
 export type EstimateResult = EstimateSuccessResult | EstimateInsufficientDataResult;

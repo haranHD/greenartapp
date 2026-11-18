@@ -18,6 +18,7 @@ import { DocumentReviewQueueView } from './components/DocumentReviewQueueView';
 import { ProviderHealthView } from './components/ProviderHealthView';
 import { GoogleMapsExplorer } from './components/GoogleMapsExplorer';
 import { UserAccountsView } from './components/UserAccountsView';
+import { LocationSurveysView } from './components/LocationSurveysView';
 import {
   MarketplaceListing,
   ListingStatus,
@@ -136,6 +137,7 @@ const Icons = {
 type TabView =
   | 'dashboard'
   | 'users'
+  | 'surveys'
   | 'price-research'
   | 'marketplace'
   | 'documents'
@@ -882,6 +884,14 @@ export const App = () => {
           <span className="nav-section-label">Workspace</span>
           <button className={`nav-item ${activeTab === 'price-research' ? 'active' : ''}`} aria-current={activeTab === 'price-research' ? 'page' : undefined} onClick={() => setActiveTab('price-research')}><span className="nav-icon"><Icons.Marketplace /></span><span>Price Research</span></button>
           <button
+            className={`nav-item ${activeTab === 'surveys' ? 'active' : ''}`}
+            aria-current={activeTab === 'surveys' ? 'page' : undefined}
+            onClick={() => setActiveTab('surveys')}
+          >
+            <span className="nav-icon"><Icons.Map /></span>
+            <span>Location Surveys</span>
+          </button>
+          <button
             className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
             aria-current={activeTab === 'dashboard' ? 'page' : undefined}
             onClick={() => setActiveTab('dashboard')}
@@ -1002,6 +1012,7 @@ export const App = () => {
             <span className="page-title">
               {activeTab === 'dashboard' && 'Overview'}
               {activeTab === 'users' && 'User accounts'}
+              {activeTab === 'surveys' && 'Location Surveys & Broker Verification'}
               {activeTab === 'price-research' && 'Price research & broker review'}
               {activeTab === 'marketplace' && 'Listing moderation'}
               {activeTab === 'documents' && 'Document review'}
@@ -1379,6 +1390,13 @@ export const App = () => {
               VIEW: APPLICATION USER ACCOUNTS DIRECTORY
               ===================================================================== */}
           {activeTab === 'users' && <UserAccountsView />}
+
+          {/* =====================================================================
+              VIEW: LOCATION SURVEYS & BROKER GROUND RATE VERIFICATION
+              ===================================================================== */}
+          {activeTab === 'surveys' && (
+            <LocationSurveysView adminKey={adminKey} onRecordCreated={fetchRecords} />
+          )}
 
           {/* =====================================================================
               VIEW: MARKETPLACE LISTING MODERATION

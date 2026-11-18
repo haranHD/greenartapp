@@ -8,6 +8,7 @@ export enum SourceCategory {
   AdvertisedAskingPrice = 'AdvertisedAskingPrice',
   ClientResearch = 'ClientResearch',
   SyntheticFixture = 'SyntheticFixture',
+  LocalRateSurvey = 'LocalRateSurvey',
 }
 
 export enum VerificationStatus {
@@ -16,6 +17,7 @@ export enum VerificationStatus {
   Verified = 'Verified',
   Rejected = 'Rejected',
   Archived = 'Archived',
+  NeedsCorrection = 'NeedsCorrection',
 }
 
 export enum LandUsageType {

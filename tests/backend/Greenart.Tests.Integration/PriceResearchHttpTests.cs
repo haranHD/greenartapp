@@ -27,7 +27,11 @@ public class PriceResearchHttpTests
                 services.RemoveAll<DbContextOptions<LandPriceDbContext>>();
                 services.RemoveAll<LandPriceDbContext>();
                 services.AddScoped(_ => new LandPriceDbContext(new DbContextOptionsBuilder<LandPriceDbContext>().UseInMemoryDatabase(dbName).Options));
-                services.RemoveAll<IPriceResearchModels>(); services.AddSingleton<IPriceResearchModels, FakeModels>();
+                services.RemoveAll<IPriceResearchModels>(); services.RemoveAll<ILandMarketResearchService>();
+                services.RemoveAll<ILandPriceRepository>();
+                services.AddScoped<ILandPriceRepository>(sp => new ResearchTestRepository(sp.GetRequiredService<LandPriceDbContext>(), sp.GetRequiredService<FakeModels>()));
+                services.AddSingleton<FakeModels>(); services.AddSingleton<IPriceResearchModels>(sp => sp.GetRequiredService<FakeModels>());
+                services.AddSingleton<ILandMarketResearchService>(sp => sp.GetRequiredService<FakeModels>());
             });
         });
     }
@@ -39,7 +43,7 @@ public class PriceResearchHttpTests
     }
     private static Task<JsonElement> Create(HttpClient client) => Send(client, "", new {
         locality = "Bhavani", district = "Erode", latitude = 11.4471, longitude = 77.684,
-        landUsage = 1, coverageRadiusMeters = 500, roadAccess = "Layout Road", context = "Near schools" });
+        landUsage = 1, coverageRadiusMeters = 500, roadAccess = "Layout Road", context = "Near schools", area = 5, areaUnit = "Cent", taluk = "Bhavani" });
     private static string Version(JsonElement item) => item.GetProperty("version").GetString()!;
     private static string Id(JsonElement item) => item.GetProperty("id").GetString()!;
     private static async Task<JsonElement> Public(HttpClient client, string query = "") {
@@ -60,7 +64,7 @@ public class PriceResearchHttpTests
             validUntilUtc = DateTime.UtcNow.AddDays(30), notes = "Checked" });
         Assert.Equal(HttpStatusCode.Conflict, premature.StatusCode);
         var researched = await Send(client, id + "/research", new { version = Version(draft) });
-        Assert.Equal(3, researched.GetProperty("proposals").GetArrayLength());
+        Assert.Equal(1, researched.GetProperty("proposals").GetArrayLength());
         Assert.Equal(JsonValueKind.Null, (await Public(client)).ValueKind);
         var reviewed = await Send(client, id + "/broker-review", new { version = Version(researched), brokerName = "Internal Broker Name",
             evidence = "Private broker evidence with three documented local references.", observationCount = 3,
@@ -107,7 +111,7 @@ public class PriceResearchHttpTests
         Assert.Equal(JsonValueKind.Null, (await Public(client)).ValueKind);
     }
     private static async Task<JsonElement> Market(HttpClient client, string? query = null) {
-        var response = await client.GetAsync("/api/v1/pricing/market-range?" + (query ?? "latitude=11.4471&longitude=77.684&landUsage=1&roadAccess=Layout%20Road"));
+        var response = await client.GetAsync("/api/v1/pricing/market-range?" + (query ?? "latitude=11.4471&longitude=77.684&landUsage=1&roadAccess=Layout%20Road&area=5&areaUnit=Cent"));
         response.EnsureSuccessStatusCode();
         return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("range").Clone();
     }
@@ -122,8 +126,8 @@ public class PriceResearchHttpTests
         Assert.Equal(600000, ai.GetProperty("highPerCent").GetDecimal());
         Assert.Equal(Math.Round(400000m / 435.6m, 2), ai.GetProperty("lowPerSqFt").GetDecimal());
         Assert.Equal(0, ai.GetProperty("observationCount").GetInt32());
-        Assert.Equal(3, ai.GetProperty("providers").GetArrayLength());
-        Assert.Contains("Not yet verified", ai.GetProperty("label").GetString());
+        Assert.Equal(1, ai.GetProperty("providers").GetArrayLength());
+        Assert.Equal("AI-Assisted Asking-Price Research", ai.GetProperty("label").GetString());
         Assert.False(ai.TryGetProperty("proposals", out _)); Assert.False(ai.TryGetProperty("brokerEvidence", out _));
         Assert.Equal(JsonValueKind.Null, (await Public(client)).ValueKind); // Approval-only contract remains intact.
         var reviewed = await Send(client, id + "/broker-review", new { version = Version(researched), brokerName = "Private Broker",
@@ -185,7 +189,7 @@ public class PriceResearchHttpTests
     }
     private static object MobileRequest(Guid? requestId = null, double latitude = 11.4471) => new {
         requestId = requestId ?? Guid.NewGuid(), locality = "Bhavani", district = "Erode", latitude, longitude = 77.684,
-        landUsage = 1, roadAccess = "Layout Road" };
+        landUsage = 1, roadAccess = "Layout Road", area = 5, areaUnit = "Cent", taluk = "Bhavani" };
     [Fact] public async Task MobileGeneration_RequiresAuthentication_AndMakesNoAnonymousCalls() {
         using var factory = Factory(); using var client = factory.CreateClient();
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/pricing/research", MobileRequest())).StatusCode);
@@ -205,7 +209,7 @@ public class PriceResearchHttpTests
         Assert.Equal(1, ((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Calls);
         using var scope = factory.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<LandPriceDbContext>();
         Assert.Equal("Draft", (await db.PriceResearch.SingleAsync()).Status);
-        Assert.Equal(3, JsonSerializer.Deserialize<ModelPriceProposal[]>((await db.PriceResearch.SingleAsync()).ProposalsJson)!.Length);
+        Assert.Equal(1, JsonSerializer.Deserialize<ModelPriceProposal[]>((await db.PriceResearch.SingleAsync()).ProposalsJson)!.Length);
         Assert.Equal(1, await db.AuditEvents.CountAsync(x => x.Action == "MobileResearchStarted"));
         Assert.Equal(0, await db.LandPriceRecords.CountAsync());
     }
@@ -263,13 +267,126 @@ public class PriceResearchHttpTests
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/v1/pricing/research", MobileRequest())).StatusCode);
         Assert.Equal(0, ((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Calls);
     }
-    private class FakeModels : IPriceResearchModels {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task PublicEvidenceHidesExpiredResearchButAdminRetainsHistory(bool expireResearch) {
+        using var factory = Factory(); using var client = factory.CreateClient(); client.DefaultRequestHeaders.Add("X-Admin-Key", AdminKey);
+        var draft = await Create(client); var id = Id(draft);
+        await Send(client, id + "/research", new { version = Version(draft) });
+        using (var scope = factory.Services.CreateScope()) {
+            var db = scope.ServiceProvider.GetRequiredService<LandPriceDbContext>();
+            var item = await db.PriceResearch.SingleAsync();
+            var assessment = JsonSerializer.Deserialize<GroundedMarketAssessment>(item.ResearchResultJson)!;
+            if (expireResearch) assessment.ResearchTimestampUtc = DateTime.UtcNow.AddDays(-15);
+            else foreach (var evidence in assessment.Evidence) evidence.Observation.ObservationDate = DateTime.UtcNow.AddDays(-91);
+            typeof(PriceResearch).GetProperty(nameof(PriceResearch.ResearchResultJson))!.SetValue(item, JsonSerializer.Serialize(assessment));
+            await db.SaveChangesAsync();
+        }
+        var publicEvidence = JsonDocument.Parse(await client.GetStringAsync("/api/v1/pricing/research/" + id + "/evidence")).RootElement;
+        Assert.Equal(0, publicEvidence.GetProperty("evidence").GetArrayLength());
+        Assert.Equal(JsonValueKind.Null, (await Market(client)).ValueKind);
+        var details = await client.GetStringAsync("/api/v1/admin/price-research/" + id);
+        Assert.Contains("Public listing 1", details);
+    }
+    [Fact] public async Task GroundedResearchDetailsProtectBrokerContactsAndRetainOriginalAiWithAuditableDecisions() {
+        using var factory = Factory(); using var client = factory.CreateClient(); client.DefaultRequestHeaders.Add("X-Admin-Key", AdminKey);
+        var draft = await Create(client); var id = Id(draft);
+        var researched = await Send(client, id+"/research", new { version=Version(draft) });
+        var originalAi = researched.GetProperty("research").GetRawText();
+        var reviewed = await Send(client, id+"/broker-review", new { version=Version(researched), brokerName="Private Broker", brokerId="b1",
+            contactReference="private-contact-123", brokerLocality="Bhavani", evidence="Independent local opinion from documented broker consultation.",
+            observationCount=3, lowPerCent=400000, typicalPerCent=550000, highPerCent=650000, observedAtUtc=DateTime.UtcNow.AddDays(-1), evidenceType="BrokerMarketOpinion", landCategory=1 });
+        var approved = await Send(client,id+"/decision",new {version=Version(reviewed),action="Approve",lowPerCent=400000,highPerCent=650000,validUntilUtc=DateTime.UtcNow.AddDays(20),notes="Reviewed as a broker opinion, not as a completed sale"});
+        Assert.Equal(originalAi,approved.GetProperty("research").GetRawText());
+        var details=JsonDocument.Parse(await client.GetStringAsync("/api/v1/admin/price-research/"+id)).RootElement;
+        var broker=details.GetProperty("brokerObservations")[0];Assert.Equal("BrokerMarketOpinion",broker.GetProperty("sourceCategory").GetString());
+        Assert.Equal(9.09m,broker.GetProperty("differencePercentage").GetDecimal());Assert.Equal("Approved",broker.GetProperty("verificationStatus").GetString());
+        Assert.Contains("previousStatus",details.GetProperty("history").GetRawText());
+        using var anonymous=factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized,(await anonymous.GetAsync("/api/v1/admin/price-research/"+id)).StatusCode);
+        var evidence=await anonymous.GetStringAsync("/api/v1/pricing/research/"+id+"/evidence");
+        Assert.DoesNotContain("private-contact-123",evidence);Assert.DoesNotContain("Private Broker",evidence);
+        Assert.Equal(3,JsonDocument.Parse(evidence).RootElement.GetProperty("evidence").GetArrayLength());
+        var filtered=JsonDocument.Parse(await client.GetStringAsync("/api/v1/admin/price-research/?district=Erode&taluk=Bhavani&brokerStatus=Reviewed")).RootElement;
+        Assert.Equal(1,filtered.GetArrayLength());
+        using var scope=factory.Services.CreateScope();var db=scope.ServiceProvider.GetRequiredService<LandPriceDbContext>();
+        Assert.Equal(3,await db.MarketResearchEvidence.CountAsync());Assert.Equal(0,await db.LandPriceRecords.CountAsync());
+    }
+    [Fact] public async Task CorrectionAndInsufficientDecisionsAreVersionedAndNeverPublishPrices() {
+        using var factory=Factory();using var client=factory.CreateClient();client.DefaultRequestHeaders.Add("X-Admin-Key",AdminKey);
+        var draft=await Create(client);var id=Id(draft);
+        var corrected=await Send(client,id+"/decision",new{version=Version(draft),action="RequestCorrection",lowPerCent=0,highPerCent=0,validUntilUtc=DateTime.UtcNow,notes="Obtain reliable source dates and precise location evidence"});
+        Assert.Equal("NeedsCorrection",corrected.GetProperty("status").GetString());
+        var insufficient=await Send(client,id+"/decision",new{version=Version(corrected),action="InsufficientEvidence",lowPerCent=0,highPerCent=0,validUntilUtc=DateTime.UtcNow,notes="No adequate independent supporting evidence"});
+        Assert.Equal("InsufficientEvidence",insufficient.GetProperty("status").GetString());Assert.Equal(JsonValueKind.Null,(await Market(client)).ValueKind);
+    }
+    [Fact] public async Task EligibleCompletedTransactionsPreventBillableFallbackResearch() {
+        using var factory=Factory();using var client=factory.CreateClient();await SignInCustomer(factory,client);
+        using(var scope=factory.Services.CreateScope()){
+            var records=((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Transactions;
+            for(var i=0;i<3;i++)records.Add(new LandPriceRecord(Guid.NewGuid(),"India","Tamil Nadu","Erode","Bhavani","Bhavani",null,"42/"+i,
+                new Greenart.Domain.ValueObjects.GeoCoordinate(11.4471+i*.0001,77.684),Greenart.Domain.Enums.LandUsageType.Residential,
+                new Greenart.Domain.ValueObjects.LandArea(5,Greenart.Domain.Enums.AreaUnit.Cent),2500000,Greenart.Domain.Enums.SourceCategory.VerifiedTransaction,
+                "Registered conveyance evidence "+i,DateTime.UtcNow.AddDays(-30),Greenart.Domain.Enums.VerificationStatus.Verified));
+        }
+        using var response=await client.PostAsJsonAsync("/api/v1/pricing/research",MobileRequest());response.EnsureSuccessStatusCode();
+        Assert.Equal("VerifiedTransactionsAvailable",JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.GetProperty("status").GetString());
+        Assert.Equal(0,((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Calls);
+    }
+    [Fact] public async Task AuthorizedSourcesRequireAdminAndExplicitRights_AndDoNotRunGemini() {
+        using var factory=Factory();using var client=factory.CreateClient();client.DefaultRequestHeaders.Add("X-Admin-Key",AdminKey);
+        var draft=await Create(client);var id=Id(draft);
+        object Sources(bool permission) => new { version=Version(draft), sources=Enumerable.Range(1,3).Select(i=>new { name="Client listing "+i,url="https://listings.example.com/plot-"+i,
+            rightsReference="private client contract allowing retrieval storage and display",retrievalAndStorageAuthorized=permission,publicDisplayAuthorized=true }).ToArray() };
+        using var anonymous=factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized,(await anonymous.PostAsJsonAsync("/api/v1/admin/price-research/"+id+"/sources",Sources(true))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,(await client.PostAsJsonAsync("/api/v1/admin/price-research/"+id+"/sources",Sources(false))).StatusCode);
+        var registered=await Send(client,id+"/sources",Sources(true));
+        Assert.Equal(3,registered.GetProperty("authorizedSources").GetArrayLength());
+        Assert.Equal(id,registered.GetProperty("authorizedSources")[0].GetProperty("registeredForResearchId").GetString());
+        Assert.Equal(0,((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Calls);
+        var evidence=await anonymous.GetStringAsync("/api/v1/pricing/research/"+id+"/evidence");
+        Assert.DoesNotContain("private client contract",evidence);
+    }
+    [Fact] public async Task NewSourceReferencesPreserveAlreadyAnalysedOriginalResults() {
+        using var factory=Factory();using var client=factory.CreateClient();client.DefaultRequestHeaders.Add("X-Admin-Key",AdminKey);
+        var draft=await Create(client);var id=Id(draft);var researched=await Send(client,id+"/research",new{version=Version(draft)});
+        var original=researched.GetProperty("research").GetRawText();
+        var followup=await Send(client,id+"/sources",new{version=Version(researched),sources=Enumerable.Range(1,3).Select(i=>new { name="Client source "+i,url="https://listings.example.com/plot-"+i,
+            rightsReference="Client permission reference for retrieval storage analysis and public display",retrievalAndStorageAuthorized=true,publicDisplayAuthorized=true }).ToArray()});
+        Assert.NotEqual(id,Id(followup));Assert.Equal(id,followup.GetProperty("supersedesResearchId").GetString());
+        var details=JsonDocument.Parse(await client.GetStringAsync("/api/v1/admin/price-research/"+id)).RootElement;
+        Assert.Equal(original,details.GetProperty("item").GetProperty("research").GetRawText());
+        Assert.Equal(1,((FakeModels)factory.Services.GetRequiredService<IPriceResearchModels>()).Calls);
+    }
+    private class ResearchTestRepository(LandPriceDbContext db, FakeModels models) : Greenart.Infrastructure.Repositories.EfLandPriceRepository(db), ILandPriceRepository {
+        public new Task<IReadOnlyList<LandPriceRecord>> GetNearbyComparableAsync(double latitude, double longitude, double radiusMeters, Greenart.Domain.Enums.LandUsageType usage, CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<LandPriceRecord>>(models.Transactions.Where(x => x.LandUsage == usage && new Greenart.Domain.ValueObjects.GeoCoordinate(latitude, longitude).DistanceToMeters(x.Coordinates) <= radiusMeters).ToArray());
+    }
+    private class FakeModels : IPriceResearchModels, ILandMarketResearchService {
+        public bool IsConfigured => Enabled;
+        public List<LandPriceRecord> Transactions = [];
         public int Calls;
         public bool Enabled = true;
         public bool NoEstimate;
         public TaskCompletionSource<bool> Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool>? Release;
         public IReadOnlyList<ResearchProviderStatus> GetStatus() => [new("OpenAI", Enabled), new("Claude", Enabled), new("Gemini", Enabled)];
+        public async Task<GroundedResearchOutcome> AnalyzeAsync(LandResearchInput input, CancellationToken ct) {
+            await ResearchAsync(new PriceResearch(input.Locality, input.District, input.Latitude, input.Longitude, input.LandUsage, input.RadiusMeters, input.RoadAccess, input.Context), ct);
+            var a = new GroundedMarketAssessment { ResearchId = input.ResearchId, ModelName = "test-grounded-gemini", GroundingStatus = "AuthorizedSourcesRetrieved",
+                Status = NoEstimate ? "InsufficientEvidence" : "PassedEvidenceReview", SourceCount = NoEstimate ? 0 : 3,
+                LowPerCent = NoEstimate ? null : 400000m, HighPerCent = NoEstimate ? null : 600000m, TypicalPerCent = NoEstimate ? null : 500000m,
+                TypicalPerSqFt = NoEstimate ? null : Math.Round(500000m/435.6m,2), AttemptedCalls = 1 };
+            if (!NoEstimate) a.Evidence = Enumerable.Range(1,3).Select(i => new MarketEvidenceAssessment { Id = "e"+i,
+                Observation = new MarketEvidenceCandidate { SourceCategory="AdvertisedAskingPrice", Currency="INR", SourceName="Public listing "+i, SourceUrl="https://example.com/listing-"+i,
+                    LandCategory=1, Area=5, AreaUnit="Cent", AskingPrice=2500000, ObservationDate=DateTime.UtcNow.AddDays(-1), LocationDescription="Bhavani, Erode" },
+                ResolvedUrl="https://example.com/listing-"+i, Status="EligibleAskingObservation", RetrievalStatus="Retrieved", RetrievedAtUtc=DateTime.UtcNow,
+                AreaSqFt=2178, RatePerCent=500000, RatePerSqFt=Math.Round(500000m/435.6m,2) }).ToList();
+            return new(a, new MarketEvidenceReview { ResearchId=input.ResearchId, Status=NoEstimate?"InsufficientEvidence":"PassedEvidenceReview", ReviewerModel="test-review",
+                AcceptedEvidenceIds=NoEstimate?[]:["e1","e2","e3"], AttemptedCalls=NoEstimate?0:1 });
+        }
         public async Task<IReadOnlyList<ModelPriceProposal>> ResearchAsync(PriceResearch research, CancellationToken ct) {
             Interlocked.Increment(ref Calls); Started.TrySetResult(true);
             if (Release != null) await Release.Task;

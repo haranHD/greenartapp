@@ -135,6 +135,9 @@ builder.Services.AddDbContext<LandPriceDbContext>(options =>
 
 // Register application and infrastructure services
 builder.Services.AddScoped<ILandPriceRepository, EfLandPriceRepository>();
+builder.Services.AddHttpClient<IMarketEvidenceRetriever, SafeMarketEvidenceRetriever>(client => client.Timeout = TimeSpan.FromSeconds(8))
+    .ConfigurePrimaryHttpMessageHandler(SafeMarketEvidenceRetriever.CreateHandler);
+builder.Services.AddHttpClient<ILandMarketResearchService, LandMarketResearchService>(client => client.Timeout = TimeSpan.FromSeconds(110));
 builder.Services.AddHttpClient<IPriceResearchModels, PriceResearchModels>(client => client.Timeout = TimeSpan.FromSeconds(40));
 builder.Services.AddScoped<IEstimationEngine, EstimationEngine>();
 builder.Services.AddScoped<IEstimationService, EstimationService>();
@@ -171,6 +174,9 @@ builder.Services.AddHttpClient<ILandLensClient, LandLensClient>();
 
 // Register Google Gemini AI Land Intelligence Service
 builder.Services.AddHttpClient<IGeminiLandIntelligenceService, GeminiLandIntelligenceService>();
+
+// Register Location Survey Request Service (for broker ground rate queue)
+builder.Services.AddSingleton<ISurveyRequestService, SurveyRequestService>();
 
 // Enable CORS for frontend and mobile access
 builder.Services.AddCors(options =>
@@ -472,52 +478,52 @@ app.MapGet("/api", () => Results.Redirect("/api/v1")).ExcludeFromDescription();
 
 // Controlled database startup migration and health diagnostic
 if (app.Configuration.GetValue<bool>("Database:InitializeOnStartup", true))
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    try
+    using (var scope = app.Services.CreateScope())
     {
-        var dbContext = services.GetRequiredService<LandPriceDbContext>();
-        if (await dbContext.Database.CanConnectAsync())
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        try
         {
-            var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-            bool isDev = app.Environment.IsDevelopment();
-            bool autoMigrateConfigured = app.Configuration.GetValue<bool>("Database:AutoMigrate", isDev);
-
-            if (pendingMigrations.Count > 0)
+            var dbContext = services.GetRequiredService<LandPriceDbContext>();
+            if (await dbContext.Database.CanConnectAsync())
             {
-                if (isDev || autoMigrateConfigured)
+                var pendingMigrations = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
+                bool isDev = app.Environment.IsDevelopment();
+                bool autoMigrateConfigured = app.Configuration.GetValue<bool>("Database:AutoMigrate", isDev);
+
+                if (pendingMigrations.Count > 0)
                 {
-                    logger.LogInformation("Applying {Count} pending database migration(s)...", pendingMigrations.Count);
-                    await dbContext.Database.MigrateAsync();
-                    if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
-                        await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                    if (isDev || autoMigrateConfigured)
+                    {
+                        logger.LogInformation("Applying {Count} pending database migration(s)...", pendingMigrations.Count);
+                        await dbContext.Database.MigrateAsync();
+                        if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
+                            await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "Database has {Count} pending migration(s) ({Migrations}). Automatic migration is DISABLED in environment '{Env}' (Database:AutoMigrate={Flag}). Schema will NOT be modified. To apply migrations manually, run: dotnet ef database update --project Greenart.Infrastructure --startup-project Greenart.Api",
+                            pendingMigrations.Count,
+                            string.Join(", ", pendingMigrations),
+                            app.Environment.EnvironmentName,
+                            autoMigrateConfigured);
+                    }
                 }
                 else
                 {
-                    logger.LogWarning(
-                        "Database has {Count} pending migration(s) ({Migrations}). Automatic migration is DISABLED in environment '{Env}' (Database:AutoMigrate={Flag}). Schema will NOT be modified. To apply migrations manually, run: dotnet ef database update --project Greenart.Infrastructure --startup-project Greenart.Api",
-                        pendingMigrations.Count,
-                        string.Join(", ", pendingMigrations),
-                        app.Environment.EnvironmentName,
-                        autoMigrateConfigured);
+                    logger.LogInformation("Database schema is up to date. No pending migrations.");
+                    if (isDev || autoMigrateConfigured)
+                    {
+                        if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
+                            await LandPriceDataSeeder.SeedAsync(dbContext, logger);
+                    }
                 }
-            }
-            else
-            {
-                logger.LogInformation("Database schema is up to date. No pending migrations.");
-                if (isDev || autoMigrateConfigured)
-                {
-                    if (app.Configuration.GetValue<bool>("Database:SeedPilotData"))
-                        await LandPriceDataSeeder.SeedAsync(dbContext, logger);
-                }
-            }
 
-            // Resilient column synchronization for user credentials & verification
-            try
-            {
-                await dbContext.Database.ExecuteSqlRawAsync(@"
+                // Resilient column synchronization for user credentials & verification
+                try
+                {
+                    await dbContext.Database.ExecuteSqlRawAsync(@"
                     DO $$
                     BEGIN
                         IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
@@ -529,25 +535,25 @@ using (var scope = app.Services.CreateScope())
                         END IF;
                     END $$;");
 
-                // Ensure core administrator, client, and developer accounts are provisioned
-                var seedAdminPassword = builder.Configuration["SEED_ADMIN_PASSWORD"] ?? builder.Configuration["ADMIN_PASSWORD"];
-                await UserDataSeeder.SeedUsersAsync(dbContext, logger, app.Environment.IsDevelopment(), seedAdminPassword);
+                    // Ensure core administrator, client, and developer accounts are provisioned
+                    var seedAdminPassword = builder.Configuration["SEED_ADMIN_PASSWORD"] ?? builder.Configuration["ADMIN_PASSWORD"];
+                    await UserDataSeeder.SeedUsersAsync(dbContext, logger, app.Environment.IsDevelopment(), seedAdminPassword);
+                }
+                catch (Exception syncEx)
+                {
+                    logger.LogDebug("User schema sync/seeding notice: {Message}", syncEx.Message);
+                }
             }
-            catch (Exception syncEx)
+            else
             {
-                logger.LogDebug("User schema sync/seeding notice: {Message}", syncEx.Message);
+                logger.LogWarning("PostgreSQL database is currently unreachable. Database migration and seeding postponed.");
             }
         }
-        else
+        catch (Exception ex)
         {
-            logger.LogWarning("PostgreSQL database is currently unreachable. Database migration and seeding postponed.");
+            logger.LogError(ex, "Notice: Database startup diagnostic encountered an exception: {Message}", ex.Message);
         }
     }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Notice: Database startup diagnostic encountered an exception: {Message}", ex.Message);
-    }
-}
 
 // ---------------------------------------------------------
 // Authentication & User Identity Endpoints
@@ -1353,6 +1359,9 @@ app.MapGet("/api/v1/health", async (
 app.MapPost("/api/v1/estimates/calculate", async (
     [FromBody] CalculateEstimateRequest request,
     [FromServices] IEstimationService estimationService,
+    [FromServices] IGeocodingService geocodingService,
+    [FromServices] IGeminiLandIntelligenceService geminiService,
+    [FromServices] ISurveyRequestService surveyService,
     [FromServices] IMemoryCache memoryCache,
     CancellationToken ct) =>
 {
@@ -1383,6 +1392,65 @@ app.MapPost("/api/v1/estimates/calculate", async (
     }
 
     var result = await estimationService.CalculateEstimateAsync(request, ct);
+
+    // If no historical comparable records exist nearby, resolve live market comps via Google Search Grounding
+    if (result is EstimateInsufficientDataResponse insufficient)
+    {
+        // 1. Reverse-geocode pinned coordinates into exact neighborhood, taluk, district, and landmarks
+        var reverseGeo = await geocodingService.ReverseGeocodeCoordinatesAsync(request.Latitude, request.Longitude, ct);
+        var localityName = !string.IsNullOrWhiteSpace(reverseGeo?.Locality)
+            ? reverseGeo.Locality
+            : (!string.IsNullOrWhiteSpace(request.Locality) ? request.Locality : (insufficient.GovernmentGuidelineReference?.Locality ?? "Selected Pin Location"));
+        var districtName = !string.IsNullOrWhiteSpace(reverseGeo?.District)
+            ? reverseGeo.District
+            : (!string.IsNullOrWhiteSpace(request.District) ? request.District : "Tamil Nadu");
+        var landmarks = reverseGeo?.NearbyLandmarks ?? new List<string>();
+
+        // 2. Fetch live real-time comps from property portals (99acres, MagicBricks, Housing.com) via Google Search Grounding
+        var liveComps = await geminiService.FetchLiveMarketCompsWithGroundingAsync(
+            request.Latitude,
+            request.Longitude,
+            reverseGeo?.SpecificLocationQuery ?? localityName,
+            districtName,
+            request.LandUsage,
+            landmarks,
+            insufficient.GovernmentGuidelineReference,
+            ct);
+
+        // 3. Cross-verify price and queue survey request for local broker ground calibration
+        var crossVerified = await geminiService.CrossVerifyIndicativeMarketPriceAsync(
+            request,
+            insufficient.GovernmentGuidelineReference,
+            insufficient.AskingPriceReference,
+            ct);
+
+        if (crossVerified != null)
+        {
+            _ = surveyService.QueueSurveyAsync(
+                request.Latitude,
+                request.Longitude,
+                localityName,
+                districtName,
+                request.LandUsage,
+                request.TargetArea,
+                request.TargetAreaUnit,
+                crossVerified.PriceRangePerCent.MedianRate,
+                crossVerified.PriceRangePerSqFt.MedianRate,
+                insufficient.GovernmentGuidelineReference?.GuidelineRatePerCent,
+                ct
+            );
+        }
+
+        var enhancedInsufficient = insufficient with
+        {
+            FactorBreakdown = crossVerified?.FactorBreakdown,
+            LiveMarketComps = liveComps
+        };
+
+        memoryCache.Set(cacheKey, enhancedInsufficient, TimeSpan.FromMinutes(5));
+        return Results.Ok(enhancedInsufficient);
+    }
+
     memoryCache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
     return Results.Ok(result);
 })
@@ -2413,6 +2481,106 @@ landlensGroup.MapPost("/guideline-history", async (
 .WithOpenApi();
 
 app.MapPriceResearch(IsAuthorizedAdmin);
+
+// ---------------------------------------------------------
+// Location Surveys for Broker Ground Rate Verification
+// ---------------------------------------------------------
+app.MapGet("/api/v1/admin/surveys", async (
+    [FromQuery] string? status,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
+    [FromServices] ISurveyRequestService surveyService,
+    ClaimsPrincipal user,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config, user))
+    {
+        return Results.Json(
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    var surveys = await surveyService.GetAllSurveysAsync(status, ct);
+    return Results.Ok(surveys);
+})
+.WithName("GetAdminSurveys")
+.WithSummary("Retrieve user pinned location surveys pending broker ground rate verification.")
+.WithTags("Administration");
+
+app.MapPost("/api/v1/admin/surveys/{id:guid}/confirm", async (
+    Guid id,
+    [FromBody] ConfirmSurveyRequest request,
+    [FromHeader(Name = "X-Admin-Key")] string? adminKey,
+    [FromServices] IConfiguration config,
+    [FromServices] ISurveyRequestService surveyService,
+    [FromServices] ILandPriceRepository repository,
+    ClaimsPrincipal user,
+    CancellationToken ct) =>
+{
+    if (!IsAuthorizedAdmin(adminKey, config, user))
+    {
+        return Results.Json(
+            new { error = "Unauthorized: A valid administrative API key must be supplied via 'X-Admin-Key' header or an authorized Administrator session." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (string.IsNullOrWhiteSpace(request.BrokerName))
+    {
+        return Results.BadRequest(new { error = "Broker Name is required." });
+    }
+
+    if (string.IsNullOrWhiteSpace(request.BrokerPhone))
+    {
+        return Results.BadRequest(new { error = "Broker Phone number is required." });
+    }
+
+    if (request.ConfirmedRatePerCent <= 0)
+    {
+        return Results.BadRequest(new { error = "Confirmed Rate Per Cent must be strictly positive." });
+    }
+
+    var confirmed = await surveyService.ConfirmSurveyAsync(id, request, ct);
+    if (confirmed == null)
+    {
+        return Results.NotFound(new { error = $"Survey request with ID '{id}' was not found." });
+    }
+
+    // Persist verified broker rate to land_price_records database table
+    var record = new LandPriceRecord(
+        id: Guid.NewGuid(),
+        country: "India",
+        state: "Tamil Nadu",
+        district: TamilNaduGeoBounds.NormalizeDistrict(confirmed.District, "Coimbatore"),
+        taluk: null,
+        locality: confirmed.Locality,
+        streetOrLandmark: null,
+        surveyNumber: null,
+        coordinates: new GeoCoordinate(confirmed.Latitude, confirmed.Longitude),
+        landUsage: confirmed.LandUsage,
+        area: new LandArea(1m, AreaUnit.Cent),
+        originalPrice: confirmed.ConfirmedRatePerCent!.Value,
+        sourceCategory: SourceCategory.LocalRateSurvey,
+        sourceReference: $"Broker: {confirmed.BrokerName} ({confirmed.BrokerPhone})",
+        observationDate: DateTime.UtcNow,
+        verificationStatus: VerificationStatus.Verified,
+        isSynthetic: false,
+        notes: string.IsNullOrWhiteSpace(confirmed.Notes)
+            ? $"Confirmed ground survey rate via broker {confirmed.BrokerName} ({confirmed.BrokerPhone})"
+            : $"{confirmed.Notes} | Broker: {confirmed.BrokerName} ({confirmed.BrokerPhone})"
+    );
+
+    await repository.AddAsync(record, ct);
+
+    return Results.Ok(new
+    {
+        message = "Survey successfully confirmed by broker and saved to official land price records.",
+        survey = confirmed,
+        recordId = record.Id
+    });
+})
+.WithName("ConfirmAdminSurvey")
+.WithSummary("Confirm broker ground rate for a location survey and save record to official database.")
+.WithTags("Administration");
 
 app.Run();
 
