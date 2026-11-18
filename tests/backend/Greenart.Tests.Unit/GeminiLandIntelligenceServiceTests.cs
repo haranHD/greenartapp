@@ -315,7 +315,7 @@ public class GeminiLandIntelligenceServiceTests
     var config = new TestConfiguration(new Dictionary<string, string?>
     {
       ["GeminiSettings:ApiKey"] = "AQ.TestKey123",
-      ["GeminiSettings:Model"] = "gemini-1.5-flash"
+      ["GeminiSettings:Model"] = "gemini-3-flash-preview"
     });
 
     var handler = new MockHttpMessageHandler(mockResponse);

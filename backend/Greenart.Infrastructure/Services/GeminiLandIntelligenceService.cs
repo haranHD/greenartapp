@@ -1,5 +1,6 @@
 using Greenart.Application.Estimation;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -48,7 +49,7 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         _model = ResolveConfigValue(configuration, "GeminiSettings:Model", "GEMINI_MODEL", "GeminiSettings__Model");
         if (string.IsNullOrWhiteSpace(_model))
         {
-            _model = "gemini-1.5-flash";
+            _model = "gemini-3-flash-preview";
         }
 
         _baseUrl = ResolveConfigValue(configuration, "GeminiSettings:BaseUrl", "GEMINI_BASE_URL", "GeminiSettings__BaseUrl");
@@ -447,6 +448,41 @@ Respond strictly in valid JSON format with the following keys:
         {
             var err = await response.Content.ReadAsStringAsync(ct);
             _logger.LogWarning("Gemini Grounding request failed with HTTP {Status}: {Error}", response.StatusCode, err);
+
+            // If Search Grounding quota is exceeded (HTTP 429) or not enabled on key, retry directly without search tool
+            if (response.StatusCode == HttpStatusCode.TooManyRequests || response.StatusCode == HttpStatusCode.BadRequest)
+            {
+                _logger.LogInformation("Retrying Gemini content generation without search tool fallback for {Endpoint}...", endpoint);
+                var fallbackRequestBody = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = prompt }
+                            }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = 0.2
+                    }
+                };
+                using var fallbackRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = JsonContent.Create(fallbackRequestBody, options: JsonOpts)
+                };
+                fallbackRequest.Headers.Add("x-goog-api-key", apiKey);
+                using var fallbackResponse = await _httpClient.SendAsync(fallbackRequest, ct);
+                _logger.LogInformation("Gemini Direct Fallback Call to {Endpoint} - Status: {StatusCode} ({StatusCodeInt})", endpoint, fallbackResponse.StatusCode, (int)fallbackResponse.StatusCode);
+                if (fallbackResponse.IsSuccessStatusCode)
+                {
+                    return await fallbackResponse.Content.ReadAsStringAsync(ct);
+                }
+            }
+
             return null;
         }
 
