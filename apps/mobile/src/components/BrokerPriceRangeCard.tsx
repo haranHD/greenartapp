@@ -1,7 +1,10 @@
 import { AppText as Text } from './AppText';
 import React, { useEffect, useState } from 'react';
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet, useWindowDimensions } from 'react-native';
 import { MarketPriceRange, LiveMarketCompsDto, mobileApi } from '../services/api';
+import Feather from '@expo/vector-icons/Feather';
+import { ScreenEntrance } from './ScreenEntrance';
+import { Premium as P } from '../theme/premium';
 import { formatLakhs } from '../utils/formatters';
 
 export function cleanAddress(str?: string | null): string {
@@ -20,6 +23,24 @@ export function cleanAddress(str?: string | null): string {
   return unique.join(', ');
 }
 
+function PriceHero({ low, high, location, explanation, displayUnit }: { low: number; high: number; location: string; explanation: string; displayUnit: 'Cent' | 'SqFt' }) {
+  const { width, fontScale } = useWindowDimensions();
+  const compact = width / fontScale < 370;
+  const money = (value: number) => displayUnit === 'Cent' ? formatLakhs(value) : `₹${Math.round(value).toLocaleString('en-IN')}`;
+  return <ScreenEntrance><View style={styles.hero}>
+    <View pointerEvents="none" accessible={false} style={styles.art}>
+      <View style={styles.halo} />
+      <View style={[styles.building, { right: 18, height: 55 }]} /><View style={[styles.building, { right: 43, height: 80 }]} /><View style={[styles.building, { right: 68, height: 43 }]} />
+      <View style={styles.goldCurve} />
+    </View>
+    <Text style={styles.heroEyebrow}>INDICATIVE MARKET RANGE</Text>
+    <Text style={[styles.heroRate, compact && { fontSize: 27, lineHeight: 39 }]}>{money(low)} – {money(high)}<Text style={styles.heroUnit}> {'/\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text></Text>
+    <View style={styles.heroLocationRow}><Feather name="map-pin" size={17} color={P.champagne} /><Text style={styles.heroLocation}>{location}</Text></View>
+    <View style={styles.heroDivider} />
+    <Text style={styles.heroBody}>{explanation}</Text>
+  </View></ScreenEntrance>;
+}
+
 export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAccess, displayUnit, area, areaUnit, liveMarketComps }: {
   latitude: number; longitude: number; landUsage: number; roadAccess: string; displayUnit: 'Cent' | 'SqFt'; area?: number; areaUnit?: string;
   liveMarketComps?: LiveMarketCompsDto | null;
@@ -30,7 +51,7 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (liveMarketComps && liveMarketComps.minPricePerCentLakhs > 0) {
+    if (liveMarketComps && Number.isFinite(liveMarketComps.minPricePerCentLakhs) && Number.isFinite(liveMarketComps.maxPricePerCentLakhs) && liveMarketComps.minPricePerCentLakhs > 0 && liveMarketComps.maxPricePerCentLakhs >= liveMarketComps.minPricePerCentLakhs) {
       setLoading(false);
       setError(false);
       return;
@@ -44,9 +65,7 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
     return () => { current = false; controller.abort(); };
   }, [latitude, longitude, landUsage, roadAccess, area, areaUnit, retry, liveMarketComps]);
 
-  const money = (value: number) => displayUnit === 'Cent' ? formatLakhs(value) : `₹${Math.round(value).toLocaleString('en-IN')}`;
-
-  if (liveMarketComps && liveMarketComps.minPricePerCentLakhs > 0) {
+  if (liveMarketComps && Number.isFinite(liveMarketComps.minPricePerCentLakhs) && Number.isFinite(liveMarketComps.maxPricePerCentLakhs) && liveMarketComps.minPricePerCentLakhs > 0 && liveMarketComps.maxPricePerCentLakhs >= liveMarketComps.minPricePerCentLakhs) {
     const lowPerCent = liveMarketComps.minPricePerCentLakhs * 100000;
     const highPerCent = liveMarketComps.maxPricePerCentLakhs * 100000;
     const lowSqFt = Math.round(lowPerCent / 435.6);
@@ -55,17 +74,8 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
     const high = displayUnit === 'Cent' ? highPerCent : highSqFt;
     const locationStr = cleanAddress(liveMarketComps.resolvedLocality);
 
-    return (
-      <View style={styles.card}>
-        <Text style={styles.eyebrow}>INDICATIVE MARKET RANGE</Text>
-        <Text style={styles.rate}>
-          {money(low)} – {money(high)}
-          <Text style={styles.unit}> / {displayUnit === 'Cent' ? 'cent' : 'sq ft'}</Text>
-        </Text>
-        <Text style={styles.location}>{locationStr}</Text>
-        <Text style={styles.body}>Prevailing indicative market rates grounded across active portal listings.</Text>
-      </View>
-    );
+    return <PriceHero low={low} high={high} location={locationStr} displayUnit={displayUnit}
+      explanation={liveMarketComps.isLiveSearchGrounded === true ? 'Indicative asking prices from property listings. Not a guaranteed sale price.' : 'Indicative locality benchmark. Not a completed-sale valuation.'} />;
   }
 
   if (loading) return <View style={styles.card}><ActivityIndicator color="#290444" /><Text style={styles.body}>Checking available pricing…</Text></View>;
@@ -76,14 +86,18 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
   const high = displayUnit === 'Cent' ? range.highPerCent : range.highPerSqFt;
   const locationStr = cleanAddress(`${range.locality}, ${range.district}`);
 
-  return <View style={styles.card}>
-    <Text style={styles.eyebrow}>INDICATIVE MARKET RANGE</Text>
-    <Text style={styles.rate}>{money(low)} – {money(high)}<Text style={styles.unit}> / {displayUnit === 'Cent' ? 'cent' : 'sq ft'}</Text></Text>
-    <Text style={styles.location}>{locationStr}</Text>
-    <Text style={styles.body}>Prevailing indicative market rates and locality benchmarks.</Text>
-  </View>;
+  return <PriceHero low={low} high={high} location={locationStr} displayUnit={displayUnit}
+    explanation={range.basis === 'AiSuggested' ? 'Based on advertised asking prices. Broker verification pending.' : 'Broker-reviewed market opinion, approved for display.'} />;
 }
+
 const styles = StyleSheet.create({
+  hero: { padding: 22, gap: 13, backgroundColor: P.violet, borderColor: P.richViolet, borderWidth: 1, borderRadius: 24, overflow: 'hidden', shadowColor: P.violet, shadowOpacity: .16, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 4 },
+  heroEyebrow: { color: P.champagne, fontSize: 10, lineHeight: 17, letterSpacing: 1.1, fontWeight: '600' },
+  heroRate: { fontSize: 32, lineHeight: 45, color: P.surface, fontWeight: '700', flexShrink: 1 }, heroUnit: { fontSize: 13, fontWeight: '500', color: '#E9E2F0' },
+  heroLocationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, heroLocation: { flex: 1, color: P.surface, fontSize: 14, lineHeight: 23, fontWeight: '600' },
+  heroDivider: { height: 1, backgroundColor: 'rgba(233,226,240,.20)' }, heroBody: { color: '#E9E2F0', fontSize: 12, lineHeight: 21, paddingRight: 22 },
+  art: { position: 'absolute', bottom: 0, right: 0, width: 160, height: 130, opacity: .18 }, halo: { position: 'absolute', width: 230, height: 230, borderRadius: 115, right: -110, bottom: -90, backgroundColor: P.purple },
+  building: { position: 'absolute', width: 22, bottom: 10, borderWidth: 1, borderColor: P.champagne, borderTopWidth: 3 }, goldCurve: { position: 'absolute', width: 250, height: 90, borderRadius: 125, borderWidth: 2, borderColor: P.gold, right: -50, bottom: -65, transform: [{ rotate: '-12deg' }] },
   card: { padding: 20, backgroundColor: '#FFFFFF', borderColor: '#DED0EE', borderWidth: 1, borderRadius: 16, marginBottom: 16, gap: 8 },
   empty: { gap: 7, padding: 14, borderRadius: 12, backgroundColor: '#F0F2F7', marginBottom: 16 },
   eyebrow: { fontSize: 10, letterSpacing: .8, fontWeight: '800', color: '#604074' },

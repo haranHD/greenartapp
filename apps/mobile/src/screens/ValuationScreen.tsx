@@ -8,7 +8,8 @@ import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import React, { useRef } from 'react';
 import { ResearchAreaFields } from '../components/ResearchAreaFields';
-import { BrokerPriceRangeCard, cleanAddress } from '../components/BrokerPriceRangeCard';
+import { MarketEvidenceCard } from '../components/MarketEvidenceCard';
+import { BrokerPriceRangeCard } from '../components/BrokerPriceRangeCard';
 import {
   View,
   ScrollView,
@@ -16,7 +17,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   useWindowDimensions,
-  Linking,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import {
@@ -611,116 +611,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                   <>
                     {/* Section 1: Completed Transaction Evidence / Live Market Comps */}
                     {liveComps ? (
-                      <View style={styles.liveCompsCard}>
-                        <View style={styles.liveCompsHeaderRow}>
-                          <View style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadge : styles.fallbackBadge}>
-                            <View style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadgeDot : styles.fallbackBadgeDot} />
-                            <Text style={liveComps.isLiveSearchGrounded !== false ? styles.liveBadgeText : styles.fallbackBadgeText}>
-                              {liveComps.isLiveSearchGrounded !== false
-                                ? 'LIVE MARKET COMPS (GROUNDED SEARCH)'
-                                : 'ESTIMATED GUIDELINE BENCHMARK (OFFLINE FALLBACK)'}
-                            </Text>
-                          </View>
-                          {liveComps.microMarketTier ? (
-                            <View style={styles.tierPill}>
-                              <Text style={styles.tierPillText}>{liveComps.microMarketTier}</Text>
-                            </View>
-                          ) : (
-                            <Text style={styles.listingsCountText}>
-                              {liveComps.comparableListingsCount}+ active listings analyzed
-                            </Text>
-                          )}
-                        </View>
-
-                        <View style={styles.liveCompsRateRow}>
-                          <Text style={styles.liveCompsMainRate}>
-                            {displayUnit === 'Cent'
-                              ? `₹${liveComps.minPricePerCentLakhs.toFixed(2)}L – ₹${liveComps.maxPricePerCentLakhs.toFixed(2)}L / Cent`
-                              : liveComps.pricePerSqFtRange}
-                          </Text>
-                          <Text style={styles.liveCompsSubRate}>
-                            {displayUnit === 'Cent'
-                              ? `Rate: ${liveComps.pricePerSqFtRange} (1 Cent = 435.6 sq.ft)`
-                              : `Rate: ₹${liveComps.minPricePerCentLakhs.toFixed(2)}L – ₹${liveComps.maxPricePerCentLakhs.toFixed(2)}L / Cent`}
-                          </Text>
-                        </View>
-
-                        <View style={styles.liveCompsLocalityRow}>
-                          <Feather name="map-pin" size={13} color="#059669" />
-                          <Text style={styles.liveCompsLocalityText}>
-                            {cleanAddress(liveComps.resolvedLocality)}
-                          </Text>
-                          {liveComps.keyLandmarksUsed
-                            ?.filter(lm => {
-                              if (!lm) return false;
-                              const lower = lm.trim().toLowerCase();
-                              return (
-                                lower.length > 0 &&
-                                lower !== 'taluk' &&
-                                !lower.endsWith(' taluk') &&
-                                !lower.startsWith('taluk ') &&
-                                !lower.includes('taluk') &&
-                                lower !== 'sublocality' &&
-                                lower !== 'locality' &&
-                                lower !== 'selected pin location' &&
-                                lower !== 'neighborhood' &&
-                                lower !== 'administrative_area'
-                              );
-                            })
-                            .map((lm, idx) => (
-                              <View key={idx} style={styles.landmarkChip}>
-                                <Text style={styles.landmarkChipText}>{lm}</Text>
-                              </View>
-                            ))}
-                        </View>
-
-                        {liveComps.sourcePortals && liveComps.sourcePortals.length > 0 && liveComps.isLiveSearchGrounded !== false ? (
-                          <View style={styles.portalBadgesRow}>
-                            <Text style={styles.listingsCountText}>Portals:</Text>
-                            {liveComps.sourcePortals.map((p, idx) => (
-                              <View key={idx} style={styles.portalPill}>
-                                <Text style={styles.portalPillText}>{p}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        ) : null}
-
-                        {liveComps.sourceSummary ? (
-                          <View style={styles.liveCompsSummaryBox}>
-                            <Text style={styles.liveCompsSummaryText}>
-                              {liveComps.sourceSummary}
-                            </Text>
-                          </View>
-                        ) : null}
-
-                        {liveComps.isLiveSearchGrounded !== false && liveComps.citations && liveComps.citations.length > 0 ? (
-                          <View style={styles.citationsSection}>
-                            <Text style={styles.citationsHeader}>Verified Property Portal Citations</Text>
-                            {liveComps.citations.map((c, idx) => (
-                              <TouchableOpacity
-                                key={idx}
-                                style={styles.citationItem}
-                                activeOpacity={0.7}
-                                onPress={() => {
-                                  if (c.url) {
-                                    Linking.openURL(c.url).catch(() => { });
-                                  }
-                                }}
-                              >
-                                <View style={styles.citationItemLeft}>
-                                  <Text style={styles.citationTitle} numberOfLines={1}>
-                                    {c.title || `Listing on ${c.portal}`}
-                                  </Text>
-                                  <Text style={styles.citationPortal}>
-                                    {c.portal}
-                                  </Text>
-                                </View>
-                                <Feather name="external-link" size={14} color="#059669" />
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        ) : null}
-                      </View>
+                      <MarketEvidenceCard data={liveComps} displayUnit={displayUnit} />
                     ) : (
                       <View style={styles.insufficientDataCard}>
                         <View style={styles.insufficientBadge}>
