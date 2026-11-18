@@ -1407,24 +1407,40 @@ app.MapPost("/api/v1/estimates/calculate", async (
         var landmarks = reverseGeo?.NearbyLandmarks ?? new List<string>();
 
         // 2. Fetch live real-time comps from property portals (99acres, MagicBricks, Housing.com) via Google Search Grounding
+        var searchLocality = GooglePlacesGeocodingService.BuildCleanAddress(reverseGeo?.Neighborhood, localityName);
+        if (string.IsNullOrWhiteSpace(searchLocality)) searchLocality = localityName;
+
         var liveComps = await geminiService.FetchLiveMarketCompsWithGroundingAsync(
             request.Latitude,
             request.Longitude,
-            reverseGeo?.SpecificLocationQuery ?? localityName,
+            searchLocality,
             districtName,
             request.LandUsage,
             landmarks,
             insufficient.GovernmentGuidelineReference,
             ct);
 
-        // 3. Cross-verify price and queue survey request for local broker ground calibration
+        // 3. Cross-verify price and queue survey request synced with live market comps
         var crossVerified = await geminiService.CrossVerifyIndicativeMarketPriceAsync(
             request,
             insufficient.GovernmentGuidelineReference,
             insufficient.AskingPriceReference,
             ct);
 
-        if (crossVerified != null)
+        decimal queuedRateCent;
+        decimal queuedRateSqFt;
+        if (liveComps != null && liveComps.MinPricePerCentLakhs > 0 && liveComps.MaxPricePerCentLakhs >= liveComps.MinPricePerCentLakhs)
+        {
+            queuedRateCent = Math.Round(((liveComps.MinPricePerCentLakhs + liveComps.MaxPricePerCentLakhs) / 2m) * 100000m, 2);
+            queuedRateSqFt = Math.Round(queuedRateCent / 435.6m, 2);
+        }
+        else
+        {
+            queuedRateCent = crossVerified?.PriceRangePerCent.MedianRate ?? 0m;
+            queuedRateSqFt = crossVerified?.PriceRangePerSqFt.MedianRate ?? 0m;
+        }
+
+        if (queuedRateCent > 0)
         {
             _ = surveyService.QueueSurveyAsync(
                 request.Latitude,
@@ -1434,16 +1450,20 @@ app.MapPost("/api/v1/estimates/calculate", async (
                 request.LandUsage,
                 request.TargetArea,
                 request.TargetAreaUnit,
-                crossVerified.PriceRangePerCent.MedianRate,
-                crossVerified.PriceRangePerSqFt.MedianRate,
+                queuedRateCent,
+                queuedRateSqFt,
                 insufficient.GovernmentGuidelineReference?.GuidelineRatePerCent,
                 ct
             );
         }
 
+        var syncedFactorBreakdown = crossVerified?.FactorBreakdown != null && queuedRateCent > 0
+            ? crossVerified.FactorBreakdown with { BaseLocalityRatePerCent = queuedRateCent }
+            : crossVerified?.FactorBreakdown;
+
         var enhancedInsufficient = insufficient with
         {
-            FactorBreakdown = crossVerified?.FactorBreakdown,
+            FactorBreakdown = syncedFactorBreakdown,
             LiveMarketComps = liveComps
         };
 

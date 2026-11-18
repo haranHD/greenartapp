@@ -192,24 +192,24 @@ public class GooglePlacesGeocodingService : IGeocodingService
                 }
 
                 if (string.IsNullOrWhiteSpace(locality)) locality = !string.IsNullOrWhiteSpace(neighborhood) ? neighborhood : defaultLocality;
-                if (string.IsNullOrWhiteSpace(district)) district = defaultDistrict;
+                if (string.IsNullOrWhiteSpace(district))
+                {
+                    if (TamilNaduGeoBounds.IsValidTamilNaduDistrict(locality))
+                        district = TamilNaduGeoBounds.NormalizeDistrict(locality);
+                    else if (TamilNaduGeoBounds.IsValidTamilNaduDistrict(taluk))
+                        district = TamilNaduGeoBounds.NormalizeDistrict(taluk);
+                    else if (TamilNaduGeoBounds.IsValidTamilNaduDistrict(neighborhood))
+                        district = TamilNaduGeoBounds.NormalizeDistrict(neighborhood);
+                    else
+                        district = defaultDistrict;
+                }
+
                 if (landmarks.Count == 0) landmarks.AddRange(new[] { "Main Arterial Road / State Highway", "Town Center Corridor" });
 
-                var parts = new List<string>();
-                if (!string.IsNullOrWhiteSpace(neighborhood) && !neighborhood.Equals(locality, StringComparison.OrdinalIgnoreCase))
-                    parts.Add(neighborhood);
-                if (!string.IsNullOrWhiteSpace(locality))
-                    parts.Add(locality);
-                if (!string.IsNullOrWhiteSpace(taluk) && !taluk.Equals(locality, StringComparison.OrdinalIgnoreCase) && !taluk.Equals(district, StringComparison.OrdinalIgnoreCase))
-                    parts.Add(taluk);
-                if (!string.IsNullOrWhiteSpace(district))
-                    parts.Add(district);
-                parts.Add(state);
-
-                var specificLocationQuery = string.Join(", ", parts);
+                var specificLocationQuery = BuildCleanAddress(neighborhood, locality, taluk, district, state);
 
                 var dto = new ReverseGeocodeResultDto(
-                    FormattedAddress: formattedAddress,
+                    FormattedAddress: BuildCleanAddress(formattedAddress),
                     Locality: locality,
                     Neighborhood: neighborhood,
                     Taluk: taluk,
@@ -234,15 +234,40 @@ public class GooglePlacesGeocodingService : IGeocodingService
     private static ReverseGeocodeResultDto CreateDefaultFallback(double latitude, double longitude, string locality, string district, string state)
     {
         return new ReverseGeocodeResultDto(
-            FormattedAddress: $"{locality}, {district}, {state}",
+            FormattedAddress: BuildCleanAddress(locality, district, state),
             Locality: locality,
             Neighborhood: locality,
             Taluk: district,
             District: district,
             State: state,
             NearbyLandmarks: new List<string> { "Main Arterial Highway", "Local Town Center" },
-            SpecificLocationQuery: $"{locality}, {district}, {state}"
+            SpecificLocationQuery: BuildCleanAddress(locality, district, state)
         );
+    }
+
+    public static string BuildCleanAddress(params string?[] parts)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var clean = new List<string>();
+        foreach (var raw in parts)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var subParts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var sub in subParts)
+            {
+                var trimmed = sub.Trim();
+                if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^\d{6}$")) continue;
+                if (trimmed.Equals("India", StringComparison.OrdinalIgnoreCase)) continue;
+                if (trimmed.Equals("Selected Pin Location", StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (!seen.Contains(trimmed))
+                {
+                    seen.Add(trimmed);
+                    clean.Add(trimmed);
+                }
+            }
+        }
+        return string.Join(", ", clean);
     }
 
     public async Task<LocalityDetailsDto?> GeocodeAddressAsync(string address, CancellationToken ct = default)

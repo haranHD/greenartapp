@@ -8,7 +8,7 @@ import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import React, { useRef } from 'react';
 import { ResearchAreaFields } from '../components/ResearchAreaFields';
-import { BrokerPriceRangeCard } from '../components/BrokerPriceRangeCard';
+import { BrokerPriceRangeCard, cleanAddress } from '../components/BrokerPriceRangeCard';
 import {
   View,
   ScrollView,
@@ -259,7 +259,18 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
         {/* STEP 2: VALUATION RESULTS */}
         {estimateStep === 'result' && (
           <>
-            {!loadingEstimate && estimate?.status !== 'Success' && <BrokerPriceRangeCard area={Number(researchArea) > 0 ? Number(researchArea) : undefined} areaUnit={researchAreaUnit} latitude={targetLat} longitude={targetLng} landUsage={landUsage} roadAccess={selectedRoadFrontage} displayUnit={displayUnit} />}
+            {!loadingEstimate && estimate?.status !== 'Success' && (
+              <BrokerPriceRangeCard
+                area={Number(researchArea) > 0 ? Number(researchArea) : undefined}
+                areaUnit={researchAreaUnit}
+                latitude={targetLat}
+                longitude={targetLng}
+                landUsage={landUsage}
+                roadAccess={selectedRoadFrontage}
+                displayUnit={displayUnit}
+                liveMarketComps={estimate?.liveMarketComps}
+              />
+            )}
             {!loadingEstimate && !estimateError && estimate?.guidelineLookupMessage && (
               <View accessibilityRole="alert" style={{ backgroundColor: '#FFFBEB', borderColor: '#FDE68A', borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 16 }}>
                 <Text style={{ fontSize: 13, lineHeight: 20, color: '#92400E' }}>{estimate.guidelineLookupMessage}</Text>
@@ -629,7 +640,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                         <View style={styles.liveCompsLocalityRow}>
                           <Feather name="map-pin" size={13} color="#059669" />
                           <Text style={styles.liveCompsLocalityText}>
-                            {liveComps.resolvedLocality}
+                            {cleanAddress(liveComps.resolvedLocality)}
                           </Text>
                           {liveComps.keyLandmarksUsed?.map((lm, idx) => (
                             <View key={idx} style={styles.landmarkChip}>

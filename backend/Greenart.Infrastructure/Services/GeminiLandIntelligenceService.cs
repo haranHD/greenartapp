@@ -496,29 +496,60 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
             var candidate = candidates[0];
             var citations = new List<SourceCitationDto>();
             var portals = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            if (candidate.TryGetProperty("groundingMetadata", out var gm))
+            JsonElement gmElement = default;
+            bool foundGrounding = false;
+            if (candidate.TryGetProperty("groundingMetadata", out var candGm))
             {
-                if (gm.TryGetProperty("groundingChunks", out var chunks) && chunks.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var chunk in chunks.EnumerateArray())
-                    {
-                        if (chunk.TryGetProperty("web", out var web))
-                        {
-                            var uri = web.TryGetProperty("uri", out var u) ? u.GetString() ?? "" : "";
-                            var title = web.TryGetProperty("title", out var ti) ? ti.GetString() ?? "" : "";
-                            if (!string.IsNullOrWhiteSpace(uri))
-                            {
-                                string portal = "Property Web Source";
-                                if (uri.Contains("99acres", StringComparison.OrdinalIgnoreCase)) portal = "99acres";
-                                else if (uri.Contains("magicbricks", StringComparison.OrdinalIgnoreCase)) portal = "MagicBricks";
-                                else if (uri.Contains("housing.com", StringComparison.OrdinalIgnoreCase)) portal = "Housing.com";
-                                else if (uri.Contains("commonfloor", StringComparison.OrdinalIgnoreCase)) portal = "CommonFloor";
-                                else if (uri.Contains("indiaproperty", StringComparison.OrdinalIgnoreCase)) portal = "IndiaProperty";
+                gmElement = candGm;
+                foundGrounding = true;
+            }
+            else if (root.TryGetProperty("groundingMetadata", out var rootGm))
+            {
+                gmElement = rootGm;
+                foundGrounding = true;
+            }
 
-                                portals.Add(portal);
-                                citations.Add(new SourceCitationDto(title, uri, portal));
-                            }
+            if (foundGrounding && gmElement.TryGetProperty("groundingChunks", out var chunks) && chunks.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var chunk in chunks.EnumerateArray())
+                {
+                    string uri = "";
+                    string title = "";
+
+                    if (chunk.TryGetProperty("web", out var web))
+                    {
+                        if (web.TryGetProperty("uri", out var u)) uri = u.GetString() ?? "";
+                        if (web.TryGetProperty("title", out var ti)) title = ti.GetString() ?? "";
+                    }
+                    if (string.IsNullOrWhiteSpace(uri) && chunk.TryGetProperty("uri", out var directUri))
+                        uri = directUri.GetString() ?? "";
+                    if (string.IsNullOrWhiteSpace(title) && chunk.TryGetProperty("title", out var directTitle))
+                        title = directTitle.GetString() ?? "";
+
+                    if (!string.IsNullOrWhiteSpace(uri) && Uri.TryCreate(uri, UriKind.Absolute, out var parsedUri) &&
+                        (parsedUri.Scheme == Uri.UriSchemeHttp || parsedUri.Scheme == Uri.UriSchemeHttps))
+                    {
+                        var normUri = uri.Trim();
+                        if (seenUrls.Add(normUri))
+                        {
+                            string portal = "Property Web Source";
+                            var host = parsedUri.Host.ToLowerInvariant();
+                            if (host.Contains("99acres")) portal = "99acres";
+                            else if (host.Contains("magicbricks")) portal = "MagicBricks";
+                            else if (host.Contains("housing.com")) portal = "Housing.com";
+                            else if (host.Contains("commonfloor")) portal = "CommonFloor";
+                            else if (host.Contains("indiaproperty")) portal = "IndiaProperty";
+                            else if (host.Contains("olx")) portal = "OLX India";
+                            else if (host.Contains("quikr")) portal = "Quikr";
+                            else portal = parsedUri.Host.Replace("www.", "");
+
+                            if (string.IsNullOrWhiteSpace(title))
+                                title = $"{portal} Live Listing";
+
+                            portals.Add(portal);
+                            citations.Add(new SourceCitationDto(title, normUri, portal));
                         }
                     }
                 }
@@ -604,7 +635,7 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
                 KeyLandmarksUsed: landmarksUsed.Count > 0 ? landmarksUsed : landmarks.Take(3).ToList(),
                 SourceSummary: !string.IsNullOrWhiteSpace(summary) ? summary : $"Active retail plots verified via property portals around {locality}.",
                 SourcePortals: portals.ToList(),
-                ResolvedLocality: $"{locality}, {district}",
+                ResolvedLocality: GooglePlacesGeocodingService.BuildCleanAddress(locality, district, "Tamil Nadu"),
                 Citations: citations
             );
         }
@@ -646,8 +677,9 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
         var portalList = new List<string> { "99acres", "MagicBricks", "Housing.com" };
         var citations = new List<SourceCitationDto>
         {
-            new($"Retail plots for sale in {locality}, {district}", $"https://www.99acres.com/property-in-{locality.ToLowerInvariant().Replace(' ', '-')}-ffid", "99acres"),
-            new($"Land listings in {locality} near {landmarks.FirstOrDefault() ?? "Main Road"}", $"https://www.magicbricks.com/property-for-sale/residential-real-estate?cityName={district}", "MagicBricks")
+            new($"99acres Real Estate Portal - {district}", "https://www.99acres.com", "99acres"),
+            new($"MagicBricks Land Listings - {district}", "https://www.magicbricks.com", "MagicBricks"),
+            new($"Housing.com Verified Plots - {district}", "https://housing.com", "Housing.com")
         };
 
         return new LiveMarketCompsDto(
@@ -658,7 +690,7 @@ Strict Search, Filtering & Tamil Nadu Unit Math Directives:
             KeyLandmarksUsed: landmarks.Take(3).ToList(),
             SourceSummary: $"Active retail {landUsage.ToString().ToLowerInvariant()} plot comps verified on 99acres and MagicBricks along the {landmarks.FirstOrDefault() ?? "corridor"}.",
             SourcePortals: portalList,
-            ResolvedLocality: $"{locality}, {district}",
+            ResolvedLocality: GooglePlacesGeocodingService.BuildCleanAddress(locality, district, "Tamil Nadu"),
             Citations: citations
         );
     }
