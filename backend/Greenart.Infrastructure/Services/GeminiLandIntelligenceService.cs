@@ -433,6 +433,21 @@ Respond strictly in valid JSON format with the following keys:
 
     private async Task<string?> CallGeminiWithGoogleSearchAsync(string prompt, string apiKey, CancellationToken ct)
     {
+        var result = await ExecuteGeminiSearchAttemptAsync(prompt, apiKey, ct);
+        if (!string.IsNullOrWhiteSpace(result)) return result;
+
+        var alternateKey = (apiKey == _apiKey) ? _verifierApiKey : _apiKey;
+        if (!string.IsNullOrWhiteSpace(alternateKey) && alternateKey != apiKey)
+        {
+            _logger.LogInformation("Primary Gemini key failed; retrying Gemini search grounding with alternate key...");
+            return await ExecuteGeminiSearchAttemptAsync(prompt, alternateKey, ct);
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ExecuteGeminiSearchAttemptAsync(string prompt, string apiKey, CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(apiKey)) return null;
 
         var requestBody = new
@@ -1191,6 +1206,21 @@ Respond strictly in valid JSON:
     }
 
     private async Task<string?> CallGeminiRawAsync(string prompt, string apiKey, CancellationToken ct)
+    {
+        var result = await ExecuteGeminiRawAttemptAsync(prompt, apiKey, ct);
+        if (!string.IsNullOrWhiteSpace(result)) return result;
+
+        var alternateKey = (apiKey == _apiKey) ? _verifierApiKey : _apiKey;
+        if (!string.IsNullOrWhiteSpace(alternateKey) && alternateKey != apiKey)
+        {
+            _logger.LogInformation("Gemini raw call failed; retrying with alternate key fallback...");
+            return await ExecuteGeminiRawAttemptAsync(prompt, alternateKey, ct);
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ExecuteGeminiRawAttemptAsync(string prompt, string apiKey, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(apiKey)) return null;
 
