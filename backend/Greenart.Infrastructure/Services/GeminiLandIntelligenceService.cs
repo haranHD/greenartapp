@@ -21,6 +21,9 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
     private readonly string _verifierApiKey;
     private readonly string _model;
     private readonly string _baseUrl;
+    private readonly string _anthropicApiKey;
+    private readonly string _anthropicModel;
+    private readonly string _anthropicBaseUrl;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -58,6 +61,19 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
             _baseUrl = "https://generativelanguage.googleapis.com/v1beta";
         }
 
+        _anthropicApiKey = ResolveConfigValue(configuration, "AnthropicSettings:ApiKey", "ANTHROPIC_API_KEY", "AnthropicSettings__ApiKey");
+        _anthropicModel = ResolveConfigValue(configuration, "AnthropicSettings:Model", "ANTHROPIC_MODEL", "AnthropicSettings__Model");
+        if (string.IsNullOrWhiteSpace(_anthropicModel))
+        {
+            _anthropicModel = "claude-3-5-haiku-20241022";
+        }
+
+        _anthropicBaseUrl = ResolveConfigValue(configuration, "AnthropicSettings:BaseUrl", "ANTHROPIC_BASE_URL", "AnthropicSettings__BaseUrl");
+        if (string.IsNullOrWhiteSpace(_anthropicBaseUrl))
+        {
+            _anthropicBaseUrl = "https://api.anthropic.com/v1";
+        }
+
         var timeoutSeconds = 30;
         if (int.TryParse(configuration["GeminiSettings:TimeoutSeconds"], out var t) && t > 0)
         {
@@ -74,6 +90,12 @@ public class GeminiLandIntelligenceService : IGeminiLandIntelligenceService
         else
         {
             _logger.LogWarning("GeminiLandIntelligenceService initialized without API key; live search grounding will fall back to offline calculation.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_anthropicApiKey))
+        {
+            var maskedClaude = _anthropicApiKey.Length > 8 ? $"{_anthropicApiKey[..7]}...{_anthropicApiKey[^4..]}" : "***";
+            _logger.LogInformation("Anthropic Claude Auditor initialized. Model: {Model}, BaseUrl: {BaseUrl}, Key: {MaskedKey}", _anthropicModel, _anthropicBaseUrl, maskedClaude);
         }
     }
 
@@ -883,7 +905,28 @@ OUTPUT FORMAT (Strict JSON):
 
             // STAGE 2: Auditor Model (Cross-verifies against guideline floor & district bounds)
             var stage2Prompt = BuildStage2AuditorPrompt(request, locality, district, guidelineBenchmark, predRatePerCent, predMinPerCent, predMaxPerCent, rationale);
-            var stage2ResponseJson = await CallGeminiRawAsync(stage2Prompt, _verifierApiKey, ct);
+            string? stage2ResponseJson = null;
+
+            if (!string.IsNullOrWhiteSpace(_anthropicApiKey))
+            {
+                try
+                {
+                    stage2ResponseJson = await CallClaudeRawAsync(stage2Prompt, ct);
+                    if (!string.IsNullOrWhiteSpace(stage2ResponseJson))
+                    {
+                        _logger.LogInformation("Stage 2 valuation audit completed successfully using Claude ({Model}).", _anthropicModel);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Claude Stage 2 Auditor invocation encountered an error; falling back to Gemini verifier.");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(stage2ResponseJson))
+            {
+                stage2ResponseJson = await CallGeminiRawAsync(stage2Prompt, _verifierApiKey, ct);
+            }
 
             decimal verifiedMedianPerCent = predRatePerCent;
             decimal verifiedMinPerCent = predMinPerCent > 0 ? predMinPerCent : Math.Round(predRatePerCent * 0.90m, 2);
@@ -1193,4 +1236,84 @@ Respond strictly in valid JSON:
         return parts[0].GetProperty("text").GetString();
     }
 
+    private async Task<string?> CallClaudeRawAsync(string prompt, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_anthropicApiKey)) return null;
+
+        var requestBody = new
+        {
+            model = string.IsNullOrWhiteSpace(_anthropicModel) ? "claude-3-5-haiku-20241022" : _anthropicModel,
+            max_tokens = 1024,
+            messages = new[]
+            {
+                new
+                {
+                    role = "user",
+                    content = prompt
+                }
+            },
+            temperature = 0.2
+        };
+
+        var endpoint = $"{_anthropicBaseUrl.TrimEnd('/')}/messages";
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = JsonContent.Create(requestBody, options: JsonOpts)
+        };
+        httpRequest.Headers.Add("x-api-key", _anthropicApiKey);
+        httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+
+        using var response = await _httpClient.SendAsync(httpRequest, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errBody = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Claude Auditor API returned HTTP {StatusCode}: {ErrorBody}. Gracefully falling back to Gemini Verifier.", (int)response.StatusCode, errBody);
+            return null;
+        }
+
+        var root = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOpts, ct);
+        if (root.TryGetProperty("content", out var contentArray) && contentArray.ValueKind == JsonValueKind.Array && contentArray.GetArrayLength() > 0)
+        {
+            var first = contentArray[0];
+            if (first.TryGetProperty("text", out var textProp))
+            {
+                var rawText = textProp.GetString() ?? string.Empty;
+                return CleanJsonResponse(rawText);
+            }
+        }
+
+        return null;
+    }
+
+    private static string CleanJsonResponse(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var trimmed = text.Trim();
+
+        if (trimmed.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
+        {
+            var endIdx = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+            if (endIdx > 7)
+            {
+                return trimmed.Substring(7, endIdx - 7).Trim();
+            }
+        }
+        else if (trimmed.StartsWith("```", StringComparison.OrdinalIgnoreCase))
+        {
+            var endIdx = trimmed.LastIndexOf("```", StringComparison.Ordinal);
+            if (endIdx > 3)
+            {
+                return trimmed.Substring(3, endIdx - 3).Trim();
+            }
+        }
+
+        var firstBrace = trimmed.IndexOf('{');
+        var lastBrace = trimmed.LastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace)
+        {
+            return trimmed.Substring(firstBrace, lastBrace - firstBrace + 1).Trim();
+        }
+
+        return trimmed;
+    }
 }

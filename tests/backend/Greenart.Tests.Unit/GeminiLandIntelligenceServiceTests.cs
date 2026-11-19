@@ -49,13 +49,19 @@ public class GeminiLandIntelligenceServiceTests
 
   private class MockHttpMessageHandler : HttpMessageHandler
   {
-    private readonly HttpResponseMessage _response;
+    private readonly Func<HttpRequestMessage, HttpResponseMessage>? _handlerFunc;
+    private readonly HttpResponseMessage? _response;
     public HttpRequestMessage? LastRequest { get; private set; }
     public string? LastRequestBody { get; private set; }
 
     public MockHttpMessageHandler(HttpResponseMessage response)
     {
       _response = response;
+    }
+
+    public MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handlerFunc)
+    {
+      _handlerFunc = handlerFunc;
     }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -65,7 +71,7 @@ public class GeminiLandIntelligenceServiceTests
       {
         LastRequestBody = request.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
       }
-      return Task.FromResult(_response);
+      return Task.FromResult(_handlerFunc != null ? _handlerFunc(request) : _response!);
     }
   }
 
@@ -426,5 +432,207 @@ public class GeminiLandIntelligenceServiceTests
     Assert.True(result.Citations == null || result.Citations.Count == 0);
     Assert.DoesNotContain(result.KeyLandmarksUsed, lm => lm.Equals("taluk", StringComparison.OrdinalIgnoreCase) || lm.EndsWith(" taluk", StringComparison.OrdinalIgnoreCase));
     Assert.Contains("Cauvery Bridge", result.KeyLandmarksUsed);
+  }
+
+  [Fact]
+  public async Task CrossVerifyIndicativeMarketPriceAsync_WhenAnthropicConfigured_UsesClaudeAuditor()
+  {
+    var config = new TestConfiguration(new Dictionary<string, string?>
+    {
+      ["GeminiSettings:ApiKey"] = "AQ.GeminiKey123",
+      ["GeminiSettings:VerifierApiKey"] = "AQ.VerifierKey456",
+      ["AnthropicSettings:ApiKey"] = "sk-ant-testkey789",
+      ["AnthropicSettings:Model"] = "claude-3-5-haiku-20241022"
+    });
+
+    var requestsSent = new List<string>();
+
+    var handler = new MockHttpMessageHandler(req =>
+    {
+      var uri = req.RequestUri?.ToString() ?? string.Empty;
+      requestsSent.Add(uri);
+
+      if (uri.Contains("anthropic.com"))
+      {
+        var claudeJson = """
+        {
+          "id": "msg_01",
+          "type": "message",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "```json\n{\n  \"isApproved\": true,\n  \"verifiedMedianRatePerCent\": 1250000,\n  \"verifiedMinRatePerCent\": 1150000,\n  \"verifiedMaxRatePerCent\": 1400000,\n  \"confidence\": \"High\",\n  \"auditSummary\": \"Claude Chief Valuation Auditor verified.\"\n}\n```"
+            }
+          ]
+        }
+        """;
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = new StringContent(claudeJson, System.Text.Encoding.UTF8, "application/json")
+        };
+      }
+      else
+      {
+        var geminiStage1Json = """
+        {
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "{\"estimatedRatePerCent\": 1200000, \"minRatePerCent\": 1100000, \"maxRatePerCent\": 1300000, \"rationale\": \"Stage 1 predicted\"}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        """;
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = new StringContent(geminiStage1Json, System.Text.Encoding.UTF8, "application/json")
+        };
+      }
+    });
+
+    var client = new HttpClient(handler);
+    var service = new GeminiLandIntelligenceService(client, config, NullLogger<GeminiLandIntelligenceService>.Instance);
+
+    var calculateRequest = new CalculateEstimateRequest(
+      Latitude: 11.4500,
+      Longitude: 77.6800,
+      LandUsage: LandUsageType.Residential,
+      TargetArea: 5.0m,
+      Locality: "Palani",
+      District: "Dindigul"
+    );
+
+    var guideline = new GuidelineReferenceDto(
+      GuidelineRatePerCent: 1000000m,
+      GuidelineRatePerSqFt: 2295.68m,
+      Locality: "Palani",
+      SurveyNumber: "SF 12",
+      LegalNotice: null
+    );
+
+    var result = await service.CrossVerifyIndicativeMarketPriceAsync(calculateRequest, guideline, null);
+
+    Assert.NotNull(result);
+    Assert.Equal(1250000m, result.PriceRangePerCent.MedianRate);
+    Assert.Equal("Claude Chief Valuation Auditor verified.", result.AuditorNotes);
+    Assert.Equal("High", result.Confidence);
+    Assert.Contains(requestsSent, r => r.Contains("anthropic.com"));
+  }
+
+  [Fact]
+  public async Task CrossVerifyIndicativeMarketPriceAsync_WhenClaudeFailsWithLowBalance_FallsBackToGeminiVerifier()
+  {
+    var config = new TestConfiguration(new Dictionary<string, string?>
+    {
+      ["GeminiSettings:ApiKey"] = "AQ.GeminiKey123",
+      ["GeminiSettings:VerifierApiKey"] = "AQ.VerifierKey456",
+      ["AnthropicSettings:ApiKey"] = "sk-ant-testkey789",
+      ["AnthropicSettings:Model"] = "claude-3-5-haiku-20241022"
+    });
+
+    var requestsSent = new List<string>();
+
+    var handler = new MockHttpMessageHandler(req =>
+    {
+      var uri = req.RequestUri?.ToString() ?? string.Empty;
+      requestsSent.Add(uri);
+
+      if (uri.Contains("anthropic.com"))
+      {
+        // Simulate low credit balance error
+        return new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+          Content = new StringContent("{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API.\"}}", System.Text.Encoding.UTF8, "application/json")
+        };
+      }
+      else
+      {
+        var geminiJson = """
+        {
+          "candidates": [
+            {
+              "content": {
+                "parts": [
+                  {
+                    "text": "{\"estimatedRatePerCent\": 1200000, \"verifiedMedianRatePerCent\": 1220000, \"verifiedMinRatePerCent\": 1120000, \"verifiedMaxRatePerCent\": 1350000, \"confidence\": \"High\", \"auditSummary\": \"Gemini Verifier Fallback Success\"}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        """;
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = new StringContent(geminiJson, System.Text.Encoding.UTF8, "application/json")
+        };
+      }
+    });
+
+    var client = new HttpClient(handler);
+    var service = new GeminiLandIntelligenceService(client, config, NullLogger<GeminiLandIntelligenceService>.Instance);
+
+    var calculateRequest = new CalculateEstimateRequest(
+      Latitude: 11.4500,
+      Longitude: 77.6800,
+      LandUsage: LandUsageType.Residential,
+      TargetArea: 5.0m,
+      Locality: "Palani",
+      District: "Dindigul"
+    );
+
+    var guideline = new GuidelineReferenceDto(
+      GuidelineRatePerCent: 1000000m,
+      GuidelineRatePerSqFt: 2295.68m,
+      Locality: "Palani",
+      SurveyNumber: "SF 12",
+      LegalNotice: null
+    );
+
+    var result = await service.CrossVerifyIndicativeMarketPriceAsync(calculateRequest, guideline, null);
+
+    Assert.NotNull(result);
+    Assert.Equal(1220000m, result.PriceRangePerCent.MedianRate);
+    Assert.Equal("Gemini Verifier Fallback Success", result.AuditorNotes);
+    Assert.Contains(requestsSent, r => r.Contains("anthropic.com"));
+    Assert.Contains(requestsSent, r => r.Contains("generativelanguage.googleapis.com"));
+  }
+
+  [Fact]
+  public async Task CrossVerifyIndicativeMarketPriceAsync_WhenNoApiKeyConfigured_UsesDeterministicCalibration()
+  {
+    var config = new TestConfiguration(new Dictionary<string, string?>());
+    var client = new HttpClient(new MockHttpMessageHandler(new HttpResponseMessage(HttpStatusCode.OK)));
+    var service = new GeminiLandIntelligenceService(client, config, NullLogger<GeminiLandIntelligenceService>.Instance);
+
+    var calculateRequest = new CalculateEstimateRequest(
+      Latitude: 11.4500,
+      Longitude: 77.6800,
+      LandUsage: LandUsageType.Residential,
+      TargetArea: 5.0m,
+      Locality: "Palani",
+      District: "Dindigul"
+    );
+
+    var guideline = new GuidelineReferenceDto(
+      GuidelineRatePerCent: 1000000m,
+      GuidelineRatePerSqFt: 2295.68m,
+      Locality: "Palani",
+      SurveyNumber: "SF 12",
+      LegalNotice: null
+    );
+
+    var result = await service.CrossVerifyIndicativeMarketPriceAsync(calculateRequest, guideline, null);
+
+    Assert.NotNull(result);
+    // When guideline is ₹10L/Cent, deterministic calibration is baseRate = 1.30 * guideline = 13L
+    Assert.True(result.PriceRangePerCent.MedianRate >= 1000000m);
+    Assert.Contains("calibrated against statutory guideline baseline", result.AuditorNotes, StringComparison.OrdinalIgnoreCase);
   }
 }

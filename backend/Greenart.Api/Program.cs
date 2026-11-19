@@ -95,6 +95,24 @@ if (!string.IsNullOrWhiteSpace(envGeocodingKey) && string.IsNullOrWhiteSpace(bui
     builder.Configuration["GeocodingSettings:ApiKey"] = envGeocodingKey;
 }
 
+var envAnthropicKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+if (!string.IsNullOrWhiteSpace(envAnthropicKey) && string.IsNullOrWhiteSpace(builder.Configuration["AnthropicSettings:ApiKey"]))
+{
+    builder.Configuration["AnthropicSettings:ApiKey"] = envAnthropicKey;
+}
+
+var envAnthropicModel = Environment.GetEnvironmentVariable("ANTHROPIC_MODEL");
+if (!string.IsNullOrWhiteSpace(envAnthropicModel) && string.IsNullOrWhiteSpace(builder.Configuration["AnthropicSettings:Model"]))
+{
+    builder.Configuration["AnthropicSettings:Model"] = envAnthropicModel;
+}
+
+var envAnthropicBaseUrl = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL");
+if (!string.IsNullOrWhiteSpace(envAnthropicBaseUrl) && string.IsNullOrWhiteSpace(builder.Configuration["AnthropicSettings:BaseUrl"]))
+{
+    builder.Configuration["AnthropicSettings:BaseUrl"] = envAnthropicBaseUrl;
+}
+
 EnvironmentConfiguration.RefreshEnvironmentProviders((IConfigurationRoot)builder.Configuration);
 
 // Helper to normalize postgres:// and postgresql:// URIs into standard ADO.NET connection strings
