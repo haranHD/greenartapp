@@ -365,11 +365,11 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         attributionControl: true
       }).setView([${targetLat}, ${targetLng}], ${mapZoom});
 
-      // CartoDB Voyager High-DPI Vector-Style Tiles
-      lStreetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; CartoDB',
-        subdomains: 'abcd',
-        maxZoom: 20
+      // OpenStreetMap Clean Standard Tiles (100% Free, Zero Watermarks)
+      lStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        subdomains: 'abc',
+        maxZoom: 19
       }).addTo(lMap);
 
       // Esri Satellite World Imagery

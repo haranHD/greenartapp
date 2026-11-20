@@ -412,13 +412,19 @@ function GreenartMobileApp() {
     return () => backHandler.remove();
   }, [activeTab, estimateStep, previousTab]);
 
-  // Initial Data Fetching with Resilient Fallback
+  // Initial Data Fetching with Resilient Fallback & Auto-Recovery (for Render cold starts)
   useEffect(() => {
     let isMounted = true;
+    let retryTimer: any = null;
+
     const initData = async () => {
+      let isHealthy = false;
       try {
         const health = await mobileApi.getHealth();
-        if (isMounted) setBackendHealth(health);
+        if (isMounted) {
+          setBackendHealth(health);
+          isHealthy = health.status === 'Healthy';
+        }
       } catch {
         if (isMounted) setBackendHealth({ status: 'Offline' });
       }
@@ -456,11 +462,19 @@ function GreenartMobileApp() {
       } catch (err: any) {
         console.log('[App] Marketplace listings unavailable:', err?.message || err);
       }
+
+      // If backend was offline (e.g. Render free-tier cold start ~30s), auto-retry in 6s until awake
+      if (isMounted && !isHealthy) {
+        retryTimer = setTimeout(() => {
+          if (isMounted) initData();
+        }, 6000);
+      }
     };
 
     initData();
     return () => {
       isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
 
