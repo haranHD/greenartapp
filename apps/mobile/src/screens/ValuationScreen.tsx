@@ -23,6 +23,8 @@ import {
   LAND_USAGES,
   formatLakhs,
   calculateMarketRateBuffer,
+  convertCentToAcreRate,
+  formatRateForUnit,
   ROAD_FRONTAGE_OPTIONS,
   AMENITY_OPTIONS,
 } from '../utils/formatters';
@@ -49,8 +51,8 @@ export interface ValuationScreenProps {
   setSelectedRoadFrontage: (road: string) => void;
   selectedAmenities: string;
   setSelectedAmenities: (amenities: string) => void;
-  displayUnit: 'Cent' | 'SqFt';
-  setDisplayUnit: (u: 'Cent' | 'SqFt') => void;
+  displayUnit: 'Cent' | 'SqFt' | 'Acre';
+  setDisplayUnit: (u: 'Cent' | 'SqFt' | 'Acre') => void;
   showAdvancedCoords: boolean;
   setShowAdvancedCoords: (s: boolean) => void;
   latInput: string;
@@ -198,6 +200,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
               <View style={styles.unitPillBox}>
                 <PremiumChoice variant="segment" label="Per Cent" selected={displayUnit === 'Cent'} onPress={() => setDisplayUnit('Cent')} />
                 <PremiumChoice variant="segment" label="Per Sq.Ft" selected={displayUnit === 'SqFt'} onPress={() => setDisplayUnit('SqFt')} />
+                <PremiumChoice variant="segment" label="Per Acre" selected={displayUnit === 'Acre'} onPress={() => setDisplayUnit('Acre')} />
               </View>
             </View>
 
@@ -349,12 +352,17 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                       </View>
 
                       {(() => {
-                        const activeUnit = displayUnit === 'Cent' ? 'Cent' : 'Sq.Ft';
-                        const activeRate = displayUnit === 'Cent' ? medianCent : medianSqFt;
+                        const activeUnit = displayUnit === 'Cent' ? 'Cent' : displayUnit === 'SqFt' ? 'Sq.Ft' : 'Acre';
+                        const activeRate = displayUnit === 'Cent' ? medianCent : displayUnit === 'SqFt' ? medianSqFt : convertCentToAcreRate(medianCent);
                         const activeBuffer = calculateMarketRateBuffer(activeRate, activeUnit);
-                        const altUnit = displayUnit === 'Cent' ? 'Sq.Ft' : 'Cent';
-                        const altRate = displayUnit === 'Cent' ? medianSqFt : medianCent;
+                        const altUnit = displayUnit === 'Acre' ? 'Cent' : displayUnit === 'Cent' ? 'Sq.Ft' : 'Cent';
+                        const altRate = displayUnit === 'Acre' ? medianCent : displayUnit === 'Cent' ? medianSqFt : medianCent;
                         const altBuffer = calculateMarketRateBuffer(altRate, altUnit);
+
+                        const typicalLow = displayUnit === 'Cent' ? formatLakhs(iqrCent25) : displayUnit === 'SqFt' ? `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')}` : formatRateForUnit(convertCentToAcreRate(iqrCent25), 'Acre');
+                        const typicalHigh = displayUnit === 'Cent' ? formatLakhs(iqrCent75) : displayUnit === 'SqFt' ? `₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}` : formatRateForUnit(convertCentToAcreRate(iqrCent75), 'Acre');
+                        const observedLow = displayUnit === 'Cent' ? formatLakhs(minCent) : displayUnit === 'SqFt' ? `₹${Math.round(minSqFt).toLocaleString('en-IN')}` : formatRateForUnit(convertCentToAcreRate(minCent), 'Acre');
+                        const observedHigh = displayUnit === 'Cent' ? formatLakhs(maxCent) : displayUnit === 'SqFt' ? `₹${Math.round(maxSqFt).toLocaleString('en-IN')}` : formatRateForUnit(convertCentToAcreRate(maxCent), 'Acre');
 
                         return (
                           <>
@@ -382,7 +390,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             </View>
 
                             <Text style={styles.convertedRateSub}>
-                              Equivalent to approx. {altBuffer.approximateFormatted} / {altUnit}
+                              Equivalent to approx. {altBuffer.approximateFormatted} / {altUnit}{displayUnit === 'Acre' ? ' (retail)' : ''}
                             </Text>
 
                             {/* Range Metrics */}
@@ -396,17 +404,13 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                               <View style={styles.rangeBox}>
                                 <Text style={styles.rangeBoxLabel}>Typical Range (25th–75th)</Text>
                                 <Text style={styles.rangeBoxVal}>
-                                  {displayUnit === 'Cent'
-                                    ? `${formatLakhs(iqrCent25)} – ${formatLakhs(iqrCent75)}`
-                                    : `₹${Math.round(iqrSqFt25).toLocaleString('en-IN')} – ₹${Math.round(iqrSqFt75).toLocaleString('en-IN')}`}
+                                  {typicalLow} – {typicalHigh}
                                 </Text>
                               </View>
                               <View style={styles.rangeBox}>
                                 <Text style={styles.rangeBoxLabel}>Observed Range (Min–Max)</Text>
                                 <Text style={styles.rangeBoxVal}>
-                                  {displayUnit === 'Cent'
-                                    ? `${formatLakhs(minCent)} – ${formatLakhs(maxCent)}`
-                                    : `₹${Math.round(minSqFt).toLocaleString('en-IN')} – ₹${Math.round(maxSqFt).toLocaleString('en-IN')}`}
+                                  {observedLow} – {observedHigh}
                                 </Text>
                               </View>
                             </View>
@@ -482,7 +486,11 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             <View style={styles.breakdownTotalRow}>
                               <Text style={styles.breakdownTotalLabel}>Net Market Valuation:</Text>
                               <Text style={styles.breakdownTotalVal}>
-                                {formatLakhs(medianCent)} / Cent
+                                {displayUnit === 'Acre'
+                                  ? `${formatRateForUnit(convertCentToAcreRate(medianCent), 'Acre')} / Acre`
+                                  : displayUnit === 'SqFt'
+                                  ? `₹${Math.round(medianSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                  : `${formatLakhs(medianCent)} / Cent`}
                               </Text>
                             </View>
                           </>
@@ -520,7 +528,9 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           <Text style={styles.askingRateVal}>
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
-                              : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                              : displayUnit === 'SqFt'
+                              ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                              : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.askingNotice}>
@@ -545,7 +555,9 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           <Text style={styles.guidelineRateVal}>
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
-                              : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                              : displayUnit === 'SqFt'
+                              ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                              : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.guidelineNotice}>
@@ -665,7 +677,9 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           <Text style={styles.askingRateVal}>
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
-                              : `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                              : displayUnit === 'SqFt'
+                              ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                              : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.askingNotice}>
@@ -690,7 +704,9 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                           <Text style={styles.guidelineRateVal}>
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
-                              : `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`}
+                              : displayUnit === 'SqFt'
+                              ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                              : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.guidelineNotice}>

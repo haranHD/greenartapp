@@ -331,7 +331,7 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                   keyboardType="numeric"
                 />
                 {parsedExtent > 0 && (
-                  <Text style={styles.helperText}>≈ {computedExtentSqFt.toLocaleString()} Sq.Ft</Text>
+                  <Text style={styles.helperText}>≈ {computedExtentSqFt.toLocaleString()} Sq.Ft • {(parsedExtent / 100).toFixed(2)} Acres</Text>
                 )}
               </View>
 
@@ -372,7 +372,10 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
                 <Text style={styles.calcRateLabel}>COMPUTED ASKING RATE PER CENT</Text>
                 <Text style={styles.calcRateValue}>₹{computedRatePerCent.toLocaleString('en-IN')} / Cent</Text>
                 <Text style={styles.calcRateSub}>
-                  ≈ ₹{Math.round(computedRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft
+                  ≈ ₹{Math.round(computedRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {(() => {
+                    const acreVal = (computedRatePerCent * 3 / 4) * 100;
+                    return acreVal >= 10000000 ? `₹${(acreVal / 10000000).toFixed(2)} Cr / Acre` : `₹${(acreVal / 100000).toFixed(2)} L / Acre`;
+                  })()}
                 </Text>
               </View>
             )}

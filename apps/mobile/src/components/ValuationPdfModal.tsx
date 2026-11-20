@@ -149,19 +149,19 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
                 <View style={styles.bracketCol}>
                   <Text style={styles.bracketLabel}>CONSERVATIVE (25TH %ILE)</Text>
                   <Text style={styles.bracketVal}>{formatCurrency(report.valuationRange.p25RatePerCent)} / Cent</Text>
-                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p25RatePerCent / 435.6) * 2400))} / Ground</Text>
+                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p25RatePerCent * 3 / 4) * 100))} / Acre</Text>
                 </View>
                 <View style={[styles.bracketCol, styles.bracketColPrimary]}>
                   <Text style={styles.bracketLabelPrimary}>MEDIAN MARKET RATE</Text>
                   <Text style={styles.bracketValPrimary}>{formatCurrency(report.valuationRange.medianRatePerCent)} / Cent</Text>
                   <Text style={styles.bracketSubPrimary}>
-                    ≈ ₹{Math.round(report.valuationRange.medianRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {formatCurrency(Math.round((report.valuationRange.medianRatePerCent / 435.6) * 2400))} / Ground
+                    ≈ ₹{Math.round(report.valuationRange.medianRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {formatCurrency(Math.round((report.valuationRange.medianRatePerCent * 3 / 4) * 100))} / Acre
                   </Text>
                 </View>
                 <View style={styles.bracketCol}>
                   <Text style={styles.bracketLabel}>OPTIMISTIC (75TH %ILE)</Text>
                   <Text style={styles.bracketVal}>{formatCurrency(report.valuationRange.p75RatePerCent)} / Cent</Text>
-                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p75RatePerCent / 435.6) * 2400))} / Ground</Text>
+                  <Text style={styles.bracketSub}>≈ {formatCurrency(Math.round((report.valuationRange.p75RatePerCent * 3 / 4) * 100))} / Acre</Text>
                 </View>
               </View>
 

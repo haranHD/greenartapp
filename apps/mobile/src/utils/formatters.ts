@@ -47,6 +47,40 @@ export const formatLakhs = (val?: number): string => {
   return `₹${Math.round(val).toLocaleString('en-IN')}`;
 };
 
+/**
+ * Converts a retail Cent rate into a bulk Acre rate using the Tamil Nadu real-estate rule:
+ * Bulk Acre Rate = (RatePerCent * 3/4 layout factor) * 100 = RatePerCent * 75
+ */
+export const convertCentToAcreRate = (ratePerCent: number): number => {
+  return (ratePerCent * 3 / 4) * 100;
+};
+
+/**
+ * Formats numeric Indian currency rates for Cent, SqFt, or Acre.
+ * For Acre rates >= ₹1 Crore, formats as ₹X.XX Cr; for rates < ₹1 Crore, formats as ₹XX.XX L.
+ */
+export const formatRateForUnit = (val?: number, unit: 'Cent' | 'SqFt' | 'Acre' = 'Cent'): string => {
+  if (val === undefined || val === null || isNaN(val) || val <= 0) return '—';
+  if (unit === 'Acre' || val >= 10000000) {
+    if (val >= 10000000) {
+      const cr = val / 10000000;
+      return `₹${cr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0Cr`;
+    }
+    if (val >= 100000) {
+      const lakhs = val / 100000;
+      return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
+    }
+  }
+  if (unit === 'Cent' && val >= 100000) {
+    const lakhs = val / 100000;
+    return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
+  }
+  if (unit === 'SqFt') {
+    return `₹${Math.round(val).toLocaleString('en-IN')}`;
+  }
+  return formatLakhs(val);
+};
+
 export interface MarketRateBuffer {
   rawRate: number;
   lowerRate: number;
@@ -96,8 +130,9 @@ export function calculateMarketRateBuffer(
     };
   }
 
+  const isAcre = unit.toLowerCase().includes('acre');
   const isPerSqFt = unit.toLowerCase().includes('sq');
-  const isLakhUnit = !isPerSqFt;
+  const isLakhUnit = !isPerSqFt && !isAcre;
 
   let lowerRate = 0;
   let upperRate = 0;
@@ -107,7 +142,42 @@ export function calculateMarketRateBuffer(
   let upperFormatted = '';
   let approximateFormatted = '';
 
-  if (isLakhUnit) {
+  if (isAcre) {
+    // Acre rates: formatted in Crores (>= ₹1 Cr) or Lakhs (< ₹1 Cr)
+    if (val >= 10000000) {
+      const cr = val / 10000000;
+      const step = customStep ?? 0.05;
+      let lowerCr = Math.floor(cr / step) * step;
+      let upperCr = Math.ceil(cr / step) * step;
+      if (lowerCr === upperCr) {
+        lowerCr = Math.max(0, cr - step);
+        upperCr = cr + step;
+      }
+      lowerRate = Math.round(lowerCr * 10000000);
+      upperRate = Math.round(upperCr * 10000000);
+      approximateRate = Math.round(Math.round(cr / 0.02) * 0.02 * 10000000);
+      midpointRate = Math.round((lowerRate + upperRate) / 2);
+      lowerFormatted = `₹${lowerCr.toFixed(2)}\u00a0Cr`;
+      upperFormatted = `₹${upperCr.toFixed(2)}\u00a0Cr`;
+      approximateFormatted = `₹${(approximateRate / 10000000).toFixed(2)}\u00a0Cr`;
+    } else {
+      const lakhs = val >= 1000 ? val / 100000 : val;
+      const step = customStep ?? 0.50;
+      let lowerLakhs = Math.floor(lakhs / step) * step;
+      let upperLakhs = Math.ceil(lakhs / step) * step;
+      if (lowerLakhs === upperLakhs) {
+        lowerLakhs = Math.max(0, lakhs - step);
+        upperLakhs = lakhs + step;
+      }
+      lowerRate = Math.round(lowerLakhs * 100000);
+      upperRate = Math.round(upperLakhs * 100000);
+      approximateRate = Math.round(Math.round(lakhs / 0.10) * 0.10 * 100000);
+      midpointRate = Math.round((lowerRate + upperRate) / 2);
+      lowerFormatted = `₹${lowerLakhs.toFixed(2)}\u00a0L`;
+      upperFormatted = `₹${upperLakhs.toFixed(2)}\u00a0L`;
+      approximateFormatted = `₹${(approximateRate / 100000).toFixed(2)}\u00a0L`;
+    }
+  } else if (isLakhUnit) {
     // If val is raw Rupees (>= 1,000), convert to Lakhs. Otherwise val is already in Lakhs.
     const lakhs = val >= 1000 ? val / 100000 : val;
     const step = customStep ?? 0.25;

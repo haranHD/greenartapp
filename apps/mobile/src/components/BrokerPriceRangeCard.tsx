@@ -23,19 +23,28 @@ export function cleanAddress(str?: string | null): string {
   return unique.join(', ');
 }
 
-function PriceHero({ low, high, location, explanation, displayUnit }: { low: number; high: number; location: string; explanation: string; displayUnit: 'Cent' | 'SqFt' }) {
+function PriceHero({ low, high, location, explanation, displayUnit }: { low: number; high: number; location: string; explanation: string; displayUnit: 'Cent' | 'SqFt' | 'Acre' }) {
   const { width, fontScale } = useWindowDimensions();
   const isSmall = width < 350;
   const compact = isSmall || width / fontScale < 375;
   const rateFontSize = isSmall ? 20 : compact ? 22 : 26;
   const rateLineHeight = isSmall ? 28 : compact ? 30 : 36;
   const money = (value: number) => {
+    if (displayUnit === 'Acre') {
+      if (value >= 10000000) {
+        const cr = value / 10000000;
+        return `₹${cr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0Cr`;
+      }
+      const lakhs = value / 100000;
+      return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
+    }
     if (displayUnit === 'Cent') {
       const lakhs = value >= 100000 ? value / 100000 : value;
       return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
     }
     return `₹${Math.round(value).toLocaleString('en-IN')}`;
   };
+  const unitLabel = displayUnit === 'Cent' ? 'cent' : displayUnit === 'SqFt' ? 'sq\u00a0ft' : 'acre';
   return <ScreenEntrance><View style={[styles.hero, compact && { padding: 16 }]}>
     <View pointerEvents="none" accessible={false} style={styles.art}>
       <View style={styles.halo} />
@@ -44,7 +53,7 @@ function PriceHero({ low, high, location, explanation, displayUnit }: { low: num
     </View>
     <Text style={styles.heroEyebrow}>INDICATIVE MARKET RANGE</Text>
     <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.heroRate, { fontSize: rateFontSize, lineHeight: rateLineHeight }]}>
-      {money(low)} – {money(high)}<Text style={styles.heroUnit}>{' /\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text>
+      {money(low)} – {money(high)}<Text style={styles.heroUnit}>{' /\u00a0'}{unitLabel}</Text>
     </Text>
     <View style={styles.heroLocationRow}><Feather name="map-pin" size={17} color={P.champagne} /><Text style={styles.heroLocation}>{location}</Text></View>
     <View style={styles.heroDivider} />
@@ -53,7 +62,7 @@ function PriceHero({ low, high, location, explanation, displayUnit }: { low: num
 }
 
 export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAccess, displayUnit, area, areaUnit, liveMarketComps }: {
-  latitude: number; longitude: number; landUsage: number; roadAccess: string; displayUnit: 'Cent' | 'SqFt'; area?: number; areaUnit?: string;
+  latitude: number; longitude: number; landUsage: number; roadAccess: string; displayUnit: 'Cent' | 'SqFt' | 'Acre'; area?: number; areaUnit?: string;
   liveMarketComps?: LiveMarketCompsDto | null;
 }) {
   const [range, setRange] = useState<MarketPriceRange | null>(null);
@@ -81,8 +90,10 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
     const highPerCent = liveMarketComps.maxPricePerCentLakhs * 100000;
     const lowSqFt = Math.round(lowPerCent / 435.6);
     const highSqFt = Math.round(highPerCent / 435.6);
-    const low = displayUnit === 'Cent' ? lowPerCent : lowSqFt;
-    const high = displayUnit === 'Cent' ? highPerCent : highSqFt;
+    const lowAcre = Math.round((lowPerCent * 3 / 4) * 100);
+    const highAcre = Math.round((highPerCent * 3 / 4) * 100);
+    const low = displayUnit === 'Cent' ? lowPerCent : displayUnit === 'SqFt' ? lowSqFt : lowAcre;
+    const high = displayUnit === 'Cent' ? highPerCent : displayUnit === 'SqFt' ? highSqFt : highAcre;
     const locationStr = cleanAddress(liveMarketComps.resolvedLocality);
 
     return <PriceHero low={low} high={high} location={locationStr} displayUnit={displayUnit}
@@ -93,8 +104,10 @@ export function BrokerPriceRangeCard({ latitude, longitude, landUsage, roadAcces
   if (error) return <View style={styles.card}><Text style={styles.body}>Pricing is temporarily unavailable.</Text><TouchableOpacity accessibilityRole="button" onPress={() => setRetry(x => x + 1)} style={styles.retryButton}><Text style={styles.retry}>Retry pricing</Text></TouchableOpacity></View>;
   if (!range) return <View style={styles.empty}><Text style={styles.location}>Price unavailable</Text><Text style={styles.body}>A price range is not available for this property yet.</Text></View>;
 
-  const low = displayUnit === 'Cent' ? range.lowPerCent : range.lowPerSqFt;
-  const high = displayUnit === 'Cent' ? range.highPerCent : range.highPerSqFt;
+  const lowAcre = Math.round((range.lowPerCent * 3 / 4) * 100);
+  const highAcre = Math.round((range.highPerCent * 3 / 4) * 100);
+  const low = displayUnit === 'Cent' ? range.lowPerCent : displayUnit === 'SqFt' ? range.lowPerSqFt : lowAcre;
+  const high = displayUnit === 'Cent' ? range.highPerCent : displayUnit === 'SqFt' ? range.highPerSqFt : highAcre;
   const locationStr = cleanAddress(`${range.locality}, ${range.district}`);
 
   return <PriceHero low={low} high={high} location={locationStr} displayUnit={displayUnit}

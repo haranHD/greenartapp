@@ -136,7 +136,7 @@ function GreenartMobileApp() {
   const [activeLocality, setActiveLocality] = useState<string>('Kannampalayam');
   const [activeDistrict, setActiveDistrict] = useState<string>('Coimbatore');
   const [landUsage, setLandUsage] = useState<number>(1);
-  const [displayUnit, setDisplayUnit] = useState<'Cent' | 'SqFt'>('Cent');
+  const [displayUnit, setDisplayUnit] = useState<'Cent' | 'SqFt' | 'Acre'>('Cent');
 
   // Search & Navigation State
   const [showAdvancedCoords, setShowAdvancedCoords] = useState<boolean>(false);

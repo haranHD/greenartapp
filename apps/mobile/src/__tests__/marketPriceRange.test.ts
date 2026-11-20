@@ -65,3 +65,29 @@ test('research matching includes the selected area and unit', async () => {
   };
   await mobileApi.getMarketPriceRange(11.4471, 77.684, 1, 'Road', undefined, 5, 'Cent');
 });
+
+test('acre valuation applies the 3/4 layout factor rule (RatePerCent * 3/4 * 100 = RatePerCent * 75)', async () => {
+  const { convertCentToAcreRate, formatRateForUnit, calculateMarketRateBuffer } = await import('../utils/formatters');
+
+  // Urban/Suburban: ₹10.00 Lakhs / cent -> (10L * 0.75) * 100 = ₹7.50 Crores / acre
+  assert.equal(convertCentToAcreRate(1000000), 75000000);
+  assert.equal(formatRateForUnit(convertCentToAcreRate(1000000), 'Acre'), '₹7.50\u00a0Cr');
+
+  // Rural/Agri: ₹40,000 / cent -> (40k * 0.75) * 100 = ₹30.00 Lakhs / acre
+  assert.equal(convertCentToAcreRate(40000), 3000000);
+  assert.equal(formatRateForUnit(convertCentToAcreRate(40000), 'Acre'), '₹30.00\u00a0L');
+
+  // ₹1.00 Lakh / cent -> (1L * 0.75) * 100 = ₹75.00 Lakhs / acre
+  assert.equal(convertCentToAcreRate(100000), 7500000);
+  assert.equal(formatRateForUnit(convertCentToAcreRate(100000), 'Acre'), '₹75.00\u00a0L');
+
+  // Buffer formatting for Acre in Crores
+  const bufferCr = calculateMarketRateBuffer(75000000, 'Acre');
+  assert(bufferCr.rangeFormatted.includes('Cr'));
+  assert.equal(bufferCr.unit, 'Acre');
+
+  // Buffer formatting for Acre in Lakhs
+  const bufferL = calculateMarketRateBuffer(3000000, 'Acre');
+  assert(bufferL.rangeFormatted.includes('L'));
+  assert.equal(bufferL.unit, 'Acre');
+});

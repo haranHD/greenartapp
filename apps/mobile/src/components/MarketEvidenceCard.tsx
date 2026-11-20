@@ -12,7 +12,7 @@ import { cleanAddress } from './BrokerPriceRangeCard';
 function publicLink(value: string) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; }
 }
-export function MarketEvidenceCard({ data, displayUnit }: { data: LiveMarketCompsDto; displayUnit: 'Cent' | 'SqFt' }) {
+export function MarketEvidenceCard({ data, displayUnit }: { data: LiveMarketCompsDto; displayUnit: 'Cent' | 'SqFt' | 'Acre' }) {
   const { width } = useWindowDimensions();
   const compact = width < 370;
   const { reduced } = useReducedMotion();
@@ -21,16 +21,34 @@ export function MarketEvidenceCard({ data, displayUnit }: { data: LiveMarketComp
   const validRange = Number.isFinite(data.minPricePerCentLakhs) && Number.isFinite(data.maxPricePerCentLakhs) && data.minPricePerCentLakhs > 0 && data.maxPricePerCentLakhs >= data.minPricePerCentLakhs;
   const cent = (n: number) => `₹${n.toFixed(2)}L`;
   const sqft = (n: number) => `₹${Math.round(n * 100000 / 435.6).toLocaleString('en-IN')}`;
+  const acre = (n: number) => {
+    const total = n * 100000 * 0.75 * 100;
+    if (total >= 10000000) return `₹${(total / 10000000).toFixed(2)}Cr`;
+    return `₹${(total / 100000).toFixed(2)}L`;
+  };
   const roads = [...new Set((data.keyLandmarksUsed || []).filter(v => v && !/taluk|sublocality|^locality$|selected pin|neighborhood|administrative_area/i.test(v)))];
   const citations = listing ? (data.citations || []).map(c => ({ ...c, link: publicLink(c.url) })).filter(c => c.link) : [];
+  const priceDisplay = displayUnit === 'Cent'
+    ? `${cent(data.minPricePerCentLakhs)} – ${cent(data.maxPricePerCentLakhs)}`
+    : displayUnit === 'SqFt'
+    ? `${sqft(data.minPricePerCentLakhs)} – ${sqft(data.maxPricePerCentLakhs)}`
+    : `${acre(data.minPricePerCentLakhs)} – ${acre(data.maxPricePerCentLakhs)}`;
+  const unitLabel = displayUnit === 'Cent' ? 'cent' : displayUnit === 'SqFt' ? 'sq\u00a0ft' : 'acre';
+  const conversionDisplay = displayUnit === 'Cent'
+    ? `${sqft(data.minPricePerCentLakhs)} – ${sqft(data.maxPricePerCentLakhs)} / sq ft`
+    : displayUnit === 'SqFt'
+    ? `${cent(data.minPricePerCentLakhs)} – ${cent(data.maxPricePerCentLakhs)} / cent`
+    : `${cent(data.minPricePerCentLakhs)} – ${cent(data.maxPricePerCentLakhs)} / cent (retail)`;
+  const helperUnit = displayUnit === 'Acre' ? '1 acre = 100 cents (with 75% bulk layout factor applied)' : '1 cent = 435.6 sq ft';
+
   return <ScreenEntrance><View style={[s.card, compact && { padding: 16 }]}>
     <View style={s.header}><View style={s.headingGroup}><Feather name="layers" size={18} color="#047857" /><Text style={s.heading}>Market Evidence</Text></View>
       <View style={s.badge}><View style={s.dot} /><Text style={s.badgeText}>{listing ? 'Listing-based' : 'Benchmark'}</Text></View></View>
     {!!data.microMarketTier && <View style={s.tier}><Text style={s.tierText}>{data.microMarketTier}</Text></View>}
     {validRange && <View style={s.panel}><Text style={s.panelLabel}>{listing ? 'Observed asking-price range' : 'Indicative benchmark range'}</Text>
-      <Text style={s.price}>{displayUnit === 'Cent' ? `${cent(data.minPricePerCentLakhs)} – ${cent(data.maxPricePerCentLakhs)}` : `${sqft(data.minPricePerCentLakhs)} – ${sqft(data.maxPricePerCentLakhs)}`}<Text style={s.unit}> {'/\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text></Text>
-      <Text style={s.conversion}>{displayUnit === 'Cent' ? `${sqft(data.minPricePerCentLakhs)} – ${sqft(data.maxPricePerCentLakhs)} / sq ft` : `${cent(data.minPricePerCentLakhs)} – ${cent(data.maxPricePerCentLakhs)} / cent`}</Text>
-      <Text style={s.helper}>1 cent = 435.6 sq ft</Text></View>}
+      <Text style={s.price}>{priceDisplay}<Text style={s.unit}> {'/\u00a0'}{unitLabel}</Text></Text>
+      <Text style={s.conversion}>{conversionDisplay}</Text>
+      <Text style={s.helper}>{helperUnit}</Text></View>}
     {!!data.resolvedLocality && <View style={s.location}><Feather name="map-pin" size={16} color="#047857" /><Text style={s.locationText}>{cleanAddress(data.resolvedLocality)}</Text></View>}
     {roads.length > 0 && <View style={s.chips}>{roads.map(road => <View key={road} style={s.chip}><Text style={s.chipText}>{road}</Text></View>)}</View>}
     {!!data.sourceSummary && <View style={s.summary}><Text style={s.body}>{data.sourceSummary}</Text></View>}
