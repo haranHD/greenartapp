@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { DocumentVaultView } from '../components/DocumentVaultView';
@@ -146,10 +147,14 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
     })
     : 'Not available';
 
+  const { width, fontScale } = useWindowDimensions();
+  const isCompact = width < 370;
+  const isStackedSegments = isCompact || width / fontScale < 400;
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: P.background }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, isCompact && { paddingHorizontal: 14, paddingTop: 14 }, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       nestedScrollEnabled={true}
     >
@@ -158,7 +163,7 @@ export const ClientPortalScreen: React.FC<ClientPortalScreenProps> = ({
         <Text style={styles.viewTitle}>Account & Settings</Text>
       </View>
 
-      <View style={styles.accountSegments}>
+      <View style={[styles.accountSegments, isStackedSegments && { flexDirection: 'column', gap: 6 }]}>
         <PremiumChoice variant="segment" label="Account Details" selected={profileViewMode === 'overview'} onPress={() => setProfileViewMode('overview')} />
         <PremiumChoice variant="segment" label={`Title Vault (${vaultDocuments.length})`} selected={profileViewMode === 'vault'} onPress={() => setProfileViewMode('vault')} />
         <PremiumChoice variant="segment" label={`My Enquiries (${submittedEnquiries.length})`} selected={profileViewMode === 'enquiries'} onPress={() => setProfileViewMode('enquiries')} />

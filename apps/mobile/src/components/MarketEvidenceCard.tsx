@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Linking } from 'react-native';
+import { View, StyleSheet, Linking, useWindowDimensions } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { AppText as Text } from './AppText';
 import { PremiumPressable } from './PremiumPressable';
@@ -13,6 +13,8 @@ function publicLink(value: string) {
   try { const url = new URL(value); return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; }
 }
 export function MarketEvidenceCard({ data, displayUnit }: { data: LiveMarketCompsDto; displayUnit: 'Cent' | 'SqFt' }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 370;
   const { reduced } = useReducedMotion();
   const [linkError, setLinkError] = useState('');
   const listing = data.isLiveSearchGrounded === true;
@@ -21,7 +23,7 @@ export function MarketEvidenceCard({ data, displayUnit }: { data: LiveMarketComp
   const sqft = (n: number) => `₹${Math.round(n * 100000 / 435.6).toLocaleString('en-IN')}`;
   const roads = [...new Set((data.keyLandmarksUsed || []).filter(v => v && !/taluk|sublocality|^locality$|selected pin|neighborhood|administrative_area/i.test(v)))];
   const citations = listing ? (data.citations || []).map(c => ({ ...c, link: publicLink(c.url) })).filter(c => c.link) : [];
-  return <ScreenEntrance><View style={s.card}>
+  return <ScreenEntrance><View style={[s.card, compact && { padding: 16 }]}>
     <View style={s.header}><View style={s.headingGroup}><Feather name="layers" size={18} color="#047857" /><Text style={s.heading}>Market Evidence</Text></View>
       <View style={s.badge}><View style={s.dot} /><Text style={s.badgeText}>{listing ? 'Listing-based' : 'Benchmark'}</Text></View></View>
     {!!data.microMarketTier && <View style={s.tier}><Text style={s.tierText}>{data.microMarketTier}</Text></View>}

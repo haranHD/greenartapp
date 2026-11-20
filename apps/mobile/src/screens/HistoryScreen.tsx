@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { formatLakhs } from '../utils/formatters';
 import { MobileTab, EstimateStep, ValuationHistoryItem } from '../types';
@@ -34,10 +35,13 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   setActiveTab,
   setEstimateStep,
 }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
+
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, { paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 14 : 20, paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       nestedScrollEnabled={true}
     >
@@ -58,7 +62,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           </View>
 
           {valuationHistory.map((item) => (
-            <View key={item.id} style={styles.historyCard}>
+            <View key={item.id} style={[styles.historyCard, isCompact && { padding: 14 }]}>
               <View style={styles.historyCardTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.historyLocalityName}>{item.locality}</Text>

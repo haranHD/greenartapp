@@ -103,13 +103,14 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
   const scrollRef = useRef<any>(null);
   const { reduced } = useReducedMotion();
   const { width, fontScale } = useWindowDimensions();
+  const isCompact = width < 370;
   const stackLocationHeader = width / fontScale < 640 || activeLocality.length > 32;
   const [showEvidenceDetails, setShowEvidenceDetails] = React.useState(false);
   React.useEffect(() => setShowEvidenceDetails(false), [estimate]);
   return (
     <ScrollView ref={scrollRef}
       style={{ flex: 1, backgroundColor: P.background }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, isCompact && { paddingHorizontal: 14, paddingTop: 14 }, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -122,7 +123,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
 
         {/* STEP 1: SELECTION */}
         {estimateStep === 'selection' && (
-          <View style={styles.card}>
+          <View style={[styles.card, isCompact && { padding: 14 }]}>
             {/* Target Location Header */}
             <View style={[styles.cardHeaderRow, stackLocationHeader && styles.locationHeaderStacked]}>
               <View style={[styles.locationSummary, stackLocationHeader && styles.locationSummaryStacked]}>

@@ -71,8 +71,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const [searchFocused, setSearchFocused] = React.useState(false);
   const { width, fontScale } = useWindowDimensions();
-  const wide = width >= 820;
-  const stacked = width / fontScale < 420;
+  const wide = width >= 768;
+  const isCompact = width < 370;
+  const stacked = isCompact || width / fontScale < 380;
   const { reduced: reducedMotion, ready } = useReducedMotion();
   const entrance = useRef(new Animated.Value(1)).current;
   const focus = useRef(new Animated.Value(0)).current;
@@ -91,17 +92,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: Premium.background }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, { paddingHorizontal: isCompact ? 14 : 20, paddingTop: isCompact ? 14 : 20, paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
     >
-      <Animated.View style={{ gap: 16, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
+      <Animated.View style={{ gap: isCompact ? 14 : 16, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
       <View style={[styles.heroSearchLayout, wide && styles.heroSearchLayoutWide]}>
-      <PropertyHero wide={wide} compact={width < 360} />
+      <PropertyHero wide={wide} compact={isCompact} />
 
       {/* Primary Location-Search Card */}
-      <View style={[styles.primarySearchCard, wide && { flex: 1, justifyContent: 'center' }]}>
+      <View style={[styles.primarySearchCard, isCompact && { padding: 14 }, wide && { flex: 1, justifyContent: 'center' }]}>
         <View style={styles.searchHeading}><Feather accessible={false} name="map-pin" size={19} color={Premium.purple} /><Text style={styles.searchCardTitle}>Find a property</Text></View>
         <Text style={styles.searchCardSub}>
           Choose the property location you want to research.
@@ -238,11 +239,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </View>
       <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Research tools</Text><Text style={styles.sectionCaption}>Choose the information you need</Text></View>
       {/* Quick Access Shortcuts */}
-      <View style={[styles.quickAccessRow, fontScale > 1.35 && styles.toolsStacked]}>
+      <View style={[styles.quickAccessRow, (isCompact || fontScale > 1.35) && styles.toolsGrid]}>
         <PremiumPressable
           reducedMotion={reducedMotion}
           highlight
-          containerStyle={styles.toolContainer}
+          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setActiveTab('estimate');
@@ -252,14 +253,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
             <FeatureIcon kind="valuation" />
           </View>
-          <Text style={styles.quickAccessTitle}>Valuation</Text>
-          <Text style={styles.quickAccessSub}>Market Rates</Text>
+          <Text numberOfLines={1} style={styles.quickAccessTitle}>Valuation</Text>
+          <Text numberOfLines={1} style={styles.quickAccessSub}>Market Rates</Text>
         </PremiumPressable>
 
         <PremiumPressable
           reducedMotion={reducedMotion}
           highlight
-          containerStyle={styles.toolContainer}
+          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
@@ -269,14 +270,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
             <FeatureIcon kind="nearby" />
           </View>
-          <Text style={styles.quickAccessTitle}>Nearby</Text>
-          <Text style={styles.quickAccessSub}>Comparables</Text>
+          <Text numberOfLines={1} style={styles.quickAccessTitle}>Nearby</Text>
+          <Text numberOfLines={1} style={styles.quickAccessSub}>Comparables</Text>
         </PremiumPressable>
 
         <PremiumPressable
           reducedMotion={reducedMotion}
           highlight
-          containerStyle={styles.toolContainer}
+          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
           style={styles.quickAccessCard}
           onPress={() => {
             setPreviousTab('home');
@@ -286,8 +287,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
             <FeatureIcon kind="guideline" />
           </View>
-          <Text style={styles.quickAccessTitle}>Guideline</Text>
-          <Text style={styles.quickAccessSub}>Statutory</Text>
+          <Text numberOfLines={1} style={styles.quickAccessTitle}>Guideline</Text>
+          <Text numberOfLines={1} style={styles.quickAccessSub}>Statutory</Text>
         </PremiumPressable>
       </View>
       <View style={styles.evidenceNote}>
@@ -337,7 +338,9 @@ const styles = StyleSheet.create({
   sectionCaption: { fontSize: 13, lineHeight: 20, color: Premium.secondary },
   quickAccessRow: { flexDirection: 'row', gap: 10 },
   toolsStacked: { flexDirection: 'column' },
+  toolsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   toolContainer: { flex: 1, minWidth: 0 },
+  toolContainerGrid: { width: '48%', flexGrow: 1, minWidth: 100 },
   quickAccessCard: { minHeight: 96, flexGrow: 1, justifyContent: 'center', backgroundColor: Premium.surface, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center', borderWidth: 1, borderColor: Premium.border, shadowColor: Premium.violet, shadowOffset: { width: 0, height: 2 }, shadowOpacity: .035, shadowRadius: 8, elevation: 1 },
   quickIconCircle: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   quickAccessTitle: { fontSize: 13, lineHeight: 19, fontWeight: '700', color: Premium.text, textAlign: 'center', maxWidth: '100%' },

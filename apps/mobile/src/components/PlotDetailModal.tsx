@@ -400,13 +400,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
-    maxWidth: 220,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 8,
   },
   placeholderRight: {
     width: 60,
   },
   scrollContent: {
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
   },
   galleryContainer: {
     backgroundColor: '#0F172A',
@@ -444,6 +449,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E9D5FF',
+    alignSelf: 'center',
+    width: '94%',
+    maxWidth: 736,
   },
   badgeRow: {
     flexDirection: 'row',

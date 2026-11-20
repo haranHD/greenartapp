@@ -10,7 +10,7 @@ const tones = Array.from({ length: 30 }, (_, index) => {
   return `rgb(${Math.round(36 + 24 * t)},${Math.round(9 * t)},${Math.round(70 + 38 * t)})`;
 });
 export function PropertyHero({ wide, compact }: { wide: boolean; compact: boolean }) {
-  return <View style={[styles.card, wide && styles.wide]}>
+  return <View style={[styles.card, compact && { padding: 16 }, wide && styles.wide]}>
     <View pointerEvents="none" accessible={false} style={styles.decoration}>
       {tones.map((backgroundColor, i) => <View key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: `${i * 100 / tones.length}%`, width: '3.5%', backgroundColor }} />)}
       <Image accessible={false} source={require('../../assets/property-hero-v1.jpg')} style={styles.propertyImage} resizeMode="cover" />
@@ -20,7 +20,7 @@ export function PropertyHero({ wide, compact }: { wide: boolean; compact: boolea
     <View style={styles.content}>
       <View style={styles.eyebrowRow}><View style={styles.eyebrowLine} /><Text style={styles.eyebrow}>PROPERTY INTELLIGENCE</Text></View>
       <Text style={[styles.heading, wide && styles.headingWide, compact && styles.headingCompact]}>Understand the value.{'\n'}<Text style={styles.accent}>Know the evidence.</Text></Text>
-      <Text style={styles.description}>Look up a location, compare local prices, and review the supporting records.</Text>
+      <Text style={[styles.description, compact && { maxWidth: '88%' }]}>Look up a location, compare local prices, and review the supporting records.</Text>
     </View>
   </View>;
 }
@@ -37,7 +37,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: Premium.champagne, fontSize: 10, lineHeight: 16, fontWeight: '700', letterSpacing: .9, flexShrink: 1 },
   heading: { fontFamily: Fonts.editorial, fontSize: 28, lineHeight: 35, textShadowColor: 'rgba(22,0,38,.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3, fontWeight: '600', color: '#FFFFFF', letterSpacing: -.3 },
   headingWide: { fontSize: 30, lineHeight: 39 },
-  headingCompact: { fontSize: 26, lineHeight: 34 },
+  headingCompact: { fontSize: 24, lineHeight: 31 },
   accent: { color: Premium.champagne },
   description: { color: '#E6DDED', fontSize: 13, lineHeight: 20, maxWidth: '73%' },
 });

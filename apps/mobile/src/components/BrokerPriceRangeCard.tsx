@@ -25,16 +25,19 @@ export function cleanAddress(str?: string | null): string {
 
 function PriceHero({ low, high, location, explanation, displayUnit }: { low: number; high: number; location: string; explanation: string; displayUnit: 'Cent' | 'SqFt' }) {
   const { width, fontScale } = useWindowDimensions();
-  const compact = width / fontScale < 370;
+  const isSmall = width < 350;
+  const compact = isSmall || width / fontScale < 375;
+  const rateFontSize = isSmall ? 23 : compact ? 26 : 32;
+  const rateLineHeight = isSmall ? 32 : compact ? 36 : 45;
   const money = (value: number) => displayUnit === 'Cent' ? formatLakhs(value) : `₹${Math.round(value).toLocaleString('en-IN')}`;
-  return <ScreenEntrance><View style={styles.hero}>
+  return <ScreenEntrance><View style={[styles.hero, compact && { padding: 16 }]}>
     <View pointerEvents="none" accessible={false} style={styles.art}>
       <View style={styles.halo} />
       <View style={[styles.building, { right: 18, height: 55 }]} /><View style={[styles.building, { right: 43, height: 80 }]} /><View style={[styles.building, { right: 68, height: 43 }]} />
       <View style={styles.goldCurve} />
     </View>
     <Text style={styles.heroEyebrow}>INDICATIVE MARKET RANGE</Text>
-    <Text style={[styles.heroRate, compact && { fontSize: 27, lineHeight: 39 }]}>{money(low)} – {money(high)}<Text style={styles.heroUnit}> {'/\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text></Text>
+    <Text style={[styles.heroRate, { fontSize: rateFontSize, lineHeight: rateLineHeight }]}>{money(low)} – {money(high)}<Text style={styles.heroUnit}> {'/\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text></Text>
     <View style={styles.heroLocationRow}><Feather name="map-pin" size={17} color={P.champagne} /><Text style={styles.heroLocation}>{location}</Text></View>
     <View style={styles.heroDivider} />
     <Text style={styles.heroBody}>{explanation}</Text>

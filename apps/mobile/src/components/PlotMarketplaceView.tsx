@@ -17,6 +17,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { MarketplaceListing, LandUsageType } from '@greenart/shared-types';
 
@@ -32,6 +33,8 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
   onRequestValuationForLocality,
 }) => {
   const { reduced } = useReducedMotion();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedDistrict, setSelectedDistrict] = useState<string>('All');
@@ -81,7 +84,7 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, isCompact && { paddingHorizontal: 14, paddingTop: 16 }]} keyboardShouldPersistTaps="handled">
       <ScreenEntrance>
       {/* Top Marketplace Header */}
       <View style={styles.headerBox}>

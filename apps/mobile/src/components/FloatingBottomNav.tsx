@@ -1,6 +1,6 @@
 import { AppText as Text } from './AppText';
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Keyboard, Platform, View, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import Feather from '@expo/vector-icons/Feather';
 import { Typography } from '../theme/typography';
 import { Colors } from '../theme/colors';
@@ -25,7 +25,7 @@ const gradientBands = Array.from({ length: 24 }, (_, index) => {
   return { top: `${index * 100 / 24}%`, height: '4.3%', color: `rgb(${Math.round(22 + 14 * amount)},0,${Math.round(38 + 32 * amount)})` };
 });
 
-function NavButton({ tab, active, reducedMotion, onSelect }: { tab: NavItem; active: boolean; reducedMotion: boolean; onSelect: (tab: MobileTab) => void }) {
+function NavButton({ tab, active, reducedMotion, isCompact, onSelect }: { tab: NavItem; active: boolean; reducedMotion: boolean; isCompact: boolean; onSelect: (tab: MobileTab) => void }) {
   const progress = useRef(new Animated.Value(active ? 1 : 0)).current;
   const pressScale = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -39,17 +39,21 @@ function NavButton({ tab, active, reducedMotion, onSelect }: { tab: NavItem; act
     if (reducedMotion) { pressScale.setValue(1); return; }
     Animated.timing(pressScale, { toValue: pressed ? .97 : 1, duration: 100, useNativeDriver: false }).start();
   };
+  const iconSize = isCompact ? 19 : 22;
+  const labelStyle = isCompact ? [styles.label, { fontSize: 9, letterSpacing: -0.2 }] : styles.label;
+  const activeLabelStyle = isCompact ? [styles.activeLabel, { fontSize: 9, letterSpacing: -0.2 }] : styles.activeLabel;
+
   return <TouchableOpacity {...(Platform.OS === 'web' ? { 'aria-current': active ? 'page' : undefined } : {})} accessibilityRole="button" accessibilityLabel={tab.accessibility} accessibilityState={{ selected: active }}
-    onPress={() => onSelect(tab.id)} onPressIn={() => press(true)} onPressOut={() => press(false)} activeOpacity={.9} style={styles.touchTarget}>
-    <Animated.View pointerEvents="none" style={[styles.item, { transform: [{ scale: pressScale }] }]}>
+    onPress={() => onSelect(tab.id)} onPressIn={() => press(true)} onPressOut={() => press(false)} activeOpacity={.9} style={[styles.touchTarget, isCompact && { marginHorizontal: 1, minHeight: 48 }]}>
+    <Animated.View pointerEvents="none" style={[styles.item, isCompact && { minHeight: 48, gap: 3 }, { transform: [{ scale: pressScale }] }]}>
       <Animated.View style={[styles.activeBackground, { opacity: progress }]} />
-      <Animated.View style={[styles.icon, { transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }] }]}>
-        <Feather accessible={false} name={tab.icon} size={22} color={palette.muted} />
-        <Animated.View style={[styles.iconOverlay, { opacity: progress }]}><Feather accessible={false} name={tab.icon} size={22} color={palette.active} /></Animated.View>
+      <Animated.View style={[styles.icon, isCompact && { width: 20, height: 20 }, { transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) }] }]}>
+        <Feather accessible={false} name={tab.icon} size={iconSize} color={palette.muted} />
+        <Animated.View style={[styles.iconOverlay, { opacity: progress }]}><Feather accessible={false} name={tab.icon} size={iconSize} color={palette.active} /></Animated.View>
       </Animated.View>
       <View style={styles.labelBox}>
-        <Text style={styles.label}>{tab.label}</Text>
-        <Animated.Text style={[styles.activeLabel, { opacity: progress }]}>{tab.label}</Animated.Text>
+        <Text numberOfLines={1} style={labelStyle}>{tab.label}</Text>
+        <Animated.Text numberOfLines={1} style={[activeLabelStyle, { opacity: progress }]}>{tab.label}</Animated.Text>
       </View>
     </Animated.View>
   </TouchableOpacity>;
@@ -57,6 +61,10 @@ function NavButton({ tab, active, reducedMotion, onSelect }: { tab: NavItem; act
 
 export function FloatingBottomNav({ activeTab, onSelectTab, bottomInset }: FloatingBottomNavProps) {
   const selected = ['search', 'records', 'guideline'].includes(activeTab) ? 'estimate' : activeTab === 'history' ? 'profile' : activeTab;
+  const { width, fontScale } = useWindowDimensions();
+  const isCompact = width < 365 || width / fontScale < 370;
+  const isTablet = width >= 768;
+
   // Start without motion until the platform's accessibility preference has been read.
   const [reducedMotion, setReducedMotion] = useState(true);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -75,12 +83,14 @@ export function FloatingBottomNav({ activeTab, onSelectTab, bottomInset }: Float
     return () => { current = false; motion.remove(); show.remove(); hide.remove(); };
   }, []);
   if (keyboardVisible) return null;
+  const barHeight = isCompact ? 64 : BAR_HEIGHT;
+
   return <View {...(Platform.OS === 'web' ? { role: 'navigation', 'aria-label': 'Main navigation' } : {})} pointerEvents="box-none" style={[styles.wrapper, { bottom: Math.max(bottomInset, 12) }]}>
-    <View style={styles.shadowFrame}>
-      <View style={styles.bar}>
+    <View style={[styles.shadowFrame, isTablet && { maxWidth: 560 }]}>
+      <View style={[styles.bar, { height: barHeight }, isCompact && { paddingHorizontal: 4 }]}>
         <View pointerEvents="none" style={styles.gradient}>{gradientBands.map((band, index) => <View key={index} style={{ position: 'absolute', left: 0, right: 0, top: band.top, height: band.height, backgroundColor: band.color }} />)}</View>
         <View pointerEvents="none" style={styles.topReflection} />
-        {tabs.map(tab => <NavButton key={tab.id} tab={tab} active={selected === tab.id} reducedMotion={reducedMotion} onSelect={onSelectTab} />)}
+        {tabs.map(tab => <NavButton key={tab.id} tab={tab} active={selected === tab.id} reducedMotion={reducedMotion} isCompact={isCompact} onSelect={onSelectTab} />)}
       </View>
     </View>
   </View>;

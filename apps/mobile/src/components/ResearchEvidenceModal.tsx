@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Linking, Modal, ScrollView, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Modal, ScrollView, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { AppText as Text } from './AppText';
 import { mobileApi, PublicResearchEvidence } from '../services/api';
 import { Premium as P } from '../theme/premium';
 import { ScreenUI } from '../theme/screenUI';
 export function ResearchEvidenceModal({ researchId, onClose }: { researchId: string; onClose: () => void }) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
+  const isTablet = width >= 768;
   const [data, setData] = useState<PublicResearchEvidence | null>(null);
   const [error, setError] = useState('');
   useEffect(() => { const controller = new AbortController(); let active = true;
@@ -14,8 +17,8 @@ export function ResearchEvidenceModal({ researchId, onClose }: { researchId: str
   const openSource = (url: string) => { if (!/^https:\/\//i.test(url)) return;
     void Linking.openURL(url).catch(() => setError('Could not open this source.')); };
   return <Modal transparent animationType="slide" visible onRequestClose={onClose}>
-    <View style={{ flex: 1, backgroundColor: 'rgba(22,0,38,.5)', justifyContent: 'flex-end' }}>
-      <View style={{ backgroundColor: P.background, maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20 }}>
+    <View style={{ flex: 1, backgroundColor: 'rgba(22,0,38,.5)', justifyContent: isTablet ? 'center' : 'flex-end', alignItems: isTablet ? 'center' : undefined, padding: isTablet ? 24 : 0 }}>
+      <View style={{ backgroundColor: P.background, maxHeight: '90%', maxWidth: isTablet ? 640 : undefined, width: isTablet ? '100%' : undefined, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: isTablet ? 22 : 0, borderBottomRightRadius: isTablet ? 22 : 0, padding: isCompact ? 16 : 20 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
           <Text style={{ fontSize: 20, lineHeight: 28, fontWeight: '700', flex: 1 }}>Asking-price evidence</Text>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close research evidence" onPress={onClose} style={ScreenUI.secondary}><Text style={ScreenUI.secondaryText}>Close</Text></TouchableOpacity>

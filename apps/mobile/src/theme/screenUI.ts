@@ -1,12 +1,12 @@
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { Typography } from './typography';
 import { Premium as P } from './premium';
 
 /** Shared presentation primitives for the remaining customer screens. */
 export const ScreenUI = {
   canvas: { flex: 1, backgroundColor: P.background },
-  content: { width: '100%', maxWidth: 960, alignSelf: 'center', padding: 20, gap: 18 },
-  card: { backgroundColor: P.surface, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: P.border, shadowColor: P.violet, shadowOffset: { width: 0, height: 3 }, shadowOpacity: .04, shadowRadius: 10, elevation: 1 },
+  content: { width: '100%', maxWidth: 960, alignSelf: 'center', padding: 18, gap: 16 },
+  card: { backgroundColor: P.surface, padding: 18, borderRadius: 16, borderWidth: 1, borderColor: P.border, shadowColor: P.violet, shadowOffset: { width: 0, height: 3 }, shadowOpacity: .04, shadowRadius: 10, elevation: 1 },
   heading: { ...Typography.page, color: P.text, letterSpacing: -.5 },
   subtitle: { color: P.secondary, fontSize: 13, lineHeight: 21 },
   eyebrow: { color: '#82601B', fontSize: 10, lineHeight: 16, letterSpacing: .8, fontWeight: '700' },
@@ -26,6 +26,34 @@ export const ScreenUI = {
   segmentText: { color: P.secondary, fontSize: 12, lineHeight: 19, fontWeight: '600', textAlign: 'center' },
   segmentTextActive: { color: P.violet, fontWeight: '700' },
 } as const;
+
+/** Hook for responsive screen metrics and fluid spacing across phone, foldable & tablet. */
+export function useResponsiveLayout() {
+  const { width, height, fontScale } = useWindowDimensions();
+  const isCompact = width < 370;
+  const isMedium = width >= 370 && width < 768;
+  const isTablet = width >= 768;
+  const isWide = width >= 1024;
+  const isStacked = width / fontScale < 380;
+
+  const horizontalPadding = isCompact ? 14 : isTablet ? 24 : 18;
+  const cardPadding = isCompact ? 14 : isTablet ? 22 : 18;
+  const contentGap = isCompact ? 12 : isTablet ? 20 : 16;
+
+  return {
+    width,
+    height,
+    fontScale,
+    isCompact,
+    isMedium,
+    isTablet,
+    isWide,
+    isStacked,
+    horizontalPadding,
+    cardPadding,
+    contentGap,
+  };
+}
 
 /** Compose existing layout-specific styles with the common presentation primitives. */
 export function withScreenStyles<T extends Record<string, object>>(base: T, overrides: Partial<Record<keyof T, object>>): T {

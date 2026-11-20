@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { MobileTab, LocalityReference } from '../types';
 
@@ -24,10 +25,13 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
   localities,
   loadingLocalities,
 }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
+
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, isCompact && { paddingHorizontal: 14, paddingTop: 14 }, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -43,7 +47,7 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
       </TouchableOpacity>
 
       {/* Statutory Guideline Overview */}
-      <View style={styles.card}>
+      <View style={[styles.card, isCompact && { padding: 14 }]}>
         <Text style={styles.cardTitle}>Statutory Guideline Rates</Text>
         <Text style={styles.cardSubtitle}>
           Official minimum valuation benchmarks from the Tamil Nadu Registration Department (TNREGINET) for stamp duty calculation.
@@ -74,7 +78,7 @@ export const GuidelineSubScreen: React.FC<GuidelineSubScreenProps> = ({
       </View>
 
       {/* How the Valuation Engine Works */}
-      <View style={styles.sectionCard}>
+      <View style={[styles.sectionCard, isCompact && { padding: 14 }]}>
         <Text style={styles.sectionHeaderTitle}>How the Valuation Engine Works</Text>
         <Text style={styles.sectionHeaderDesc}>
           Objective statistical principles governing evidence-based property rate calculations:

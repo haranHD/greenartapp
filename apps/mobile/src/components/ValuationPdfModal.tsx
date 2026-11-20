@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { ValuationPdfReport } from '@greenart/shared-types';
 import { calculateMarketRateBuffer } from '../utils/formatters';
@@ -22,6 +23,8 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
   visible,
   onClose,
 }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
   if (!report) return null;
 
   const handlePrintOrDownload = () => {
@@ -50,15 +53,15 @@ export const ValuationPdfModal: React.FC<ValuationPdfModalProps> = ({
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
             <Text style={styles.closeBtnText}>✕ Close</Text>
           </TouchableOpacity>
-          <Text style={styles.barTitle}>Institutional Valuation Report</Text>
+          <Text numberOfLines={1} style={[styles.barTitle, isCompact && { fontSize: 11, flex: 1, marginHorizontal: 6, textAlign: 'center' }]}>Institutional Valuation Report</Text>
           <TouchableOpacity onPress={handlePrintOrDownload} style={styles.printBtn} activeOpacity={0.8}>
-            <Text style={styles.printBtnText}>Download / Print PDF</Text>
+            <Text style={styles.printBtnText}>{isCompact ? 'Print PDF' : 'Download / Print PDF'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Printable Certificate Sheet */}
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.paperSheet}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, isCompact && { padding: 10 }]}>
+          <View style={[styles.paperSheet, isCompact && { padding: 14 }]}>
             {/* Certificate Header */}
             <View style={styles.certHeader}>
               <View>

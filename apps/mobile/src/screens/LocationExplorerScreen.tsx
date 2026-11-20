@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { LocalitySearchError } from '../components/LocalitySearchError';
 import { Colors } from '../theme/colors';
@@ -94,14 +95,17 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
   addressLocateStatus = null,
 }) => {
   const { reduced } = useReducedMotion();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
+  const isTablet = width >= 768;
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [isMapExpanded, setIsMapExpanded] = React.useState(false);
-  const mapHeight = isMapExpanded ? 540 : 420;
+  const mapHeight = isCompact ? (isMapExpanded ? 460 : 340) : isTablet ? (isMapExpanded ? 640 : 480) : (isMapExpanded ? 540 : 420);
 
   return (
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset, flexGrow: 1 }]}
+      contentContainerStyle={[styles.scrollBody, isCompact && { paddingHorizontal: 14, paddingTop: 14 }, { paddingBottom: 24 + bottomInset, flexGrow: 1 }]}
       showsVerticalScrollIndicator={true}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}

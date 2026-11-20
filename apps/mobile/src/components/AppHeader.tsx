@@ -8,7 +8,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, o
   const { width, fontScale } = useWindowDimensions();
   const compact = width / fontScale < 380;
   const status = isHealthy ? 'Service online' : healthStatus === 'Degraded' ? 'Limited service' : healthStatus ? 'Service unavailable' : 'Connecting';
-  return <View style={styles.header}><View style={styles.inner}>
+  return <View style={[styles.header, compact && { paddingHorizontal: 14 }]}><View style={styles.inner}>
     <Text style={styles.title}>Property insights</Text>
     <View style={styles.controls}>
       <View accessibilityLabel={status} style={styles.status}><View style={[styles.dot, { backgroundColor: isHealthy ? '#34805A' : '#94733A' }]} />{!compact && <Text style={styles.statusText}>{status}</Text>}</View>

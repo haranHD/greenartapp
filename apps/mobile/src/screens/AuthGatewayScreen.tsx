@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Platform,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { authService } from '../services/auth';
@@ -32,6 +33,8 @@ let persistentTempToken = '';
 export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
   onSuccess,
 }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
   const [authMode, setAuthModeState] = useState<AuthMode>(persistentAuthMode);
 
   const setAuthMode = (mode: AuthMode) => {
@@ -257,7 +260,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, isCompact && { paddingHorizontal: 14 }]}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.heroSection}>
@@ -267,7 +270,7 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
       </View>
 
       {/* Main Authentication Card */}
-      <View style={styles.authCard}>
+      <View style={[styles.authCard, isCompact && { padding: 18 }]}>
         {/* Mode Switcher Tabs */}
         <View style={styles.tabSwitcher}>
           <TouchableOpacity

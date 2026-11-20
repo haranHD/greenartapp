@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { MobileTab, NearbyLandRecordDto } from '../types';
 
@@ -46,10 +47,13 @@ export const NearbyRecordsSubScreen: React.FC<NearbyRecordsSubScreenProps> = ({
   nearbyError,
   fetchNearbyRecords,
 }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 370;
+
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.scrollBody, { paddingBottom: 24 + bottomInset }]}
+      contentContainerStyle={[styles.scrollBody, isCompact && { paddingHorizontal: 14, paddingTop: 14 }, { paddingBottom: 24 + bottomInset }]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled={true}
@@ -65,7 +69,7 @@ export const NearbyRecordsSubScreen: React.FC<NearbyRecordsSubScreenProps> = ({
       </TouchableOpacity>
 
       {/* Header & Scope Filter */}
-      <View style={styles.card}>
+      <View style={[styles.card, isCompact && { padding: 14 }]}>
         <View style={styles.cardHeaderRow}>
           <View>
             <Text style={styles.cardTitle}>Nearby Records</Text>
