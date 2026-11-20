@@ -90,4 +90,20 @@ test('acre valuation applies the 3/4 layout factor rule (RatePerCent * 3/4 * 100
   const bufferL = calculateMarketRateBuffer(3000000, 'Acre');
   assert(bufferL.rangeFormatted.includes('L'));
   assert.equal(bufferL.unit, 'Acre');
+
+  // Verify multi-unit price formatting for hero card: Cent, SqFt, and Acre
+  const minCentRupees = 1400000; // 14 Lakhs
+  const maxCentRupees = 1800000; // 18 Lakhs
+  assert.equal(formatRateForUnit(minCentRupees, 'Cent'), '₹14.00\u00a0L');
+  assert.equal(formatRateForUnit(maxCentRupees, 'Cent'), '₹18.00\u00a0L');
+
+  const minSqFt = Math.round(minCentRupees / 435.6);
+  const maxSqFt = Math.round(maxCentRupees / 435.6);
+  assert.equal(formatRateForUnit(minSqFt, 'SqFt'), '₹3,214');
+  assert.equal(formatRateForUnit(maxSqFt, 'SqFt'), '₹4,132');
+
+  const minAcre = convertCentToAcreRate(minCentRupees); // 1.05 Cr
+  const maxAcre = convertCentToAcreRate(maxCentRupees); // 1.35 Cr
+  assert.equal(formatRateForUnit(minAcre, 'Acre'), '₹10.50\u00a0Cr');
+  assert.equal(formatRateForUnit(maxAcre, 'Acre'), '₹13.50\u00a0Cr');
 });

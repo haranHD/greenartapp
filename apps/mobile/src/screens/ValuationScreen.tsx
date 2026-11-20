@@ -192,18 +192,6 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
               })}
             </View>
 
-            <View style={styles.cardDivider} />
-
-            {/* Unit Toggle */}
-            <View style={styles.unitToggleRow}>
-              <Text style={styles.unitToggleLabel}>Display Benchmark In:</Text>
-              <View style={styles.unitPillBox}>
-                <PremiumChoice variant="segment" label="Per Cent" selected={displayUnit === 'Cent'} onPress={() => setDisplayUnit('Cent')} />
-                <PremiumChoice variant="segment" label="Per Sq.Ft" selected={displayUnit === 'SqFt'} onPress={() => setDisplayUnit('SqFt')} />
-                <PremiumChoice variant="segment" label="Per Acre" selected={displayUnit === 'Acre'} onPress={() => setDisplayUnit('Acre')} />
-              </View>
-            </View>
-
             {/* Collapsible Advanced Coordinates Drawer */}
             <TouchableOpacity
               accessibilityRole="button" accessibilityState={{ expanded: showAdvancedCoords }}
@@ -272,6 +260,7 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                 landUsage={landUsage}
                 roadAccess={selectedRoadFrontage}
                 displayUnit={displayUnit}
+                onSelectUnit={setDisplayUnit}
                 liveMarketComps={estimate?.liveMarketComps}
               />
             )}
@@ -366,6 +355,32 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
 
                         return (
                           <>
+                            {/* Unit Switcher */}
+                            <View style={styles.valUnitToggleRow}>
+                              <Text style={styles.valUnitToggleLabel}>Display Unit:</Text>
+                              <View style={styles.valUnitPillBox}>
+                                {(['Cent', 'SqFt', 'Acre'] as const).map((unit) => {
+                                  const isSelected = displayUnit === unit;
+                                  const label = unit === 'Cent' ? 'Cent' : unit === 'SqFt' ? 'Sq.Ft' : 'Acre';
+                                  return (
+                                    <TouchableOpacity
+                                      key={unit}
+                                      accessibilityRole="button"
+                                      accessibilityLabel={`Display in ${label}`}
+                                      accessibilityState={{ selected: isSelected }}
+                                      onPress={() => setDisplayUnit(unit)}
+                                      style={[styles.valUnitPill, isSelected && styles.valUnitPillActive]}
+                                      activeOpacity={0.7}
+                                    >
+                                      <Text style={[styles.valUnitPillText, isSelected && styles.valUnitPillTextActive]}>
+                                        {label}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </View>
+                            </View>
+
                             {/* Estimated Range Market Buffer Banner */}
                             <View style={styles.estimatedRangeBanner}>
                               <Text style={styles.estimatedRangeLabel}>Estimated Range</Text>
@@ -489,8 +504,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                                 {displayUnit === 'Acre'
                                   ? `${formatRateForUnit(convertCentToAcreRate(medianCent), 'Acre')} / Acre`
                                   : displayUnit === 'SqFt'
-                                  ? `₹${Math.round(medianSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                                  : `${formatLakhs(medianCent)} / Cent`}
+                                    ? `₹${Math.round(medianSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                    : `${formatLakhs(medianCent)} / Cent`}
                               </Text>
                             </View>
                           </>
@@ -529,8 +544,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
                               : displayUnit === 'SqFt'
-                              ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                              : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
+                                ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.askingNotice}>
@@ -556,8 +571,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
                               : displayUnit === 'SqFt'
-                              ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                              : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
+                                ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.guidelineNotice}>
@@ -678,8 +693,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(asking.medianRatePerCent)} / Cent`
                               : displayUnit === 'SqFt'
-                              ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                              : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
+                                ? `₹${Math.round(asking.medianRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                : `${formatRateForUnit(convertCentToAcreRate(asking.medianRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.askingNotice}>
@@ -705,8 +720,8 @@ export const ValuationScreen: React.FC<ValuationScreenProps> = ({
                             {displayUnit === 'Cent'
                               ? `${formatLakhs(guideline.guidelineRatePerCent)} / Cent`
                               : displayUnit === 'SqFt'
-                              ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
-                              : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
+                                ? `₹${Math.round(guideline.guidelineRatePerSqFt).toLocaleString('en-IN')} / Sq.Ft`
+                                : `${formatRateForUnit(convertCentToAcreRate(guideline.guidelineRatePerCent), 'Acre')} / Acre`}
                           </Text>
                         </View>
                         <Text style={styles.guidelineNotice}>
@@ -1111,6 +1126,54 @@ const styles = withScreenStyles({
     fontSize: 10,
     fontWeight: '700',
     color: '#B45309',
+  },
+  valUnitToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  valUnitToggleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  valUnitPillBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  valUnitPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  valUnitPillActive: {
+    backgroundColor: P.violet,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  valUnitPillText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  valUnitPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   estimatedRangeBanner: {
     backgroundColor: '#FAF5FF',
