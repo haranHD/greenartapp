@@ -127,328 +127,328 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
       <ScreenEntrance>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>LAND OWNER WORKSPACE</Text>
+        {/* Top Header */}
+        <View style={styles.header}>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>LAND OWNER WORKSPACE</Text>
+          </View>
+          <Text style={styles.title}>Sell Land & Track Plots</Text>
+          <Text style={styles.subtitle}>
+            Direct institutional marketplace. List your plot with genuine survey numbers and title documents for verified buyers.
+          </Text>
         </View>
-        <Text style={styles.title}>Sell Land & Track Plots</Text>
-        <Text style={styles.subtitle}>
-          Direct institutional marketplace. List your plot with genuine survey numbers and title documents for verified buyers.
-        </Text>
-      </View>
 
-      <View style={styles.subTabRow}>
-        <PremiumChoice variant="segment" label={`My Listings (${userListings.length})`} selected={activeSubTab === 'workspace'} onPress={() => setActiveSubTab('workspace')} />
-        <PremiumChoice variant="segment" label="Post New Plot" selected={activeSubTab === 'create'} onPress={() => setActiveSubTab('create')} />
-      </View>
+        <View style={styles.subTabRow}>
+          <PremiumChoice variant="segment" label={`My Listings (${userListings.length})`} selected={activeSubTab === 'workspace'} onPress={() => setActiveSubTab('workspace')} />
+          <PremiumChoice variant="segment" label="Post New Plot" selected={activeSubTab === 'create'} onPress={() => setActiveSubTab('create')} />
+        </View>
 
-      {activeSubTab === 'workspace' ? (
-        /* Workspace Screen */
-        <View style={styles.workspaceBox}>
-          {userListings.length === 0 ? (
-            <View style={styles.emptyWorkspace}><EmptyPropertyIllustration kind="document" />
-              <Text style={styles.emptyTitle}>No land plots listed yet</Text>
-              <Text style={styles.emptyMsg}>
-                Post your land plot with survey numbers and title documents to connect with serious institutional and retail buyers.
-              </Text>
-              <PremiumPressable reducedMotion={reduced}
-                style={styles.ctaButton}
-                onPress={() => setActiveSubTab('create')}
-              >
-                <Feather accessible={false} name="plus" size={17} color={P.champagne} /><Text style={styles.ctaButtonText}>Create First Plot Listing</Text>
-              </PremiumPressable>
-            </View>
-          ) : (
-            <View style={styles.listingStack}>
-              {userListings.map((item) => {
-                const isPending = item.status === ListingStatus.PendingReview;
-                const isActive = item.status === ListingStatus.Active;
-                const isDraft = item.status === ListingStatus.Draft;
-                const isRejected = item.status === ListingStatus.Rejected;
+        {activeSubTab === 'workspace' ? (
+          /* Workspace Screen */
+          <View style={styles.workspaceBox}>
+            {userListings.length === 0 ? (
+              <View style={styles.emptyWorkspace}><EmptyPropertyIllustration kind="document" />
+                <Text style={styles.emptyTitle}>No land plots listed yet</Text>
+                <Text style={styles.emptyMsg}>
+                  Post your land plot with survey numbers and title documents to connect with serious institutional and retail buyers.
+                </Text>
+                <PremiumPressable reducedMotion={reduced}
+                  style={styles.ctaButton}
+                  onPress={() => setActiveSubTab('create')}
+                >
+                  <Feather accessible={false} name="plus" size={17} color={P.champagne} /><Text style={styles.ctaButtonText}>Create First Plot Listing</Text>
+                </PremiumPressable>
+              </View>
+            ) : (
+              <View style={styles.listingStack}>
+                {userListings.map((item) => {
+                  const isPending = item.status === ListingStatus.PendingReview;
+                  const isActive = item.status === ListingStatus.Active;
+                  const isDraft = item.status === ListingStatus.Draft;
+                  const isRejected = item.status === ListingStatus.Rejected;
 
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={styles.listingCard}
-                    onPress={() => onSelectListing(item)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.listingTopRow}>
-                      <Text style={styles.listingLocality}>{item.locality}, {item.district}</Text>
-                      <View
-                        style={[
-                          styles.statusTag,
-                          isActive && styles.statusTagActive,
-                          isPending && styles.statusTagPending,
-                          isDraft && styles.statusTagDraft,
-                          isRejected && styles.statusTagRejected,
-                        ]}
-                      >
-                        <Text
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={styles.listingCard}
+                      onPress={() => onSelectListing(item)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.listingTopRow}>
+                        <Text style={styles.listingLocality}>{item.locality}, {item.district}</Text>
+                        <View
                           style={[
-                            styles.statusTagText,
-                            isActive && styles.statusTextGreen,
-                            isPending && styles.statusTextAmber,
-                            isDraft && styles.statusTextGray,
-                            isRejected && styles.statusTextRed,
+                            styles.statusTag,
+                            isActive && styles.statusTagActive,
+                            isPending && styles.statusTagPending,
+                            isDraft && styles.statusTagDraft,
+                            isRejected && styles.statusTagRejected,
                           ]}
                         >
-                          {item.status.toUpperCase()}
+                          <Text
+                            style={[
+                              styles.statusTagText,
+                              isActive && styles.statusTextGreen,
+                              isPending && styles.statusTextAmber,
+                              isDraft && styles.statusTextGray,
+                              isRejected && styles.statusTextRed,
+                            ]}
+                          >
+                            {item.status.toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.listingTitle}>{item.title}</Text>
+
+                      <View style={styles.listingMetricsRow}>
+                        <View>
+                          <Text style={styles.metricLabel}>EXTENT</Text>
+                          <Text style={styles.metricValue}>{item.extentCent} Cents</Text>
+                        </View>
+                        <View>
+                          <Text style={styles.metricLabel}>ASKING RATE</Text>
+                          <Text style={styles.metricValue}>₹{(item.askingRatePerCent / 100000).toFixed(2)} L / Cent</Text>
+                        </View>
+                        <View>
+                          <Text style={styles.metricLabel}>TOTAL VALUE</Text>
+                          <Text style={styles.metricValueGreen}>₹{(item.askingPriceTotal / 100000).toFixed(2)} L</Text>
+                        </View>
+                      </View>
+
+                      {item.rejectionReason && (
+                        <View style={styles.rejectionNotice}>
+                          <Text style={styles.rejectionTitle}>Reviewer Feedback:</Text>
+                          <Text style={styles.rejectionMsg}>{item.rejectionReason}</Text>
+                        </View>
+                      )}
+
+                      <View style={styles.listingFooterRow}>
+                        <Text style={styles.footerDocsText}>
+                          {item.documentsAvailable.length} legal document{item.documentsAvailable.length === 1 ? '' : 's'} attached
                         </Text>
+                        <Text style={styles.footerActionText}>Manage Listing →</Text>
                       </View>
-                    </View>
-
-                    <Text style={styles.listingTitle}>{item.title}</Text>
-
-                    <View style={styles.listingMetricsRow}>
-                      <View>
-                        <Text style={styles.metricLabel}>EXTENT</Text>
-                        <Text style={styles.metricValue}>{item.extentCent} Cents</Text>
-                      </View>
-                      <View>
-                        <Text style={styles.metricLabel}>ASKING RATE</Text>
-                        <Text style={styles.metricValue}>₹{(item.askingRatePerCent / 100000).toFixed(2)} L / Cent</Text>
-                      </View>
-                      <View>
-                        <Text style={styles.metricLabel}>TOTAL VALUE</Text>
-                        <Text style={styles.metricValueGreen}>₹{(item.askingPriceTotal / 100000).toFixed(2)} L</Text>
-                      </View>
-                    </View>
-
-                    {item.rejectionReason && (
-                      <View style={styles.rejectionNotice}>
-                        <Text style={styles.rejectionTitle}>Reviewer Feedback:</Text>
-                        <Text style={styles.rejectionMsg}>{item.rejectionReason}</Text>
-                      </View>
-                    )}
-
-                    <View style={styles.listingFooterRow}>
-                      <Text style={styles.footerDocsText}>
-                        {item.documentsAvailable.length} legal document{item.documentsAvailable.length === 1 ? '' : 's'} attached
-                      </Text>
-                      <Text style={styles.footerActionText}>Manage Listing →</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-        </View>
-      ) : (
-        /* Form: Post New Plot */
-        <View style={styles.formContainer}>
-          {/* Section 1: Location & Revenue Coordinates */}
-          <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>1. Revenue & Location Identifiers</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>DISTRICT (TAMIL NADU) *</Text>
-              <TextInput
-                style={styles.textInput}
-                accessibilityLabel="Listing district"
-                  value={district}
-                onChangeText={setDistrict}
-                placeholder="e.g. Coimbatore, Erode, Tiruppur"
-                placeholderTextColor="#94A3B8"
-              />
-            </View>
-
-            <View style={styles.twoColRow}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>LOCALITY / VILLAGE *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Listing locality"
-                  value={locality}
-                  onChangeText={setLocality}
-                  placeholder="e.g. Saravanampatti"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>TALUK</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Listing taluk"
-                  value={taluk}
-                  onChangeText={setTaluk}
-                  placeholder="e.g. Annur"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
-
-            <View style={styles.twoColRow}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>REVENUE SURVEY NUMBER</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Listing survey number"
-                  value={surveyNumber}
-                  onChangeText={setSurveyNumber}
-                  placeholder="e.g. 318/2B"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>STREET / LANDMARK</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Listing street or landmark"
-                  value={streetAddress}
-                  onChangeText={setStreetAddress}
-                  placeholder="e.g. Near Bus Stand"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Section 2: Land Extent & Usage */}
-          <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>2. Land Extent & Usage</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>LAND USAGE TYPE</Text>
-              <View style={styles.usagePills}>
-                {[LandUsageType.Residential, LandUsageType.Commercial, LandUsageType.AgriculturalWet].map((u) => (
-                  <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={landUsage === u} onPress={() => setLandUsage(u)} />
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.twoColRow}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>EXTENT IN CENTS *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Land extent in cents"
-                  value={extentCent}
-                  onChangeText={setExtentCent}
-                  placeholder="e.g. 5.5"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="numeric"
-                />
-                {parsedExtent > 0 && (
-                  <Text style={styles.helperText}>≈ {computedExtentSqFt.toLocaleString()} Sq.Ft • {(parsedExtent / 100).toFixed(2)} Acres</Text>
-                )}
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.inputLabel}>ROAD WIDTH (FEET)</Text>
-                <TextInput
-                  style={styles.textInput}
-                  accessibilityLabel="Road width in feet"
-                  value={roadWidthFeet}
-                  onChangeText={setRoadWidthFeet}
-                  placeholder="e.g. 30"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Section 3: Commercial Pricing */}
-          <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>3. Asking price</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>TOTAL SELLER ASKING PRICE (INR) *</Text>
-              <TextInput
-                style={styles.textInput}
-                accessibilityLabel="Total asking price in rupees"
-                  value={askingPriceTotal}
-                onChangeText={setAskingPriceTotal}
-                placeholder="e.g. 4950000 (49.5 Lakhs)"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-              />
-            </View>
-
-            {computedRatePerCent > 0 && (
-              <View style={styles.calculatedRateCard}>
-                <Text style={styles.calcRateLabel}>COMPUTED ASKING RATE PER CENT</Text>
-                <Text style={styles.calcRateValue}>₹{computedRatePerCent.toLocaleString('en-IN')} / Cent</Text>
-                <Text style={styles.calcRateSub}>
-                  ≈ ₹{Math.round(computedRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {(() => {
-                    const acreVal = (computedRatePerCent * 3 / 4) * 100;
-                    return acreVal >= 10000000 ? `₹${(acreVal / 10000000).toFixed(2)} Cr / Acre` : `₹${(acreVal / 100000).toFixed(2)} L / Acre`;
-                  })()}
-                </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </View>
+        ) : (
+          /* Form: Post New Plot */
+          <View style={styles.formContainer}>
+            {/* Section 1: Location & Revenue Coordinates */}
+            <View style={styles.formSection}>
+              <Text style={styles.formSectionTitle}>1. Revenue & Location Identifiers</Text>
 
-          {/* Section 4: Title Documents Checklist */}
-          <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>4. Title & Revenue Proof Documents</Text>
-            <Text style={styles.docNotice}>
-              Record which ownership documents are available. Document review is required before relying on them as title evidence.
-            </Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>DISTRICT (TAMIL NADU) *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  accessibilityLabel="Listing district"
+                  value={district}
+                  onChangeText={setDistrict}
+                  placeholder="e.g. Coimbatore, Erode, Tiruppur"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
 
-            <View style={styles.docCheckboxList}>
-              {[
-                { type: DocumentType.PattaChitta, label: 'Patta / Chitta Revenue Record' },
-                { type: DocumentType.RegisteredSaleDeed, label: 'Registered Sale Deed Copy' },
-                { type: DocumentType.FMBPlan, label: 'Field Measurement Book (FMB) Sketch' },
-                { type: DocumentType.EncumbranceCertificate, label: 'Encumbrance Certificate (EC)' },
-              ].map((doc) => {
-                const isSelected = !!selectedDocs[doc.type];
-                return (
-                  <TouchableOpacity
-                    key={doc.type}
-                    accessibilityRole="checkbox" accessibilityState={{ checked: isSelected }}
-                    style={[styles.docCheckRow, isSelected && styles.docCheckRowSelected]}
-                    onPress={() => handleToggleDoc(doc.type)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                      {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
-                    </View>
-                    <Text style={[styles.docCheckLabel, isSelected && styles.docCheckLabelSelected]}>
-                      {doc.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <View style={styles.twoColRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>LOCALITY / VILLAGE *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Listing locality"
+                    value={locality}
+                    onChangeText={setLocality}
+                    placeholder="e.g. Saravanampatti"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>TALUK</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Listing taluk"
+                    value={taluk}
+                    onChangeText={setTaluk}
+                    placeholder="e.g. Annur"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.twoColRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>REVENUE SURVEY NUMBER</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Listing survey number"
+                    value={surveyNumber}
+                    onChangeText={setSurveyNumber}
+                    placeholder="e.g. 318/2B"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>STREET / LANDMARK</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Listing street or landmark"
+                    value={streetAddress}
+                    onChangeText={setStreetAddress}
+                    placeholder="e.g. Near Bus Stand"
+                    placeholderTextColor="#94A3B8"
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Section 2: Land Extent & Usage */}
+            <View style={styles.formSection}>
+              <Text style={styles.formSectionTitle}>2. Land Extent & Usage</Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>LAND USAGE TYPE</Text>
+                <View style={styles.usagePills}>
+                  {[LandUsageType.Residential, LandUsageType.Commercial, LandUsageType.AgriculturalWet].map((u) => (
+                    <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={landUsage === u} onPress={() => setLandUsage(u)} />
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.twoColRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>EXTENT IN CENTS *</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Land extent in cents"
+                    value={extentCent}
+                    onChangeText={setExtentCent}
+                    placeholder="e.g. 5.5"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+                  {parsedExtent > 0 && (
+                    <Text style={styles.helperText}>≈ {computedExtentSqFt.toLocaleString()} Sq.Ft • {(parsedExtent / 100).toFixed(2)} Acres</Text>
+                  )}
+                </View>
+
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>ROAD WIDTH (FEET)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    accessibilityLabel="Road width in feet"
+                    value={roadWidthFeet}
+                    onChangeText={setRoadWidthFeet}
+                    placeholder="e.g. 30"
+                    placeholderTextColor="#94A3B8"
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* Section 3: Commercial Pricing */}
+            <View style={styles.formSection}>
+              <Text style={styles.formSectionTitle}>3. Asking price</Text>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>TOTAL SELLER ASKING PRICE (INR) *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  accessibilityLabel="Total asking price in rupees"
+                  value={askingPriceTotal}
+                  onChangeText={setAskingPriceTotal}
+                  placeholder="e.g. 4950000 (49.5 Lakhs)"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {computedRatePerCent > 0 && (
+                <View style={styles.calculatedRateCard}>
+                  <Text style={styles.calcRateLabel}>COMPUTED ASKING RATE PER CENT</Text>
+                  <Text style={styles.calcRateValue}>₹{computedRatePerCent.toLocaleString('en-IN')} / Cent</Text>
+                  <Text style={styles.calcRateSub}>
+                    ≈ ₹{Math.round(computedRatePerCent / 435.6).toLocaleString('en-IN')} / sq.ft • {(() => {
+                      const acreVal = (computedRatePerCent * 3 / 4) * 100;
+                      return acreVal >= 10000000 ? `₹${(acreVal / 10000000).toFixed(2)} Cr / Acre` : `₹${(acreVal / 100000).toFixed(2)} L / Acre`;
+                    })()}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Section 4: Title Documents Checklist */}
+            <View style={styles.formSection}>
+              <Text style={styles.formSectionTitle}>4. Title & Revenue Proof Documents</Text>
+              <Text style={styles.docNotice}>
+                Record which ownership documents are available. Document review is required before relying on them as title evidence.
+              </Text>
+
+              <View style={styles.docCheckboxList}>
+                {[
+                  { type: DocumentType.PattaChitta, label: 'Patta / Chitta Revenue Record' },
+                  { type: DocumentType.RegisteredSaleDeed, label: 'Registered Sale Deed Copy' },
+                  { type: DocumentType.FMBPlan, label: 'Field Measurement Book (FMB) Sketch' },
+                  { type: DocumentType.EncumbranceCertificate, label: 'Encumbrance Certificate (EC)' },
+                ].map((doc) => {
+                  const isSelected = !!selectedDocs[doc.type];
+                  return (
+                    <TouchableOpacity
+                      key={doc.type}
+                      accessibilityRole="checkbox" accessibilityState={{ checked: isSelected }}
+                      style={[styles.docCheckRow, isSelected && styles.docCheckRowSelected]}
+                      onPress={() => handleToggleDoc(doc.type)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+                        {isSelected && <Text style={styles.checkboxCheck}>✓</Text>}
+                      </View>
+                      <Text style={[styles.docCheckLabel, isSelected && styles.docCheckLabelSelected]}>
+                        {doc.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Section 5: Description */}
+            <View style={styles.formSection}>
+              <Text style={styles.formSectionTitle}>5. Description & Highlights</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                accessibilityLabel="Listing description"
+                value={description}
+                onChangeText={setDescription}
+                placeholder="Mention proximity to arterial roads, water source, zoning clearance..."
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.buttonStack}>
+              <PremiumPressable reducedMotion={reduced}
+                style={styles.submitBtn}
+                onPress={() => handleSubmitListing(ListingStatus.PendingReview)}
+              >
+                <Text style={styles.submitBtnText}>Submit for Title Verification & Publish →</Text>
+              </PremiumPressable>
+
+              <PremiumPressable reducedMotion={reduced}
+                style={styles.draftBtn}
+                onPress={() => handleSubmitListing(ListingStatus.Draft)}
+              >
+                <Text style={styles.draftBtnText}>Save as Private Draft</Text>
+              </PremiumPressable>
             </View>
           </View>
-
-          {/* Section 5: Description */}
-          <View style={styles.formSection}>
-            <Text style={styles.formSectionTitle}>5. Description & Highlights</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              accessibilityLabel="Listing description"
-                  value={description}
-              onChangeText={setDescription}
-              placeholder="Mention proximity to arterial roads, water source, zoning clearance..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          {/* Action Buttons */}
-          <View style={styles.buttonStack}>
-            <PremiumPressable reducedMotion={reduced}
-              style={styles.submitBtn}
-              onPress={() => handleSubmitListing(ListingStatus.PendingReview)}
-            >
-              <Text style={styles.submitBtnText}>Submit for Title Verification & Publish →</Text>
-            </PremiumPressable>
-
-            <PremiumPressable reducedMotion={reduced}
-              style={styles.draftBtn}
-              onPress={() => handleSubmitListing(ListingStatus.Draft)}
-            >
-              <Text style={styles.draftBtnText}>Save as Private Draft</Text>
-            </PremiumPressable>
-          </View>
-        </View>
-      )}
+        )}
       </ScreenEntrance>
     </ScrollView>
   );
