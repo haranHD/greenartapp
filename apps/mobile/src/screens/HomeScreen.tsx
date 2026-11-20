@@ -98,203 +98,203 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       nestedScrollEnabled={true}
     >
       <Animated.View style={{ gap: isCompact ? 14 : 16, opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [.96, 1], outputRange: [5, 0], extrapolate: 'clamp' }) }] }}>
-      <View style={[styles.heroSearchLayout, wide && styles.heroSearchLayoutWide]}>
-      <PropertyHero wide={wide} compact={isCompact} />
+        <View style={[styles.heroSearchLayout, wide && styles.heroSearchLayoutWide]}>
+          <PropertyHero wide={wide} compact={isCompact} />
 
-      {/* Primary Location-Search Card */}
-      <View style={[styles.primarySearchCard, isCompact && { padding: 14 }, wide && { flex: 1, justifyContent: 'center' }]}>
-        <View style={styles.searchHeading}><Feather accessible={false} name="map-pin" size={19} color={Premium.purple} /><Text style={styles.searchCardTitle}>Find a property</Text></View>
-        <Text style={styles.searchCardSub}>
-          Choose the property location you want to research.
-        </Text>
+          {/* Primary Location-Search Card */}
+          <View style={[styles.primarySearchCard, isCompact && { padding: 14 }, wide && { flex: 1, justifyContent: 'center' }]}>
+            <View style={styles.searchHeading}><Feather accessible={false} name="map-pin" size={19} color={Premium.purple} /><Text style={styles.searchCardTitle}>Find a property</Text></View>
+            <Text style={styles.searchCardSub}>
+              Choose the property location you want to research.
+            </Text>
 
-        <Animated.View style={[styles.searchBarBox, { borderColor: focus.interpolate({ inputRange: [0, 1], outputRange: [Premium.border, Premium.highlight] }) }, searchFocused && styles.searchFocus]}>
-          <Feather accessible={false} name="search" size={18} color="#73677C" style={{ marginRight: 10 }} />
-          <TextInput
-            accessibilityLabel="Search property location"
-            autoCorrect={false}
-            style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder="Search a locality, town or district"
-            placeholderTextColor="#94A3B8"
-            value={homeSearchQuery}
-            onChangeText={setHomeSearchQuery}
-            returnKeyType="search"
-          />
-          {homeSearchQuery ? (
-            <TouchableOpacity onPress={() => setHomeSearchQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
-              <Feather accessible={false} name="x" size={17} color={Premium.secondary} />
-            </TouchableOpacity>
-          ) : null}
-        </Animated.View>
+            <Animated.View style={[styles.searchBarBox, { borderColor: focus.interpolate({ inputRange: [0, 1], outputRange: [Premium.border, Premium.highlight] }) }, searchFocused && styles.searchFocus]}>
+              <Feather accessible={false} name="search" size={18} color="#73677C" style={{ marginRight: 10 }} />
+              <TextInput
+                accessibilityLabel="Search property location"
+                autoCorrect={false}
+                style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                placeholder="Search a locality, town or district"
+                placeholderTextColor="#94A3B8"
+                value={homeSearchQuery}
+                onChangeText={setHomeSearchQuery}
+                returnKeyType="search"
+              />
+              {homeSearchQuery ? (
+                <TouchableOpacity onPress={() => setHomeSearchQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
+                  <Feather accessible={false} name="x" size={17} color={Premium.secondary} />
+                </TouchableOpacity>
+              ) : null}
+            </Animated.View>
 
-        {/* Autocomplete Suggestions Dropdown */}
-        {homeSearchQuery.trim() !== '' && (
-          <View style={styles.suggestionsContainer}>
-            {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
-            {!searchError && homeSearchQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
-            {isSearchingHomeGeocode && homeGeocodingSuggestions.length === 0 && (
-              <View style={styles.searchingRow}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.searchingText}>Finding matching locations…</Text>
+            {/* Autocomplete Suggestions Dropdown */}
+            {homeSearchQuery.trim() !== '' && (
+              <View style={styles.suggestionsContainer}>
+                {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
+                {!searchError && homeSearchQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
+                {isSearchingHomeGeocode && homeGeocodingSuggestions.length === 0 && (
+                  <View style={styles.searchingRow}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <Text style={styles.searchingText}>Finding matching locations…</Text>
+                  </View>
+                )}
+
+                {/* Google Places Geocoding Suggestions */}
+                {homeGeocodingSuggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.placeId}
+                    style={styles.suggestionRow}
+                    onPress={() => handleSelectGeocodingSuggestion(item, 'home')}
+                    disabled={resolvingPlaceId !== null}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionName}>{item.mainText}</Text>
+                      <Text style={styles.suggestionDistrict}>{item.secondaryText}</Text>
+                    </View>
+                    {resolvingPlaceId === item.placeId ? (
+                      <ActivityIndicator size="small" color={Colors.warning} />
+                    ) : (
+                      <View style={styles.suggestionCountBadge}>
+                        <Text style={styles.suggestionCountText}>Place</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+
+                {/* Existing reference-locality suggestions */}
+                {homeFilteredSuggestions
+                  .filter(
+                    (loc) =>
+                      !homeGeocodingSuggestions.some(
+                        (g) => g.mainText.toLowerCase() === loc.name.toLowerCase()
+                      )
+                  )
+                  .map((loc) => (
+                    <TouchableOpacity
+                      key={loc.name}
+                      style={styles.suggestionRow}
+                      onPress={() => {
+                        handleSelectLocalityRef(loc);
+                        setHomeSearchQuery('');
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestionName}>{loc.name}</Text>
+                        <Text style={styles.suggestionDistrict}>{loc.district}</Text>
+                      </View>
+                      <View style={styles.suggestionCountBadge}>
+                        <Text style={styles.suggestionCountText}>{loc.recordCount} Records</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                {!searchError && homeSearchQuery.trim().length >= 2 && !isSearchingHomeGeocode &&
+                  homeGeocodingSuggestions.length === 0 &&
+                  homeFilteredSuggestions.length === 0 && (
+                    <Text style={styles.noSuggestionsText}>No matching localities found.</Text>
+                  )}
               </View>
             )}
 
-            {/* Google Places Geocoding Suggestions */}
-            {homeGeocodingSuggestions.map((item) => (
-              <TouchableOpacity
-                key={item.placeId}
-                style={styles.suggestionRow}
-                onPress={() => handleSelectGeocodingSuggestion(item, 'home')}
-                disabled={resolvingPlaceId !== null}
+            {/* Selected Location Pill */}
+            <PremiumPressable reducedMotion={reducedMotion} accessibilityLabel="Change selected property location" style={styles.selectedLocalityBar} onPress={() => setActiveTab('search')}>
+              <View style={styles.selectedPin}><Feather accessible={false} name="map-pin" size={17} color={Premium.purple} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selectedLocalityName}>
+                  {activeLocality}
+                </Text>
+                <Text style={styles.selectedLocalityDistrict}>
+                  {currentUsageObj.label} land · {targetLat.toFixed(4)}, {targetLng.toFixed(4)}
+                </Text>
+              </View>
+              <Feather accessible={false} name="chevron-right" size={17} color={Premium.purple} />
+            </PremiumPressable>
+
+            {/* Action Buttons Row */}
+            <View style={[styles.searchCtaRow, stacked && styles.actionsStacked]}>
+              {/* Primary CTA */}
+              <PremiumPressable
+                reducedMotion={reducedMotion}
+                containerStyle={stacked ? styles.actionStacked : styles.primaryActionContainer}
+                style={styles.primaryFindBtn}
+                onPress={() => executeCalculation(targetLat, targetLng, currentUsageObj.id)}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.suggestionName}>{item.mainText}</Text>
-                  <Text style={styles.suggestionDistrict}>{item.secondaryText}</Text>
-                </View>
-                {resolvingPlaceId === item.placeId ? (
-                  <ActivityIndicator size="small" color={Colors.warning} />
-                ) : (
-                  <View style={styles.suggestionCountBadge}>
-                    <Text style={styles.suggestionCountText}>Place</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
+                <Text numberOfLines={1} style={styles.primaryFindBtnText}>Estimate land value</Text><Feather accessible={false} name="arrow-right" size={15} color={Premium.champagne} />
+              </PremiumPressable>
 
-            {/* Existing reference-locality suggestions */}
-            {homeFilteredSuggestions
-              .filter(
-                (loc) =>
-                  !homeGeocodingSuggestions.some(
-                    (g) => g.mainText.toLowerCase() === loc.name.toLowerCase()
-                  )
-              )
-              .map((loc) => (
-                <TouchableOpacity
-                  key={loc.name}
-                  style={styles.suggestionRow}
-                  onPress={() => {
-                    handleSelectLocalityRef(loc);
-                    setHomeSearchQuery('');
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.suggestionName}>{loc.name}</Text>
-                    <Text style={styles.suggestionDistrict}>{loc.district}</Text>
-                  </View>
-                  <View style={styles.suggestionCountBadge}>
-                    <Text style={styles.suggestionCountText}>{loc.recordCount} Records</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-
-            {!searchError && homeSearchQuery.trim().length >= 2 && !isSearchingHomeGeocode &&
-              homeGeocodingSuggestions.length === 0 &&
-              homeFilteredSuggestions.length === 0 && (
-                <Text style={styles.noSuggestionsText}>No matching localities found.</Text>
-              )}
+              {/* Secondary Action */}
+              <PremiumPressable
+                reducedMotion={reducedMotion}
+                containerStyle={stacked ? styles.actionStacked : styles.secondaryActionContainer}
+                style={styles.secondaryMapBtn}
+                onPress={() => setActiveTab('search')}
+              >
+                <Feather accessible={false} name="map" size={16} color={Premium.violet} /><Text numberOfLines={1} style={styles.secondaryMapBtnText}>Choose on map</Text>
+              </PremiumPressable>
+            </View>
           </View>
-        )}
 
-        {/* Selected Location Pill */}
-        <PremiumPressable reducedMotion={reducedMotion} accessibilityLabel="Change selected property location" style={styles.selectedLocalityBar} onPress={() => setActiveTab('search')}>
-          <View style={styles.selectedPin}><Feather accessible={false} name="map-pin" size={17} color={Premium.purple} /></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.selectedLocalityName}>
-              {activeLocality}
-            </Text>
-            <Text style={styles.selectedLocalityDistrict}>
-              {currentUsageObj.label} land · {targetLat.toFixed(4)}, {targetLng.toFixed(4)}
-            </Text>
-          </View>
-          <Feather accessible={false} name="chevron-right" size={17} color={Premium.purple} />
-        </PremiumPressable>
-
-        {/* Action Buttons Row */}
-        <View style={[styles.searchCtaRow, stacked && styles.actionsStacked]}>
-          {/* Primary CTA */}
+        </View>
+        <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Research tools</Text><Text style={styles.sectionCaption}>Choose the information you need</Text></View>
+        {/* Quick Access Shortcuts */}
+        <View style={[styles.quickAccessRow, (isCompact || fontScale > 1.35) && styles.toolsGrid]}>
           <PremiumPressable
             reducedMotion={reducedMotion}
-            containerStyle={stacked ? styles.actionStacked : styles.primaryActionContainer}
-            style={styles.primaryFindBtn}
-            onPress={() => executeCalculation(targetLat, targetLng, currentUsageObj.id)}
+            highlight
+            containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
+            style={styles.quickAccessCard}
+            onPress={() => {
+              setActiveTab('estimate');
+              setEstimateStep('selection');
+            }}
           >
-            <Text numberOfLines={1} style={styles.primaryFindBtnText}>Estimate land value</Text><Feather accessible={false} name="arrow-right" size={15} color={Premium.champagne} />
+            <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+              <FeatureIcon kind="valuation" />
+            </View>
+            <Text numberOfLines={1} style={styles.quickAccessTitle}>Valuation</Text>
+            <Text numberOfLines={1} style={styles.quickAccessSub}>Market Rates</Text>
           </PremiumPressable>
 
-          {/* Secondary Action */}
           <PremiumPressable
             reducedMotion={reducedMotion}
-            containerStyle={stacked ? styles.actionStacked : styles.secondaryActionContainer}
-            style={styles.secondaryMapBtn}
-            onPress={() => setActiveTab('search')}
+            highlight
+            containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
+            style={styles.quickAccessCard}
+            onPress={() => {
+              setPreviousTab('home');
+              setActiveTab('records');
+            }}
           >
-            <Feather accessible={false} name="map" size={16} color={Premium.violet} /><Text numberOfLines={1} style={styles.secondaryMapBtnText}>Choose on map</Text>
+            <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+              <FeatureIcon kind="nearby" />
+            </View>
+            <Text numberOfLines={1} style={styles.quickAccessTitle}>Nearby</Text>
+            <Text numberOfLines={1} style={styles.quickAccessSub}>Comparables</Text>
+          </PremiumPressable>
+
+          <PremiumPressable
+            reducedMotion={reducedMotion}
+            highlight
+            containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
+            style={styles.quickAccessCard}
+            onPress={() => {
+              setPreviousTab('home');
+              setActiveTab('guideline');
+            }}
+          >
+            <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
+              <FeatureIcon kind="guideline" />
+            </View>
+            <Text numberOfLines={1} style={styles.quickAccessTitle}>Guideline</Text>
+            <Text numberOfLines={1} style={styles.quickAccessSub}>Statutory</Text>
           </PremiumPressable>
         </View>
-      </View>
-
-      </View>
-      <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Research tools</Text><Text style={styles.sectionCaption}>Choose the information you need</Text></View>
-      {/* Quick Access Shortcuts */}
-      <View style={[styles.quickAccessRow, (isCompact || fontScale > 1.35) && styles.toolsGrid]}>
-        <PremiumPressable
-          reducedMotion={reducedMotion}
-          highlight
-          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
-          style={styles.quickAccessCard}
-          onPress={() => {
-            setActiveTab('estimate');
-            setEstimateStep('selection');
-          }}
-        >
-          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
-            <FeatureIcon kind="valuation" />
-          </View>
-          <Text numberOfLines={1} style={styles.quickAccessTitle}>Valuation</Text>
-          <Text numberOfLines={1} style={styles.quickAccessSub}>Market Rates</Text>
-        </PremiumPressable>
-
-        <PremiumPressable
-          reducedMotion={reducedMotion}
-          highlight
-          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
-          style={styles.quickAccessCard}
-          onPress={() => {
-            setPreviousTab('home');
-            setActiveTab('records');
-          }}
-        >
-          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
-            <FeatureIcon kind="nearby" />
-          </View>
-          <Text numberOfLines={1} style={styles.quickAccessTitle}>Nearby</Text>
-          <Text numberOfLines={1} style={styles.quickAccessSub}>Comparables</Text>
-        </PremiumPressable>
-
-        <PremiumPressable
-          reducedMotion={reducedMotion}
-          highlight
-          containerStyle={isCompact ? styles.toolContainerGrid : styles.toolContainer}
-          style={styles.quickAccessCard}
-          onPress={() => {
-            setPreviousTab('home');
-            setActiveTab('guideline');
-          }}
-        >
-          <View style={[styles.quickIconCircle, { backgroundColor: 'transparent' }]}>
-            <FeatureIcon kind="guideline" />
-          </View>
-          <Text numberOfLines={1} style={styles.quickAccessTitle}>Guideline</Text>
-          <Text numberOfLines={1} style={styles.quickAccessSub}>Statutory</Text>
-        </PremiumPressable>
-      </View>
-      <View style={styles.evidenceNote}>
-        <View style={styles.infoHeading}><Feather accessible={false} name="info" size={17} color={Premium.purple} /><Text style={styles.evidenceNoteTitle}>About the price information</Text></View>
-        <Text style={styles.evidenceNoteBody}>Broker-reviewed ranges, registered-sale estimates and government guideline rates are clearly labelled. Where evidence is limited, we tell you.</Text>
-      </View>
+        <View style={styles.evidenceNote}>
+          <View style={styles.infoHeading}><Feather accessible={false} name="info" size={17} color={Premium.purple} /><Text style={styles.evidenceNoteTitle}>About the price information</Text></View>
+          <Text style={styles.evidenceNoteBody}>Broker-reviewed ranges, registered-sale estimates and government guideline rates are clearly labelled. Where evidence is limited, we tell you.</Text>
+        </View>
       </Animated.View>
     </ScrollView>
   );
