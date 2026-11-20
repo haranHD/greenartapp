@@ -10,12 +10,15 @@ export function ResearchEvidenceModal({ researchId, onClose }: { researchId: str
   const isTablet = width >= 768;
   const [data, setData] = useState<PublicResearchEvidence | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { const controller = new AbortController(); let active = true;
+  useEffect(() => {
+    const controller = new AbortController(); let active = true;
     mobileApi.getResearchEvidence(researchId, controller.signal).then(v => { if (active) setData(v); }).catch(() => { if (active) setError('Supporting evidence could not be loaded.'); });
     return () => { active = false; controller.abort(); };
   }, [researchId]);
-  const openSource = (url: string) => { if (!/^https:\/\//i.test(url)) return;
-    void Linking.openURL(url).catch(() => setError('Could not open this source.')); };
+  const openSource = (url: string) => {
+    if (!/^https:\/\//i.test(url)) return;
+    void Linking.openURL(url).catch(() => setError('Could not open this source.'));
+  };
   return <Modal transparent animationType="slide" visible onRequestClose={onClose}>
     <View style={{ flex: 1, backgroundColor: 'rgba(22,0,38,.5)', justifyContent: isTablet ? 'center' : 'flex-end', alignItems: isTablet ? 'center' : undefined, padding: isTablet ? 24 : 0 }}>
       <View style={{ backgroundColor: P.background, maxHeight: '90%', maxWidth: isTablet ? 640 : undefined, width: isTablet ? '100%' : undefined, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderBottomLeftRadius: isTablet ? 22 : 0, borderBottomRightRadius: isTablet ? 22 : 0, padding: isCompact ? 16 : 20 }}>

@@ -38,11 +38,11 @@ export const formatLakhs = (val?: number): string => {
   if (val === undefined || val === null || isNaN(val)) return '—';
   if (val >= 100000) {
     const lakhs = val / 100000;
-    return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
+    return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
   }
   if (val > 0 && val < 1000) {
     // Value is already in Lakhs (e.g. 10.92)
-    return `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`;
+    return `₹${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
   }
   return `₹${Math.round(val).toLocaleString('en-IN')}`;
 };
@@ -129,9 +129,9 @@ export function calculateMarketRateBuffer(
     approximateRate = Math.round(approxLakhs * 100) / 100;
     midpointRate = Math.round(midLakhs * 1000) / 1000;
 
-    lowerFormatted = `₹${lowerRate.toFixed(2)} L`;
-    upperFormatted = `₹${upperRate.toFixed(2)} L`;
-    approximateFormatted = `₹${approximateRate.toFixed(2)} L`;
+    lowerFormatted = `₹${lowerRate.toFixed(2)}\u00a0L`;
+    upperFormatted = `₹${upperRate.toFixed(2)}\u00a0L`;
+    approximateFormatted = `₹${approximateRate.toFixed(2)}\u00a0L`;
   } else {
     // Per Sq.Ft rates in Rupees
     const step = customStep ?? (val >= 5000 ? 100 : 50);

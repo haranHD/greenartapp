@@ -111,295 +111,295 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
       nestedScrollEnabled={true}
     >
       <ScreenEntrance>
-      {/* Screen Title & Subtitle */}
-      <View style={styles.screenHeaderBox}>
-        <Text style={styles.viewTitle}>Location Explorer</Text>
-        <Text style={styles.viewSubtitle}>
-          Pan, zoom, or tap the interactive map to select target coordinates.
-        </Text>
-      </View>
-
-      {/* Locality Search Input */}
-      <View style={styles.card}>
-        <View style={[styles.searchBarBox, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 9 }} />
-          <TextInput
-            accessibilityLabel="Search property location on map"
-            autoCorrect={false}
-            style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder="Enter address, locality, or coords..."
-            placeholderTextColor="#94A3B8"
-            value={searchTabQuery}
-            onChangeText={setSearchTabQuery}
-            onSubmitEditing={() => onLocateAddress && onLocateAddress(searchTabQuery)}
-            returnKeyType="search"
-          />
-          {searchTabQuery ? (
-            <TouchableOpacity onPress={() => setSearchTabQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '700' }}>✕</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.locateBtn, (!searchTabQuery.trim() || isLocatingAddress) && styles.locateBtnDisabled]}
-            onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
-            disabled={!searchTabQuery.trim() || isLocatingAddress}
-            activeOpacity={0.8}
-          >
-            {isLocatingAddress ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.locateBtnText}>Move Pin</Text>
-            )}
-          </TouchableOpacity>
+        {/* Screen Title & Subtitle */}
+        <View style={styles.screenHeaderBox}>
+          <Text style={styles.viewTitle}>Location Explorer</Text>
+          <Text style={styles.viewSubtitle}>
+            Pan, zoom, or tap the interactive map to select target coordinates.
+          </Text>
         </View>
 
-        {/* Address Geocoding Status Banner */}
-        {addressLocateStatus && (
-          <View style={styles.addressStatusBanner}>
-            <Text style={styles.addressStatusText}>{addressLocateStatus}</Text>
+        {/* Locality Search Input */}
+        <View style={styles.card}>
+          <View style={[styles.searchBarBox, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 9 }} />
+            <TextInput
+              accessibilityLabel="Search property location on map"
+              autoCorrect={false}
+              style={[styles.searchBarInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder="Enter address, locality, or coords..."
+              placeholderTextColor="#94A3B8"
+              value={searchTabQuery}
+              onChangeText={setSearchTabQuery}
+              onSubmitEditing={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+              returnKeyType="search"
+            />
+            {searchTabQuery ? (
+              <TouchableOpacity onPress={() => setSearchTabQuery('')} accessibilityLabel="Clear location search" style={{ minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.locateBtn, (!searchTabQuery.trim() || isLocatingAddress) && styles.locateBtnDisabled]}
+              onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+              disabled={!searchTabQuery.trim() || isLocatingAddress}
+              activeOpacity={0.8}
+            >
+              {isLocatingAddress ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.locateBtnText}>Move Pin</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* Use My Current Location Action Button */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: P.border }}>
-          <TouchableOpacity
-            accessibilityRole="button" accessibilityLabel="Use My Current Location"
-            style={{ ...ScreenUI.secondary, flexDirection: 'row', gap: 8, paddingHorizontal: 12 }}
-            onPress={onUseCurrentLocation}
-            disabled={isLocating}
-            activeOpacity={0.75}
-          >
-            {isLocating ? (
-              <ActivityIndicator size="small" color="#240046" />
-            ) : (
-              <Feather accessible={false} name="crosshair" size={17} color={P.purple} />
+          {/* Address Geocoding Status Banner */}
+          {addressLocateStatus && (
+            <View style={styles.addressStatusBanner}>
+              <Text style={styles.addressStatusText}>{addressLocateStatus}</Text>
+            </View>
+          )}
+
+          {/* Use My Current Location Action Button */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: P.border }}>
+            <TouchableOpacity
+              accessibilityRole="button" accessibilityLabel="Use My Current Location"
+              style={{ ...ScreenUI.secondary, flexDirection: 'row', gap: 8, paddingHorizontal: 12 }}
+              onPress={onUseCurrentLocation}
+              disabled={isLocating}
+              activeOpacity={0.75}
+            >
+              {isLocating ? (
+                <ActivityIndicator size="small" color="#240046" />
+              ) : (
+                <Feather accessible={false} name="crosshair" size={17} color={P.purple} />
+              )}
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#240046' }}>
+                {isLocating ? 'Acquiring GPS Location...' : 'Use My Current Location'}
+              </Text>
+            </TouchableOpacity>
+
+            {userDeviceLocation && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
+                <Text style={{ fontSize: 11, fontWeight: '600', color: '#047857' }}>
+                  GPS Active
+                </Text>
+              </View>
             )}
-            <Text style={{ fontSize: 12, fontWeight: '700', color: '#240046' }}>
-              {isLocating ? 'Acquiring GPS Location...' : 'Use My Current Location'}
-            </Text>
-          </TouchableOpacity>
+          </View>
 
-          {userDeviceLocation && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' }} />
-              <Text style={{ fontSize: 11, fontWeight: '600', color: '#047857' }}>
-                GPS Active
+          {/* Location Status Notice */}
+          {locationStatusMessage && (
+            <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FEF3C7', borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' }}>
+              <Text style={{ fontSize: 11, color: '#92400E', lineHeight: 15 }}>
+                {locationStatusMessage}
               </Text>
             </View>
           )}
-        </View>
 
-        {/* Location Status Notice */}
-        {locationStatusMessage && (
-          <View style={{ marginTop: 8, padding: 8, backgroundColor: '#FEF3C7', borderRadius: 6, borderWidth: 1, borderColor: '#FDE68A' }}>
-            <Text style={{ fontSize: 11, color: '#92400E', lineHeight: 15 }}>
-              {locationStatusMessage}
-            </Text>
-          </View>
-        )}
-
-        {searchTabQuery.trim() !== '' && (
-          <View style={styles.suggestionsContainer}>
-            {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
-            {!searchError && searchTabQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
-            {/* Direct Address Geocode & Pin Mover Row */}
-            <TouchableOpacity
-              style={styles.directLocateRow}
-              onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.directLocateIconBox}>
-                <Feather name="map-pin" size={16} color="#6D6873" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.directLocateTitle} numberOfLines={1}>
-                  Move Pin to "{searchTabQuery}"
-                </Text>
-                <Text style={styles.directLocateSub}>
-                  Geocode address and center Google Map here
-                </Text>
-              </View>
-              <Text style={styles.directLocateArrow}>→</Text>
-            </TouchableOpacity>
-
-            {isSearchingTabGeocode && searchTabGeocodingSuggestions.length === 0 && (
-              <View style={styles.searchingRow}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.searchingText}>Finding matching locations…</Text>
-              </View>
-            )}
-
-            {/* Google Places Geocoding Suggestions */}
-            {searchTabGeocodingSuggestions.map((item) => (
+          {searchTabQuery.trim() !== '' && (
+            <View style={styles.suggestionsContainer}>
+              {searchError && <LocalitySearchError message={searchError} onRetry={onRetrySearch} />}
+              {!searchError && searchTabQuery.trim().length < 2 && <Text style={styles.searchingText}>Type at least 2 characters to search.</Text>}
+              {/* Direct Address Geocode & Pin Mover Row */}
               <TouchableOpacity
-                key={item.placeId}
-                style={styles.suggestionRow}
-                onPress={() => handleSelectGeocodingSuggestion(item, 'search')}
-                disabled={resolvingPlaceId !== null}
+                style={styles.directLocateRow}
+                onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+                activeOpacity={0.8}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.suggestionName}>{item.mainText}</Text>
-                  <Text style={styles.suggestionDistrict}>{item.secondaryText}</Text>
+                <View style={styles.directLocateIconBox}>
+                  <Feather name="map-pin" size={16} color="#6D6873" />
                 </View>
-                {resolvingPlaceId === item.placeId ? (
-                  <ActivityIndicator size="small" color={Colors.warning} />
-                ) : (
-                  <View style={styles.suggestionCountBadge}>
-                    <Text style={styles.suggestionCountText}>Place</Text>
-                  </View>
-                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.directLocateTitle} numberOfLines={1}>
+                    Move Pin to "{searchTabQuery}"
+                  </Text>
+                  <Text style={styles.directLocateSub}>
+                    Geocode address and center Google Map here
+                  </Text>
+                </View>
+                <Text style={styles.directLocateArrow}>→</Text>
               </TouchableOpacity>
-            ))}
 
-            {/* Pilot Reference Locality Fallback */}
-            {searchTabFilteredSuggestions
-              .filter(
-                (loc) =>
-                  !searchTabGeocodingSuggestions.some(
-                    (g) => g.mainText.toLowerCase() === loc.name.toLowerCase()
-                  )
-              )
-              .map((loc) => (
+              {isSearchingTabGeocode && searchTabGeocodingSuggestions.length === 0 && (
+                <View style={styles.searchingRow}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.searchingText}>Finding matching locations…</Text>
+                </View>
+              )}
+
+              {/* Google Places Geocoding Suggestions */}
+              {searchTabGeocodingSuggestions.map((item) => (
                 <TouchableOpacity
-                  key={loc.name}
+                  key={item.placeId}
                   style={styles.suggestionRow}
-                  onPress={() => {
-                    handleSelectLocalityRef(loc);
-                    setSearchTabQuery('');
-                  }}
+                  onPress={() => handleSelectGeocodingSuggestion(item, 'search')}
+                  disabled={resolvingPlaceId !== null}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.suggestionName}>{loc.name}</Text>
-                    <Text style={styles.suggestionDistrict}>{loc.district}</Text>
+                    <Text style={styles.suggestionName}>{item.mainText}</Text>
+                    <Text style={styles.suggestionDistrict}>{item.secondaryText}</Text>
                   </View>
-                  <View style={styles.suggestionCountBadge}>
-                    <Text style={styles.suggestionCountText}>{loc.recordCount} Records</Text>
-                  </View>
+                  {resolvingPlaceId === item.placeId ? (
+                    <ActivityIndicator size="small" color={Colors.warning} />
+                  ) : (
+                    <View style={styles.suggestionCountBadge}>
+                      <Text style={styles.suggestionCountText}>Place</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
 
-            {!searchError && searchTabQuery.trim().length >= 2 && !isSearchingTabGeocode &&
-              searchTabGeocodingSuggestions.length === 0 &&
-              searchTabFilteredSuggestions.length === 0 && (
-                <TouchableOpacity
-                  style={styles.fallbackLocateRow}
-                  onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
-                  activeOpacity={0.8}
-                >
-                  <Feather name="map-pin" size={17} color="#6D6873" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fallbackLocateTitle} numberOfLines={1}>
-                      Place Pin at "{searchTabQuery}"
-                    </Text>
-                    <Text style={styles.fallbackLocateSub}>
-                      Tap to geocode exact address and move Google Map pin
-                    </Text>
-                  </View>
-                  <View style={styles.fallbackLocateBadge}>
-                    <Text style={styles.fallbackLocateBadgeText}>Find Pin →</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-          </View>
-        )}
+              {/* Pilot Reference Locality Fallback */}
+              {searchTabFilteredSuggestions
+                .filter(
+                  (loc) =>
+                    !searchTabGeocodingSuggestions.some(
+                      (g) => g.mainText.toLowerCase() === loc.name.toLowerCase()
+                    )
+                )
+                .map((loc) => (
+                  <TouchableOpacity
+                    key={loc.name}
+                    style={styles.suggestionRow}
+                    onPress={() => {
+                      handleSelectLocalityRef(loc);
+                      setSearchTabQuery('');
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionName}>{loc.name}</Text>
+                      <Text style={styles.suggestionDistrict}>{loc.district}</Text>
+                    </View>
+                    <View style={styles.suggestionCountBadge}>
+                      <Text style={styles.suggestionCountText}>{loc.recordCount} Records</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
 
-        {/* Quick Locality Shortcut Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 6, marginTop: 10 }}
-        >
-          {localities.map((loc) => {
-            const isSelected = activeLocality === loc.name;
-            return (
-              <PremiumChoice key={loc.name} label={`${loc.name} (${loc.recordCount})`} selected={isSelected} onPress={() => handleSelectLocalityRef(loc)} />
-            );
-          })}
-        </ScrollView>
-      </View>
+              {!searchError && searchTabQuery.trim().length >= 2 && !isSearchingTabGeocode &&
+                searchTabGeocodingSuggestions.length === 0 &&
+                searchTabFilteredSuggestions.length === 0 && (
+                  <TouchableOpacity
+                    style={styles.fallbackLocateRow}
+                    onPress={() => onLocateAddress && onLocateAddress(searchTabQuery)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="map-pin" size={17} color="#6D6873" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fallbackLocateTitle} numberOfLines={1}>
+                        Place Pin at "{searchTabQuery}"
+                      </Text>
+                      <Text style={styles.fallbackLocateSub}>
+                        Tap to geocode exact address and move Google Map pin
+                      </Text>
+                    </View>
+                    <View style={styles.fallbackLocateBadge}>
+                      <Text style={styles.fallbackLocateBadgeText}>Find Pin →</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+            </View>
+          )}
 
-      {/* Interactive Geographic Map Card */}
-      <View style={[styles.mapCard, isMapExpanded && styles.mapCardExpanded]}>
-        <View style={styles.mapCardHeader}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={styles.mapCardTitle} >{activeLocality}</Text>
-            <Text style={styles.mapCardSubtitle}>
-              {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 1,000m Buffer
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            accessibilityRole="button" accessibilityState={{ expanded: isMapExpanded }}
-            style={[styles.expandIconBtn, isMapExpanded && styles.expandIconBtnActive]}
-            onPress={() => setIsMapExpanded(!isMapExpanded)}
-            activeOpacity={0.8}
-            accessibilityLabel={isMapExpanded ? 'Collapse map' : 'Expand map'}
+          {/* Quick Locality Shortcut Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 6, marginTop: 10 }}
           >
-            <Feather accessible={false} name={isMapExpanded ? 'minimize-2' : 'maximize-2'} size={19} color={isMapExpanded ? '#FFFFFF' : P.violet} />
-          </TouchableOpacity>
+            {localities.map((loc) => {
+              const isSelected = activeLocality === loc.name;
+              return (
+                <PremiumChoice key={loc.name} label={`${loc.name} (${loc.recordCount})`} selected={isSelected} onPress={() => handleSelectLocalityRef(loc)} />
+              );
+            })}
+          </ScrollView>
         </View>
 
-        {/* Map Viewport Canvas with enlarged height */}
-        <NativeInteractiveMap
-          targetLat={targetLat}
-          targetLng={targetLng}
-          mapZoom={mapZoom}
-          activeLocality={activeLocality}
-          records={records}
-          userLocation={userDeviceLocation}
-          height={mapHeight}
-          onSelectLocation={(lat, lng) => handleSelectCoordinates(lat, lng, 'Map Pin')}
-        />
+        {/* Interactive Geographic Map Card */}
+        <View style={[styles.mapCard, isMapExpanded && styles.mapCardExpanded]}>
+          <View style={styles.mapCardHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.mapCardTitle} >{activeLocality}</Text>
+              <Text style={styles.mapCardSubtitle}>
+                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 1,000m Buffer
+              </Text>
+            </View>
 
-        <View style={styles.mapFooterBar}>
-          <Text style={styles.mapFooterHint}>Tap map to reposition pin</Text>
-          <Text style={styles.mapFooterRadius}>Radius: 1,000m</Text>
+            <TouchableOpacity
+              accessibilityRole="button" accessibilityState={{ expanded: isMapExpanded }}
+              style={[styles.expandIconBtn, isMapExpanded && styles.expandIconBtnActive]}
+              onPress={() => setIsMapExpanded(!isMapExpanded)}
+              activeOpacity={0.8}
+              accessibilityLabel={isMapExpanded ? 'Collapse map' : 'Expand map'}
+            >
+              <Feather accessible={false} name={isMapExpanded ? 'minimize-2' : 'maximize-2'} size={19} color={isMapExpanded ? '#FFFFFF' : P.violet} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Map Viewport Canvas with enlarged height */}
+          <NativeInteractiveMap
+            targetLat={targetLat}
+            targetLng={targetLng}
+            mapZoom={mapZoom}
+            activeLocality={activeLocality}
+            records={records}
+            userLocation={userDeviceLocation}
+            height={mapHeight}
+            onSelectLocation={(lat, lng) => handleSelectCoordinates(lat, lng, 'Map Pin')}
+          />
+
+          <View style={styles.mapFooterBar}>
+            <Text style={styles.mapFooterHint}>Tap map to reposition pin</Text>
+            <Text style={styles.mapFooterRadius}>Radius: 1,000m</Text>
+          </View>
         </View>
-      </View>
 
-      {/* Selected Pin Confirmation & Immediate Valuation Card */}
-      <View style={styles.pinConfirmationCard}>
-        <View style={styles.pinHeaderRow}>
-          <View style={styles.pinIconWrap}>
-            <View style={styles.pinDotInner} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.pinConfirmationTitle}>{activeLocality}</Text>
-            <Text style={styles.pinConfirmationCoords}>
-              {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • {currentUsageObj.label}
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.pinCountBadge,
-              pinRecordsWithin1km >= 3 ? styles.pinCountBadgeSuccess : styles.pinCountBadgeWarning,
-            ]}
-          >
-            <Text
+        {/* Selected Pin Confirmation & Immediate Valuation Card */}
+        <View style={styles.pinConfirmationCard}>
+          <View style={styles.pinHeaderRow}>
+            <View style={styles.pinIconWrap}>
+              <View style={styles.pinDotInner} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pinConfirmationTitle}>{activeLocality}</Text>
+              <Text style={styles.pinConfirmationCoords}>
+                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • {currentUsageObj.label}
+              </Text>
+            </View>
+            <View
               style={[
-                styles.pinCountBadgeText,
-                pinRecordsWithin1km >= 3 ? styles.pinCountBadgeTextSuccess : styles.pinCountBadgeTextWarning,
+                styles.pinCountBadge,
+                pinRecordsWithin1km >= 3 ? styles.pinCountBadgeSuccess : styles.pinCountBadgeWarning,
               ]}
             >
-              {pinRecordsWithin1km} Comp{pinRecordsWithin1km === 1 ? '' : 's'}
-            </Text>
+              <Text
+                style={[
+                  styles.pinCountBadgeText,
+                  pinRecordsWithin1km >= 3 ? styles.pinCountBadgeTextSuccess : styles.pinCountBadgeTextWarning,
+                ]}
+              >
+                {pinRecordsWithin1km} Comp{pinRecordsWithin1km === 1 ? '' : 's'}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        {/* Primary CTA */}
-        <PremiumPressable reducedMotion={reduced}
-          style={styles.primaryFindBtn}
-          onPress={() => executeCalculation(targetLat, targetLng, landUsage)}
-          disabled={loadingEstimate}
-        >
-          {loadingEstimate ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <Text style={styles.primaryFindBtnText}>Find Land Value for this Pin →</Text>
-          )}
-        </PremiumPressable>
-      </View>
+          {/* Primary CTA */}
+          <PremiumPressable reducedMotion={reduced}
+            style={styles.primaryFindBtn}
+            onPress={() => executeCalculation(targetLat, targetLng, landUsage)}
+            disabled={loadingEstimate}
+          >
+            {loadingEstimate ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.primaryFindBtnText}>Find Land Value for this Pin →</Text>
+            )}
+          </PremiumPressable>
+        </View>
       </ScreenEntrance>
     </ScrollView>
   );

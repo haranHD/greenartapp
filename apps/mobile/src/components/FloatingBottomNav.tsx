@@ -76,7 +76,7 @@ export function FloatingBottomNav({ activeTab, onSelectTab, bottomInset }: Float
       update(); media.addEventListener('change', update);
       return () => media.removeEventListener('change', update);
     }
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled: boolean) => { if (current) setReducedMotion(enabled); }).catch(() => {});
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled: boolean) => { if (current) setReducedMotion(enabled); }).catch(() => { });
     const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
     const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));

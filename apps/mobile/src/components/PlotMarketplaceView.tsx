@@ -86,181 +86,181 @@ export const PlotMarketplaceView: React.FC<PlotMarketplaceViewProps> = ({
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.contentContainer, isCompact && { paddingHorizontal: 14, paddingTop: 16 }]} keyboardShouldPersistTaps="handled">
       <ScreenEntrance>
-      {/* Top Marketplace Header */}
-      <View style={styles.headerBox}>
-        <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>BUY DIRECT MARKETPLACE</Text>
-        </View>
-        <Text style={styles.headerTitle}>Tamil Nadu Land Listings</Text>
-        <Text style={styles.headerSubtitle}>
-          Browse land offered by owners and promoters. Compare asking prices and review the available property details.
-        </Text>
-      </View>
-
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchInputWrapper, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 10 }} />
-          <TextInput
-            accessibilityLabel="Search land listings"
-            style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            placeholder="Search locality, taluk, or district (e.g. Saravanampatti)..."
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear listing search" style={styles.clearBtn}>
-              <Feather accessible={false} name="x" size={17} color={P.secondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* District Filter Pills */}
-      <View style={styles.filterSection}>
-        <Text style={styles.filterSectionLabel}>DISTRICT</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-          {districts.map((d) => {
-            const active = selectedDistrict === d;
-            return (
-              <PremiumChoice key={d} label={d} selected={active} onPress={() => setSelectedDistrict(d)} />
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Land Usage Filter Pills */}
-      <View style={styles.filterSection}>
-        <Text style={styles.filterSectionLabel}>LAND USAGE</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-          {usageTypes.map((u) => {
-            const active = selectedUsage === u;
-            return (
-              <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={active} onPress={() => setSelectedUsage(u)} />
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Results Header */}
-      <View style={styles.resultsCountRow}>
-        <Text style={styles.resultsCountText}>
-          Showing <Text style={styles.resultsCountHighlight}>{filteredListings.length}</Text> available plot{filteredListings.length === 1 ? '' : 's'}
-        </Text>
-
-      </View>
-
-      {/* Listing Cards */}
-      {filteredListings.length === 0 ? (
-        <View style={styles.emptyState}><EmptyPropertyIllustration kind="land" />
-          <Text style={styles.emptyTitle}>No matching land listings</Text>
-          <Text style={styles.emptyMessage}>
-            No active listings found for the selected filters. Try broadening your district or land usage search.
+        {/* Top Marketplace Header */}
+        <View style={styles.headerBox}>
+          <View style={styles.headerBadge}>
+            <Text style={styles.headerBadgeText}>BUY DIRECT MARKETPLACE</Text>
+          </View>
+          <Text style={styles.headerTitle}>Tamil Nadu Land Listings</Text>
+          <Text style={styles.headerSubtitle}>
+            Browse land offered by owners and promoters. Compare asking prices and review the available property details.
           </Text>
-          <PremiumPressable reducedMotion={reduced}
-            style={styles.resetFilterBtn}
-            onPress={() => {
-              setSearchQuery('');
-              setSelectedDistrict('All');
-              setSelectedUsage('All');
-              setMaxBudget(null);
-            }}
-          >
-            <Text style={styles.resetFilterBtnText}>Reset All Filters</Text><Feather accessible={false} name="rotate-ccw" size={15} color={P.champagne} />
-          </PremiumPressable>
         </View>
-      ) : (
-        filteredListings.map((listing) => {
-          return (
+
+        {/* Search Input */}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchInputWrapper, searchFocused && { borderColor: P.highlight }]}><Feather accessible={false} name="search" size={18} color={P.secondary} style={{ marginRight: 10 }} />
+            <TextInput
+              accessibilityLabel="Search land listings"
+              style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              placeholder="Search locality, taluk, or district (e.g. Saravanampatti)..."
+              placeholderTextColor="#94A3B8"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear listing search" style={styles.clearBtn}>
+                <Feather accessible={false} name="x" size={17} color={P.secondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* District Filter Pills */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterSectionLabel}>DISTRICT</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
+            {districts.map((d) => {
+              const active = selectedDistrict === d;
+              return (
+                <PremiumChoice key={d} label={d} selected={active} onPress={() => setSelectedDistrict(d)} />
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Land Usage Filter Pills */}
+        <View style={styles.filterSection}>
+          <Text style={styles.filterSectionLabel}>LAND USAGE</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
+            {usageTypes.map((u) => {
+              const active = selectedUsage === u;
+              return (
+                <PremiumChoice key={u} label={u === 'AgriculturalWet' ? 'Agricultural' : u} selected={active} onPress={() => setSelectedUsage(u)} />
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Results Header */}
+        <View style={styles.resultsCountRow}>
+          <Text style={styles.resultsCountText}>
+            Showing <Text style={styles.resultsCountHighlight}>{filteredListings.length}</Text> available plot{filteredListings.length === 1 ? '' : 's'}
+          </Text>
+
+        </View>
+
+        {/* Listing Cards */}
+        {filteredListings.length === 0 ? (
+          <View style={styles.emptyState}><EmptyPropertyIllustration kind="land" />
+            <Text style={styles.emptyTitle}>No matching land listings</Text>
+            <Text style={styles.emptyMessage}>
+              No active listings found for the selected filters. Try broadening your district or land usage search.
+            </Text>
             <PremiumPressable reducedMotion={reduced}
-              key={listing.id}
-              style={styles.card}
-              onPress={() => onSelectListing(listing)}
+              style={styles.resetFilterBtn}
+              onPress={() => {
+                setSearchQuery('');
+                setSelectedDistrict('All');
+                setSelectedUsage('All');
+                setMaxBudget(null);
+              }}
             >
-              {/* Plot Image Container */}
-              <View style={styles.cardImageContainer}>
-                <PropertyThumbnail uri={listing.images[0]} style={styles.cardImage} />
-                <View style={styles.cardBadgeOverlay}>
-                  <View style={styles.usageTag}>
-                    <Text style={styles.usageTagText}>{listing.landUsage}</Text>
-                  </View>
-                  {listing.isSellerVerified && (
-                    <View style={styles.verifiedTag}>
-                      <Text style={styles.verifiedTagText}>Seller verified</Text>
+              <Text style={styles.resetFilterBtnText}>Reset All Filters</Text><Feather accessible={false} name="rotate-ccw" size={15} color={P.champagne} />
+            </PremiumPressable>
+          </View>
+        ) : (
+          filteredListings.map((listing) => {
+            return (
+              <PremiumPressable reducedMotion={reduced}
+                key={listing.id}
+                style={styles.card}
+                onPress={() => onSelectListing(listing)}
+              >
+                {/* Plot Image Container */}
+                <View style={styles.cardImageContainer}>
+                  <PropertyThumbnail uri={listing.images[0]} style={styles.cardImage} />
+                  <View style={styles.cardBadgeOverlay}>
+                    <View style={styles.usageTag}>
+                      <Text style={styles.usageTagText}>{listing.landUsage}</Text>
                     </View>
-                  )}
-                </View>
-                <View style={styles.extentBadge}>
-                  <Text style={styles.extentBadgeText}>
-                    {listing.extentCent} Cents ({listing.extentSqFt.toLocaleString()} sq.ft)
-                  </Text>
-                </View>
-              </View>
-
-              {/* Card Details */}
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle} numberOfLines={2}>
-                  {listing.title}
-                </Text>
-
-                <View style={styles.locationRow}>
-                  <View style={styles.locationDot} />
-                  <Text style={styles.locationText}>
-                    {listing.locality}, {listing.district} {listing.taluk ? `(${listing.taluk} Taluk)` : ''}
-                  </Text>
-                </View>
-
-                {/* Price Display */}
-                <View style={styles.priceRow}>
-                  <View>
-                    <Text style={styles.priceLabel}>SELLER ASKING PRICE</Text>
-                    <Text style={styles.priceTotal}>{formatCurrency(listing.askingPriceTotal)}</Text>
+                    {listing.isSellerVerified && (
+                      <View style={styles.verifiedTag}>
+                        <Text style={styles.verifiedTagText}>Seller verified</Text>
+                      </View>
+                    )}
                   </View>
-                  <View style={styles.rateCol}>
-                    <Text style={styles.rateLabel}>RATE / CENT</Text>
-                    <Text style={styles.rateValue}>{formatCurrency(listing.askingRatePerCent)}</Text>
-                  </View>
-                </View>
-
-                {/* Benchmark Comparison Strip */}
-                <View style={styles.benchmarkStrip}>
-                  <View style={styles.benchmarkItem}>
-                    <Text style={styles.benchmarkLabel}>Govt Guideline Rate</Text>
-                    <Text style={styles.benchmarkVal}>
-                      {listing.guidelineRatePerCent ? `${formatCurrency(listing.guidelineRatePerCent)}/cent` : 'Pending'}
-                    </Text>
-                  </View>
-                  <View style={styles.benchmarkDivider} />
-                  <View style={styles.benchmarkItem}>
-                    <Text style={styles.benchmarkLabel}>Market Median Estimate</Text>
-                    <Text style={styles.benchmarkValHighlight}>
-                      {listing.estimatedMarketMedianPerCent ? `${formatCurrency(listing.estimatedMarketMedianPerCent)}/cent` : 'Not available'}
+                  <View style={styles.extentBadge}>
+                    <Text style={styles.extentBadgeText}>
+                      {listing.extentCent} Cents ({listing.extentSqFt.toLocaleString()} sq.ft)
                     </Text>
                   </View>
                 </View>
 
-                {/* Document Verification Checklist */}
-                <View style={styles.docRow}>
-                  {listing.documentsAvailable.map((doc, idx) => (
-                    <View key={idx} style={[styles.docChip, doc.verified ? styles.docChipVerified : styles.docChipUnverified]}>
-                      <Text style={[styles.docChipText, doc.verified ? styles.docChipTextVerified : styles.docChipTextUnverified]}>
-                        {doc.verified ? '✓' : '•'} {doc.type.replace('Registered', '').replace('Certificate', ' EC')}
+                {/* Card Details */}
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>
+                    {listing.title}
+                  </Text>
+
+                  <View style={styles.locationRow}>
+                    <View style={styles.locationDot} />
+                    <Text style={styles.locationText}>
+                      {listing.locality}, {listing.district} {listing.taluk ? `(${listing.taluk} Taluk)` : ''}
+                    </Text>
+                  </View>
+
+                  {/* Price Display */}
+                  <View style={styles.priceRow}>
+                    <View>
+                      <Text style={styles.priceLabel}>SELLER ASKING PRICE</Text>
+                      <Text style={styles.priceTotal}>{formatCurrency(listing.askingPriceTotal)}</Text>
+                    </View>
+                    <View style={styles.rateCol}>
+                      <Text style={styles.rateLabel}>RATE / CENT</Text>
+                      <Text style={styles.rateValue}>{formatCurrency(listing.askingRatePerCent)}</Text>
+                    </View>
+                  </View>
+
+                  {/* Benchmark Comparison Strip */}
+                  <View style={styles.benchmarkStrip}>
+                    <View style={styles.benchmarkItem}>
+                      <Text style={styles.benchmarkLabel}>Govt Guideline Rate</Text>
+                      <Text style={styles.benchmarkVal}>
+                        {listing.guidelineRatePerCent ? `${formatCurrency(listing.guidelineRatePerCent)}/cent` : 'Pending'}
                       </Text>
                     </View>
-                  ))}
-                </View>
+                    <View style={styles.benchmarkDivider} />
+                    <View style={styles.benchmarkItem}>
+                      <Text style={styles.benchmarkLabel}>Market Median Estimate</Text>
+                      <Text style={styles.benchmarkValHighlight}>
+                        {listing.estimatedMarketMedianPerCent ? `${formatCurrency(listing.estimatedMarketMedianPerCent)}/cent` : 'Not available'}
+                      </Text>
+                    </View>
+                  </View>
 
-                {/* View Details Action Button */}
-                <View style={styles.actionBtn}>
-                  <Text style={styles.actionBtnText}>View property details →</Text>
+                  {/* Document Verification Checklist */}
+                  <View style={styles.docRow}>
+                    {listing.documentsAvailable.map((doc, idx) => (
+                      <View key={idx} style={[styles.docChip, doc.verified ? styles.docChipVerified : styles.docChipUnverified]}>
+                        <Text style={[styles.docChipText, doc.verified ? styles.docChipTextVerified : styles.docChipTextUnverified]}>
+                          {doc.verified ? '✓' : '•'} {doc.type.replace('Registered', '').replace('Certificate', ' EC')}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* View Details Action Button */}
+                  <View style={styles.actionBtn}>
+                    <Text style={styles.actionBtnText}>View property details →</Text>
+                  </View>
                 </View>
-              </View>
-            </PremiumPressable>
-          );
-        })
-      )}
+              </PremiumPressable>
+            );
+          })
+        )}
       </ScreenEntrance>
     </ScrollView>
   );

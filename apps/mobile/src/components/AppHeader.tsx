@@ -17,7 +17,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, o
   </View></View>;
 };
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#FFFFFF', minHeight: 64, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 8, justifyContent: 'center' },
+  header: { backgroundColor: '#FFFFFF', minHeight: 64, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'center' },
   inner: { width: '100%', maxWidth: 1080, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: { fontSize: 17, lineHeight: 24, fontWeight: '600', letterSpacing: -.4, color: Premium.text, flexShrink: 1 },
   controls: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },

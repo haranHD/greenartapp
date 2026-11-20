@@ -27,9 +27,15 @@ function PriceHero({ low, high, location, explanation, displayUnit }: { low: num
   const { width, fontScale } = useWindowDimensions();
   const isSmall = width < 350;
   const compact = isSmall || width / fontScale < 375;
-  const rateFontSize = isSmall ? 23 : compact ? 26 : 32;
-  const rateLineHeight = isSmall ? 32 : compact ? 36 : 45;
-  const money = (value: number) => displayUnit === 'Cent' ? formatLakhs(value) : `₹${Math.round(value).toLocaleString('en-IN')}`;
+  const rateFontSize = isSmall ? 20 : compact ? 22 : 26;
+  const rateLineHeight = isSmall ? 28 : compact ? 30 : 36;
+  const money = (value: number) => {
+    if (displayUnit === 'Cent') {
+      const lakhs = value >= 100000 ? value / 100000 : value;
+      return `₹${lakhs.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\u00a0L`;
+    }
+    return `₹${Math.round(value).toLocaleString('en-IN')}`;
+  };
   return <ScreenEntrance><View style={[styles.hero, compact && { padding: 16 }]}>
     <View pointerEvents="none" accessible={false} style={styles.art}>
       <View style={styles.halo} />
@@ -37,7 +43,9 @@ function PriceHero({ low, high, location, explanation, displayUnit }: { low: num
       <View style={styles.goldCurve} />
     </View>
     <Text style={styles.heroEyebrow}>INDICATIVE MARKET RANGE</Text>
-    <Text style={[styles.heroRate, { fontSize: rateFontSize, lineHeight: rateLineHeight }]}>{money(low)} – {money(high)}<Text style={styles.heroUnit}> {'/\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text></Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.heroRate, { fontSize: rateFontSize, lineHeight: rateLineHeight }]}>
+      {money(low)} – {money(high)}<Text style={styles.heroUnit}>{' /\u00a0'}{displayUnit === 'Cent' ? 'cent' : 'sq\u00a0ft'}</Text>
+    </Text>
     <View style={styles.heroLocationRow}><Feather name="map-pin" size={17} color={P.champagne} /><Text style={styles.heroLocation}>{location}</Text></View>
     <View style={styles.heroDivider} />
     <Text style={styles.heroBody}>{explanation}</Text>

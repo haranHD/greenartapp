@@ -73,7 +73,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const { width, fontScale } = useWindowDimensions();
   const wide = width >= 768;
   const isCompact = width < 370;
-  const stacked = isCompact || width / fontScale < 380;
+  const stacked = isCompact || width / fontScale < 480;
   const { reduced: reducedMotion, ready } = useReducedMotion();
   const entrance = useRef(new Animated.Value(1)).current;
   const focus = useRef(new Animated.Value(0)).current;
@@ -221,7 +221,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={styles.primaryFindBtn}
             onPress={() => executeCalculation(targetLat, targetLng, currentUsageObj.id)}
           >
-            <Text style={styles.primaryFindBtnText}>Estimate land value</Text><Feather accessible={false} name="arrow-right" size={15} color={Premium.champagne} />
+            <Text numberOfLines={1} style={styles.primaryFindBtnText}>Estimate land value</Text><Feather accessible={false} name="arrow-right" size={15} color={Premium.champagne} />
           </PremiumPressable>
 
           {/* Secondary Action */}
@@ -231,7 +231,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={styles.secondaryMapBtn}
             onPress={() => setActiveTab('search')}
           >
-            <Feather accessible={false} name="map" size={16} color={Premium.violet} /><Text style={styles.secondaryMapBtnText}>Choose on map</Text>
+            <Feather accessible={false} name="map" size={16} color={Premium.violet} /><Text numberOfLines={1} style={styles.secondaryMapBtnText}>Choose on map</Text>
           </PremiumPressable>
         </View>
       </View>
@@ -329,10 +329,10 @@ const styles = StyleSheet.create({
   primaryActionContainer: { flex: 1.2, minWidth: 156 },
   secondaryActionContainer: { flex: 1, minWidth: 136 },
   actionStacked: { width: '100%' },
-  primaryFindBtn: { minHeight: 46, flexGrow: 1, flexDirection: 'row', gap: 5, backgroundColor: Premium.violet, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#806032' },
-  primaryFindBtnText: { color: '#FFFFFF', fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
-  secondaryMapBtn: { minHeight: 50, flexGrow: 1, flexDirection: 'row', gap: 5, backgroundColor: Premium.surface, borderRadius: 11, paddingVertical: 11, paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DDD0E8' },
-  secondaryMapBtnText: { color: Premium.violet, fontSize: 14, lineHeight: 21, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
+  primaryFindBtn: { minHeight: 48, flexGrow: 1, flexDirection: 'row', gap: 8, backgroundColor: Premium.violet, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#806032' },
+  primaryFindBtnText: { color: '#FFFFFF', fontSize: 14.5, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
+  secondaryMapBtn: { minHeight: 48, flexGrow: 1, flexDirection: 'row', gap: 8, backgroundColor: Premium.surface, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DDD0E8' },
+  secondaryMapBtnText: { color: Premium.violet, fontSize: 14.5, lineHeight: 21, fontWeight: '600', textAlign: 'center' },
   sectionHeading: { gap: 4, marginTop: 4 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Premium.text },
   sectionCaption: { fontSize: 13, lineHeight: 20, color: Premium.secondary },

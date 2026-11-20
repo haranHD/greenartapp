@@ -732,9 +732,11 @@ function GreenartMobileApp() {
     );
   }
 
+  const safeTop = Math.max(insets.top, Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) : 0);
+
   if (!isAuthenticated) {
     return (
-      <SafeAreaView style={[styles.container, { paddingTop: Math.max(insets.top, 0) }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: '#FAF8FC', paddingTop: safeTop }]}>
         <StatusBar barStyle="dark-content" backgroundColor="#FAF8FC" />
         <AuthGatewayScreen
           onSuccess={() => {
@@ -746,7 +748,7 @@ function GreenartMobileApp() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: Math.max(insets.top, 0) }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#FFFFFF', paddingTop: safeTop }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <KeyboardAvoidingView
