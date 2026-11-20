@@ -12,17 +12,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ isHealthy, healthStatus, o
     <Text style={styles.title}>Property insights</Text>
     <View style={styles.controls}>
       <View accessibilityLabel={status} style={styles.status}><View style={[styles.dot, { backgroundColor: isHealthy ? '#34805A' : '#94733A' }]} />{!compact && <Text style={styles.statusText}>{status}</Text>}</View>
-      {onPressProfile && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open your profile" onPress={onPressProfile} accessibilityHint="View your account and settings" style={styles.account}><Feather accessible={false} name="user" size={21} color={Premium.violet} /></TouchableOpacity>}
+      {onPressProfile && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open your profile" onPress={onPressProfile} accessibilityHint="View your account and settings" style={styles.account}><Feather accessible={false} name="user" size={18} color={Premium.violet} /></TouchableOpacity>}
     </View>
   </View></View>;
 };
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#FFFFFF', minHeight: 64, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 20, paddingVertical: 10, justifyContent: 'center' },
-  inner: { width: '100%', maxWidth: 1080, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  title: { fontSize: 17, lineHeight: 24, fontWeight: '600', letterSpacing: -.4, color: Premium.text, flexShrink: 1 },
+  header: { backgroundColor: '#FFFFFF', minHeight: 52, borderBottomWidth: 1, borderBottomColor: Premium.border, paddingHorizontal: 16, paddingVertical: 6, justifyContent: 'center' },
+  inner: { width: '100%', maxWidth: 1080, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  title: { fontSize: 16, lineHeight: 22, fontWeight: '700', letterSpacing: -.3, color: Premium.text, flexShrink: 1 },
   controls: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, color: Premium.secondary },
-  account: { width: 44, height: 44, backgroundColor: Premium.lavender, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  account: { width: 36, height: 36, backgroundColor: Premium.lavender, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });
