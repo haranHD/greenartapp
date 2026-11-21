@@ -156,12 +156,13 @@ public class AuthAndMarketplaceDomainTests
         Assert.Equal(reviewerId, listing.ReviewedByUserId);
         Assert.Equal("Documents verified with TNREGINET", listing.ModerationNotes);
 
+        listing.ChangeSaleStatus(ListingSaleStatus.UnderNegotiation);
+        Assert.Equal(ListingStatus.Active, listing.Status);
+        Assert.Equal(ListingSaleStatus.UnderNegotiation, listing.SaleStatus);
+
         listing.Reject(reviewerId, "Discrepancy in FMB sketch boundary", "Requires surveyor update");
         Assert.Equal(ListingStatus.Rejected, listing.Status);
         Assert.Equal("Discrepancy in FMB sketch boundary", listing.RejectionReason);
-
-        listing.MarkAsSold();
-        Assert.Equal(ListingStatus.Sold, listing.Status);
 
         listing.Archive();
         Assert.Equal(ListingStatus.Archived, listing.Status);

@@ -41,6 +41,10 @@ public class ListingEnquiryConfiguration : IEntityTypeConfiguration<ListingEnqui
             .HasColumnType("timestamp with time zone")
             .IsRequired();
 
+        builder.Property(e => e.ShareContact).HasColumnName("share_contact");
+        builder.Property(e => e.UpdatedAtUtc).HasColumnName("updated_at_utc");
+        builder.HasIndex(e => new { e.BuyerUserId, e.SubmittedAtUtc });
+
         // Listing relationship (Cascade delete removes enquiries if listing is purged)
         builder.HasOne(e => e.Listing)
             .WithMany(l => l.Enquiries)

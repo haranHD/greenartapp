@@ -26,9 +26,30 @@ public class MarketplaceListing
     public double Latitude => Coordinates.Latitude;
     public double Longitude => Coordinates.Longitude;
 
+    public bool HasExactLocation { get; private set; } = true;
+    public string? Village { get; private set; }
+    public string? Landmark { get; private set; }
+    public string? LandClassification { get; private set; }
+    public string? SellerRelationship { get; private set; }
+    public ListingFeatures Features { get; private set; } = new();
+
     public LandUsageType LandUsage { get; private set; }
     public decimal ExtentCent { get; private set; }
     public decimal ExtentSqFt { get; private set; }
+
+    public decimal? EnteredArea { get; private set; }
+    public AreaUnit? EnteredAreaUnit { get; private set; }
+    public decimal? OriginalAskingPrice { get; private set; }
+    public bool Negotiable { get; private set; }
+    public string? PricingNotes { get; private set; }
+    public string? ParcelFingerprint { get; private set; }
+    public Guid? CreationRequestId { get; private set; }
+    public int Version { get; private set; } = 1;
+    public ListingSaleStatus SaleStatus { get; private set; }
+    public DateTime? PublishedAtUtc { get; private set; }
+
+    public bool CanEdit => Status is not (ListingStatus.Suspended or ListingStatus.Archived or ListingStatus.Sold)
+        && SaleStatus is (ListingSaleStatus.Available or ListingSaleStatus.UnderNegotiation);
 
     // Asking Price Architecture (distinct from empirical valuation)
     public decimal AskingPriceTotal { get; private set; }
@@ -44,6 +65,7 @@ public class MarketplaceListing
     public ListingStatus Status { get; private set; } = ListingStatus.PendingReview;
     public string? RejectionReason { get; private set; }
     public string? ModerationNotes { get; private set; }
+    public Guid? ReviewedSellerApplicationId { get; private set; }
     public Guid? ReviewedByUserId { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
@@ -52,6 +74,8 @@ public class MarketplaceListing
     public User? Seller { get; private set; }
     public User? ReviewedByUser { get; private set; }
     public ICollection<ListingEnquiry> Enquiries { get; private set; } = new List<ListingEnquiry>();
+
+    public void AttachSeller(User user) => Seller = user;
 
     // EF Core constructor
     private MarketplaceListing() { }
@@ -107,6 +131,7 @@ public class MarketplaceListing
         ExtentCent = extentCent;
         ExtentSqFt = extentSqFt;
         AskingPriceTotal = askingPriceTotal;
+        OriginalAskingPrice = askingPriceTotal;
         AskingRatePerCent = askingRatePerCent;
         AskingRatePerSqFt = askingRatePerSqFt;
         GuidelineRatePerCent = guidelineRatePerCent;
@@ -123,18 +148,154 @@ public class MarketplaceListing
         UpdatedAtUtc = updatedAtUtc ?? CreatedAtUtc;
     }
 
-    public void Approve(Guid reviewerUserId, string? notes = null)
+    public static MarketplaceListing CreateDraft(Guid sellerId, Guid? requestId, ListingRevision revision)
+    {
+        var listing = new MarketplaceListing
+        {
+            Id = Guid.NewGuid(),
+            SellerId = sellerId,
+            CreationRequestId = requestId,
+            Status = ListingStatus.Draft,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+        listing.Apply(revision);
+        listing.UpdatedAtUtc = listing.CreatedAtUtc;
+        return listing;
+    }
+
+    public void Edit(ListingRevision revision)
+    {
+        EnsureEditable();
+        Apply(revision);
+        InvalidateReview();
+    }
+
+    private void Apply(ListingRevision revision)
+    {
+        Title = revision.Title;
+        Description = revision.Description;
+        State = revision.State;
+        District = revision.District;
+        Taluk = revision.Taluk;
+        Village = revision.Village;
+        Locality = revision.Locality;
+        Landmark = revision.Landmark;
+        StreetAddress = revision.StreetAddress;
+        SurveyNumber = revision.SurveyNumber;
+        HasExactLocation = revision.Coordinates.HasValue;
+        Coordinates = revision.Coordinates.GetValueOrDefault();
+        LandUsage = revision.LandUsage.GetValueOrDefault();
+        LandClassification = revision.LandClassification;
+        SellerRelationship = revision.SellerRelationship;
+        Features = revision.Features;
+        EnteredArea = revision.Area?.Value;
+        EnteredAreaUnit = revision.Area?.Unit;
+
+        var squareFeet = revision.Area?.ToSqFt() ?? 0;
+        var cents = revision.Area?.ToCents() ?? 0;
+        ExtentSqFt = Math.Round(squareFeet, 2);
+        ExtentCent = Math.Round(cents, 4);
+        AskingPriceTotal = revision.AskingPrice.GetValueOrDefault();
+        AskingRatePerSqFt = squareFeet > 0 ? Math.Round(AskingPriceTotal / squareFeet, 2) : 0;
+        AskingRatePerCent = cents > 0 ? Math.Round(AskingPriceTotal / cents, 2) : 0;
+        if (AskingPriceTotal > 0)
+            OriginalAskingPrice ??= AskingPriceTotal;
+        Negotiable = revision.Negotiable;
+        PricingNotes = revision.PricingNotes;
+        ParcelFingerprint = revision.ParcelFingerprint;
+    }
+
+    public bool HasRequiredDetails(bool requireLocation = true) => Title.Length > 0 && State.Length > 0 && District.Length > 0 &&
+        Locality.Length > 0 && (!requireLocation || HasExactLocation) && Enum.IsDefined(LandUsage) &&
+        ExtentCent > 0 && ExtentSqFt > 0 && AskingPriceTotal > 0;
+
+    public void Submit(bool requireLocation = true)
+    {
+        EnsureEditable();
+        if (Status is not (ListingStatus.Draft or ListingStatus.NeedsChanges or ListingStatus.Rejected) ||
+            !HasRequiredDetails(requireLocation))
+            throw new InvalidOperationException("Complete the listing details before submitting.");
+
+        Status = ListingStatus.PendingReview;
+        ReviewedSellerApplicationId = null;
+        Touch();
+    }
+
+    public void ChangeMedia()
+    {
+        EnsureEditable();
+        InvalidateReview();
+    }
+
+    public void ChangePrivateDocuments()
+    {
+        EnsureEditable();
+        if (Status is ListingStatus.Active or ListingStatus.PendingReview)
+            InvalidateReview();
+        else
+            Touch();
+    }
+
+    public void RequestChanges(Guid reviewer, string reason, string? notes)
+    {
+        Reject(reviewer, reason, notes);
+        Status = ListingStatus.NeedsChanges;
+    }
+
+    public void Suspend(Guid reviewer, string reason, string? notes)
+    {
+        Reject(reviewer, reason, notes);
+        Status = ListingStatus.Suspended;
+    }
+
+    public void ChangeSaleStatus(ListingSaleStatus status)
+    {
+        if (status == SaleStatus)
+            return;
+        EnsureEditable();
+
+        if (!Enum.IsDefined(status) || (status != ListingSaleStatus.Withdrawn && Status != ListingStatus.Active))
+            throw new InvalidOperationException("The requested sale status is unavailable for this listing.");
+
+        SaleStatus = status;
+        Touch();
+    }
+
+    private void EnsureEditable()
+    {
+        if (!CanEdit)
+            throw new InvalidOperationException("This listing is closed or restricted.");
+    }
+
+    private void InvalidateReview()
+    {
+        Status = ListingStatus.Draft;
+        ReviewedSellerApplicationId = null;
+        Touch();
+    }
+
+    private void Touch()
+    {
+        Version++;
+        UpdatedAtUtc = DateTime.UtcNow;
+    }
+
+    public void Approve(Guid reviewerUserId, string? notes = null, Guid? sellerApplicationId = null)
     {
         if (reviewerUserId == Guid.Empty) throw new ArgumentException("ReviewerUserId is required.", nameof(reviewerUserId));
+        if (!CanEdit || !HasRequiredDetails(requireLocation: false) || Status is not (ListingStatus.PendingReview or ListingStatus.Active))
+            throw new InvalidOperationException("This listing cannot be published.");
 
         Status = ListingStatus.Active;
+        PublishedAtUtc = DateTime.UtcNow;
+        ReviewedSellerApplicationId = sellerApplicationId;
         ReviewedByUserId = reviewerUserId;
         RejectionReason = null;
         if (!string.IsNullOrWhiteSpace(notes))
         {
             ModerationNotes = notes.Trim();
         }
-        UpdatedAtUtc = DateTime.UtcNow;
+        Touch();
     }
 
     public void Reject(Guid reviewerUserId, string reason, string? notes = null)
@@ -143,25 +304,20 @@ public class MarketplaceListing
         if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Rejection reason is required.", nameof(reason));
 
         Status = ListingStatus.Rejected;
+        ReviewedSellerApplicationId = null;
         ReviewedByUserId = reviewerUserId;
         RejectionReason = reason.Trim();
         if (!string.IsNullOrWhiteSpace(notes))
         {
             ModerationNotes = notes.Trim();
         }
-        UpdatedAtUtc = DateTime.UtcNow;
-    }
-
-    public void MarkAsSold()
-    {
-        Status = ListingStatus.Sold;
-        UpdatedAtUtc = DateTime.UtcNow;
+        Touch();
     }
 
     public void Archive()
     {
         Status = ListingStatus.Archived;
-        UpdatedAtUtc = DateTime.UtcNow;
+        Touch();
     }
 
     public void UpdatePricing(
@@ -176,13 +332,15 @@ public class MarketplaceListing
         if (askingRatePerCent <= 0) throw new ArgumentOutOfRangeException(nameof(askingRatePerCent), "AskingRatePerCent must be strictly positive.");
         if (askingRatePerSqFt <= 0) throw new ArgumentOutOfRangeException(nameof(askingRatePerSqFt), "AskingRatePerSqFt must be strictly positive.");
 
+        EnsureEditable();
         AskingPriceTotal = askingPriceTotal;
+        OriginalAskingPrice ??= askingPriceTotal;
         AskingRatePerCent = askingRatePerCent;
         AskingRatePerSqFt = askingRatePerSqFt;
         GuidelineRatePerCent = guidelineRatePerCent ?? GuidelineRatePerCent;
         GuidelineRatePerSqFt = guidelineRatePerSqFt ?? GuidelineRatePerSqFt;
         EstimatedMarketMedianPerCent = estimatedMarketMedianPerCent ?? EstimatedMarketMedianPerCent;
-        UpdatedAtUtc = DateTime.UtcNow;
+        InvalidateReview();
     }
 
     public void UpdateIntelligenceBenchmarks(

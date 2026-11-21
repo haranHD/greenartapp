@@ -24,7 +24,15 @@ public class LandPriceDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
     public DbSet<MarketplaceListing> MarketplaceListings => Set<MarketplaceListing>();
+    public DbSet<SellerApplication> SellerApplications => Set<SellerApplication>();
+    public DbSet<SellerProfile> SellerProfiles => Set<SellerProfile>();
     public DbSet<ListingEnquiry> ListingEnquiries => Set<ListingEnquiry>();
+    public DbSet<ListingMedia> ListingMedia => Set<ListingMedia>();
+    public DbSet<ListingMediaBlob> ListingMediaBlobs => Set<ListingMediaBlob>();
+    public DbSet<ListingPriceChange> ListingPriceChanges => Set<ListingPriceChange>();
+    public DbSet<ListingModerationChange> ListingModerationChanges => Set<ListingModerationChange>();
+    public DbSet<ListingFavourite> ListingFavourites => Set<ListingFavourite>();
+    public DbSet<ListingReport> ListingReports => Set<ListingReport>();
 
     // Greenot Quality-Control & Auditable Valuation Schema (Non-destructive addition)
     public DbSet<GreenotProperty> GreenotProperties => Set<GreenotProperty>();

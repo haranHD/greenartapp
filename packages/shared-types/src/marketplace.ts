@@ -63,7 +63,8 @@ export interface MarketplaceListing {
   sellerId: string;
   sellerName: string;
   sellerPhone?: string;
-  sellerType: SellerType;
+  sellerEmail?: string;
+  sellerType?: SellerType;
   isSellerVerified: boolean;
 
   // Geographic & Revenue Identifiers

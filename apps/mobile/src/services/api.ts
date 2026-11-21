@@ -32,6 +32,34 @@ function validateMarketPriceRange(range: MarketPriceRange | null): void {
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 
+import type { MarketplaceListing } from '@greenart/shared-types';
+
+type LegacyListingResponse = Omit<MarketplaceListing,
+  'coordinates' | 'createdAt' | 'updatedAt' | 'images' | 'documentsAvailable'> & {
+  latitude: number;
+  longitude: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  images?: MarketplaceListing['images'] | null;
+  documentsAvailable?: MarketplaceListing['documentsAvailable'] | null;
+};
+
+type CreateMarketplaceListingRequest = Pick<MarketplaceListing,
+  'title' | 'description' | 'locality' | 'district' | 'state' | 'taluk' | 'streetAddress' |
+  'surveyNumber' | 'landUsage' | 'extentCent' | 'askingPriceTotal'> & MarketplaceListing['coordinates'];
+
+function toMarketplaceListing(response: LegacyListingResponse): MarketplaceListing {
+  const { latitude, longitude, createdAtUtc, updatedAtUtc, images, documentsAvailable, ...listing } = response;
+  return {
+    ...listing,
+    coordinates: { latitude, longitude },
+    createdAt: createdAtUtc,
+    updatedAt: updatedAtUtc,
+    images: Array.isArray(images) ? images : [],
+    documentsAvailable: Array.isArray(documentsAvailable) ? documentsAvailable : [],
+  };
+}
+
 export class ApiUnavailableError extends Error {
   constructor(message: string = 'Could not reach the server. Please try again.') {
     super(message);
@@ -1099,7 +1127,7 @@ class MobileApiClient {
     landUsage?: number,
     maxPrice?: number,
     search?: string
-  ): Promise<any[]> {
+  ): Promise<MarketplaceListing[]> {
     const params = new URLSearchParams();
     if (district && district !== 'All') params.append('district', district);
     if (landUsage && landUsage > 0) params.append('landUsage', landUsage.toString());
@@ -1114,10 +1142,10 @@ class MobileApiClient {
     );
 
     if (!response.ok) return [];
-    return await response.json();
+    return ((await response.json()) as LegacyListingResponse[]).map(toMarketplaceListing);
   }
 
-  public async getMyMarketplaceListings(accessToken?: string): Promise<any[]> {
+  public async getMyMarketplaceListings(accessToken?: string): Promise<MarketplaceListing[]> {
     if (!accessToken || !accessToken.includes('.')) return [];
     try {
       const response = await this.fetchWithTimeout(
@@ -1132,13 +1160,13 @@ class MobileApiClient {
       );
 
       if (!response.ok) return [];
-      return await response.json();
+      return ((await response.json()) as LegacyListingResponse[]).map(toMarketplaceListing);
     } catch {
       return [];
     }
   }
 
-  public async createMarketplaceListing(data: any, accessToken?: string): Promise<any> {
+  public async createMarketplaceListing(data: CreateMarketplaceListingRequest, accessToken?: string): Promise<MarketplaceListing> {
     const response = await this.fetchWithTimeout(
       '/marketplace/listings',
       {
@@ -1161,7 +1189,7 @@ class MobileApiClient {
       } catch { }
       throw new Error(errMsg);
     }
-    return await response.json();
+    return toMarketplaceListing(await response.json());
   }
 
   public async submitListingEnquiry(

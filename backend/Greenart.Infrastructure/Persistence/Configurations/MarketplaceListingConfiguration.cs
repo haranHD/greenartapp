@@ -66,6 +66,51 @@ public class MarketplaceListingConfiguration : IEntityTypeConfiguration<Marketpl
             .HasDatabaseName("idx_marketplace_listings_location")
             .HasMethod("GIST");
 
+        builder.Property<Point>("PublicLocation")
+            .HasColumnName("public_location")
+            .HasColumnType("geography(Point, 4326)")
+            .HasComputedColumnSql("""
+                CASE WHEN has_exact_location THEN
+                    ST_SetSRID(ST_MakePoint(
+                        round(longitude::numeric, 2)::double precision,
+                        round(latitude::numeric, 2)::double precision), 4326)::geography
+                END
+                """, stored: true);
+        builder.HasIndex("PublicLocation").HasDatabaseName("idx_marketplace_public_location").HasMethod("GIST");
+
+        builder.Property(l => l.HasExactLocation).HasColumnName("has_exact_location");
+        builder.Property(l => l.Village).HasColumnName("village").HasMaxLength(150);
+        builder.Property(l => l.Landmark).HasColumnName("landmark").HasMaxLength(200);
+        builder.Property(l => l.LandClassification).HasColumnName("land_classification").HasMaxLength(100);
+        builder.Property(l => l.SellerRelationship).HasColumnName("seller_relationship").HasMaxLength(100);
+        builder.Property(l => l.EnteredArea).HasColumnName("entered_area").HasPrecision(18, 4);
+        builder.Property(l => l.EnteredAreaUnit).HasColumnName("entered_area_unit").HasConversion<string>().HasMaxLength(20);
+        builder.Property(l => l.OriginalAskingPrice).HasColumnName("original_asking_price").HasPrecision(18, 2);
+        builder.Property(l => l.Negotiable).HasColumnName("negotiable");
+        builder.Property(l => l.PricingNotes).HasColumnName("pricing_notes").HasMaxLength(1000);
+        builder.Property(l => l.ParcelFingerprint).HasColumnName("parcel_fingerprint").HasMaxLength(64);
+        builder.Property(l => l.CreationRequestId).HasColumnName("creation_request_id");
+        builder.Property(l => l.Version).HasColumnName("version").IsConcurrencyToken();
+        builder.Property(l => l.SaleStatus).HasColumnName("sale_status").HasConversion<string>().HasMaxLength(25);
+        builder.Property(l => l.PublishedAtUtc).HasColumnName("published_at_utc");
+        builder.Ignore(l => l.CanEdit);
+        builder.HasIndex(l => new { l.SellerId, l.CreationRequestId }).IsUnique()
+            .HasFilter("creation_request_id IS NOT NULL");
+        builder.HasIndex(l => l.ParcelFingerprint);
+        builder.HasIndex(l => new { l.Status, l.SaleStatus, l.PublishedAtUtc });
+
+        builder.ComplexProperty(l => l.Features, features =>
+        {
+            features.Property(f => f.RoadAccess).HasColumnName("road_access").HasMaxLength(100);
+            features.Property(f => f.RoadWidthFeet).HasColumnName("road_width_feet").HasPrecision(8, 2);
+            features.Property(f => f.RoadFrontageFeet).HasColumnName("road_frontage_feet").HasPrecision(8, 2);
+            features.Property(f => f.WaterAvailable).HasColumnName("water_available");
+            features.Property(f => f.ElectricityAvailable).HasColumnName("electricity_available");
+            features.Property(f => f.Fenced).HasColumnName("fenced");
+            features.Property(f => f.PlotDimensions).HasColumnName("plot_dimensions").HasMaxLength(120);
+            features.Property(f => f.ApprovalDetails).HasColumnName("approval_details").HasMaxLength(500);
+        });
+
         // Coordinates Value Object (EF Core 8 ComplexProperty)
         builder.ComplexProperty(l => l.Coordinates, coord =>
         {
@@ -157,6 +202,10 @@ public class MarketplaceListingConfiguration : IEntityTypeConfiguration<Marketpl
         builder.HasOne(l => l.Seller)
             .WithMany(u => u.Listings)
             .HasForeignKey(l => l.SellerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(l => l.ReviewedSellerApplicationId).HasColumnName("reviewed_seller_application_id");
+        builder.HasOne<SellerApplication>().WithMany().HasForeignKey(l => l.ReviewedSellerApplicationId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Reviewer relationship

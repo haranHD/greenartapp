@@ -53,11 +53,14 @@ public record MarketplaceListingDto(
     ListingStatus Status,
     string? RejectionReason,
     DateTime CreatedAtUtc,
-    DateTime UpdatedAtUtc);
+    DateTime UpdatedAtUtc,
+    int Version = 1,
+    string? SellerEmail = null);
 
 public record SubmitEnquiryRequestDto(
     string Message,
-    decimal? OfferedPriceTotal = null);
+    decimal? OfferedPriceTotal = null,
+    bool ShareContact = false);
 
 public record ListingEnquiryDto(
     Guid Id,
@@ -70,10 +73,12 @@ public record ListingEnquiryDto(
     decimal? OfferedPriceTotal,
     string Message,
     EnquiryStatus Status,
-    DateTime SubmittedAtUtc);
+    DateTime SubmittedAtUtc,
+    DateTime? UpdatedAtUtc = null);
 
 public record ReviewListingRequestDto(
     string Action, // "Approve" or "Reject"
     string? Reason = null,
-    string? Notes = null);
+    string? Notes = null,
+    int? Version = null);
 

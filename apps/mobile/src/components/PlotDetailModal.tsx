@@ -1,3 +1,4 @@
+import { PropertyThumbnail } from './PropertyThumbnail';
 import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import React, { useState } from 'react';
 import {
@@ -26,14 +27,14 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
   onSubmitEnquiry,
   onOpenValuation,
 }) => {
-  if (!listing) return null;
-
   const [activeImageIdx, setActiveImageIdx] = useState(0);
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [buyerOffer, setBuyerOffer] = useState('');
   const [buyerMessage, setBuyerMessage] = useState('I am interested in inspecting this plot. Please share availability.');
   const [enquirySent, setEnquirySent] = useState(false);
+
+  if (!listing) return null;
 
   const formatCurrency = (val: number) => {
     if (val >= 10000000) {
@@ -87,11 +88,7 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Main Gallery */}
           <View style={styles.galleryContainer}>
-            <Image
-              source={{ uri: listing.images[activeImageIdx] || listing.images[0] }}
-              style={styles.mainImage}
-              resizeMode="cover"
-            />
+            <PropertyThumbnail uri={listing.images[activeImageIdx] || listing.images[0]} style={styles.mainImage} />
             {listing.images.length > 1 && (
               <View style={styles.thumbRow}>
                 {listing.images.map((img, idx) => (
@@ -229,7 +226,7 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
               </Text>
             </View>
 
-            {onOpenValuation && (
+            {onOpenValuation && (listing.coordinates.latitude !== 0 || listing.coordinates.longitude !== 0) && (
               <TouchableOpacity
                 style={styles.runValuationBtn}
                 onPress={() => {
@@ -284,9 +281,11 @@ export const PlotDetailModal: React.FC<PlotDetailModalProps> = ({
               </View>
               <View style={styles.sellerDetails}>
                 <Text style={styles.sellerName}>{listing.sellerName}</Text>
-                <Text style={styles.sellerType}>
-                  Role: {listing.sellerType === 'IndividualOwner' ? 'Direct Property Owner' : listing.sellerType}
-                </Text>
+                {listing.sellerType && (
+                  <Text style={styles.sellerType}>
+                    Role: {listing.sellerType === 'IndividualOwner' ? 'Direct Property Owner' : listing.sellerType}
+                  </Text>
+                )}
                 {listing.sellerPhone && (
                   <Text style={styles.sellerContact}>Direct Contact: {listing.sellerPhone}</Text>
                 )}

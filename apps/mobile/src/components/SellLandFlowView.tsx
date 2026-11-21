@@ -21,21 +21,26 @@ import {
   SellerType,
   LandUsageType,
   DocumentType,
+  UserProfile,
 } from '@greenart/shared-types';
 
 export interface SellLandFlowViewProps {
   userListings: MarketplaceListing[];
-  onSaveListing: (listing: MarketplaceListing) => void;
+  onSaveListing: (listing: MarketplaceListing) => Promise<boolean>;
   onSelectListing: (listing: MarketplaceListing) => void;
+  currentUser?: UserProfile | null;
 }
 
 export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
   userListings,
   onSaveListing,
   onSelectListing,
+  currentUser,
 }) => {
   const { reduced } = useReducedMotion();
   const [activeSubTab, setActiveSubTab] = useState<'create' | 'workspace'>('workspace');
+
+  const [submitting, setSubmitting] = useState(false);
 
   // Form States for New Listing
   const [district, setDistrict] = useState('Coimbatore');
@@ -66,7 +71,8 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
     }));
   };
 
-  const handleSubmitListing = (status: ListingStatus) => {
+  const handleSubmitListing = async (status: ListingStatus) => {
+    if (submitting) return;
     if (!locality.trim()) {
       alert('Locality is required.');
       return;
@@ -84,10 +90,12 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
       id: `LIST-TN-USR-${Date.now()}`,
       title: `${parsedExtent} Cents ${landUsage} Plot in ${locality}`,
       description: description.trim() || `Clear title ${landUsage.toLowerCase()} plot in ${locality}, ${district}. Extent: ${parsedExtent} Cents (${computedExtentSqFt} sq.ft). Road width: ${roadWidthFeet} ft.`,
-      sellerId: 'CURRENT-LOGGED-IN-USER',
-      sellerName: 'My Account (Verified Owner)',
-      sellerType: SellerType.IndividualOwner,
-      isSellerVerified: true,
+      sellerId: currentUser?.id || 'CURRENT-LOGGED-IN-USER',
+      sellerName: currentUser?.fullName || 'Property Owner',
+      sellerPhone: currentUser?.phoneNumber,
+      sellerEmail: currentUser?.email,
+      sellerType: (currentUser?.sellerType as SellerType) || SellerType.IndividualOwner,
+      isSellerVerified: currentUser?.isSellerVerified ?? true,
       state: 'Tamil Nadu',
       district,
       taluk: taluk.trim() || undefined,
@@ -120,8 +128,12 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    onSaveListing(newListing);
-    setActiveSubTab('workspace');
+    setSubmitting(true);
+    try {
+      if (await onSaveListing(newListing)) setActiveSubTab('workspace');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -435,13 +447,15 @@ export const SellLandFlowView: React.FC<SellLandFlowViewProps> = ({
             <View style={styles.buttonStack}>
               <PremiumPressable reducedMotion={reduced}
                 style={styles.submitBtn}
+                disabled={submitting}
                 onPress={() => handleSubmitListing(ListingStatus.PendingReview)}
               >
-                <Text style={styles.submitBtnText}>Submit for Title Verification & Publish →</Text>
+                <Text style={styles.submitBtnText}>{submitting ? 'Submitting…' : 'Submit for Review →'}</Text>
               </PremiumPressable>
 
               <PremiumPressable reducedMotion={reduced}
                 style={styles.draftBtn}
+                disabled={submitting}
                 onPress={() => handleSubmitListing(ListingStatus.Draft)}
               >
                 <Text style={styles.draftBtnText}>Save as Private Draft</Text>

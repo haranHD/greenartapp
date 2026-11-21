@@ -282,7 +282,7 @@ function GreenartMobileApp() {
     const token = authService.getAccessToken();
     if (!token) {
       alert('You must be signed in to create a listing.');
-      return;
+      return false;
     }
     try {
       const saved = await mobileApi.createMarketplaceListing({
@@ -303,8 +303,10 @@ function GreenartMobileApp() {
 
       setUserSubmittedListings((prev) => [saved, ...prev]);
       alert('Your plot has been submitted for administrative review! Status: Pending Review.');
+      return true;
     } catch (err: any) {
       alert(err?.message || 'Failed to submit listing to server. Please try again.');
+      return false;
     }
   };
 
@@ -964,6 +966,7 @@ function GreenartMobileApp() {
               userListings={userSubmittedListings}
               onSaveListing={handleSaveListing}
               onSelectListing={handleSelectListing}
+              currentUser={currentUser}
             />
           )}
         </View>

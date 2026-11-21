@@ -11,7 +11,9 @@ public enum ListingStatus
     Active = 2,
     Rejected = 3,
     Sold = 4,
-    Archived = 5
+    Archived = 5,
+    NeedsChanges = 6,
+    Suspended = 7
 }
 
 /// <summary>
@@ -35,3 +37,17 @@ public enum SellerType
     LicensedAgent = 3
 }
 
+
+public enum ListingSaleStatus
+{
+    Available,
+    UnderNegotiation,
+    Sold,
+    Withdrawn
+}
+
+public enum ListingMediaKind
+{
+    Photo,
+    VerificationDocument
+}

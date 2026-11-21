@@ -14,6 +14,8 @@ public class ListingEnquiry
     public decimal? OfferedPriceTotal { get; private set; }
     public string Message { get; private set; } = string.Empty;
     public EnquiryStatus Status { get; private set; } = EnquiryStatus.Submitted;
+    public bool ShareContact { get; private set; }
+    public DateTime? UpdatedAtUtc { get; private set; }
     public DateTime SubmittedAtUtc { get; private set; }
 
     // Navigation properties
@@ -30,7 +32,8 @@ public class ListingEnquiry
         string message,
         decimal? offeredPriceTotal = null,
         EnquiryStatus status = EnquiryStatus.Submitted,
-        DateTime? submittedAtUtc = null)
+        DateTime? submittedAtUtc = null,
+        bool shareContact = false)
     {
         if (listingId == Guid.Empty) throw new ArgumentException("ListingId is required.", nameof(listingId));
         if (buyerUserId == Guid.Empty) throw new ArgumentException("BuyerUserId is required.", nameof(buyerUserId));
@@ -44,22 +47,26 @@ public class ListingEnquiry
         Message = message.Trim();
         OfferedPriceTotal = offeredPriceTotal;
         Status = status;
+        ShareContact = shareContact;
         SubmittedAtUtc = submittedAtUtc ?? DateTime.UtcNow;
     }
 
     public void MarkContacted()
     {
         Status = EnquiryStatus.Contacted;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void Close()
     {
         Status = EnquiryStatus.Closed;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 
     public void MarkAsSpam()
     {
         Status = EnquiryStatus.Spam;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 }
 
