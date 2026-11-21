@@ -226,7 +226,9 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         var configuredOrigins = builder.Configuration["ALLOWED_CORS_ORIGINS"]
-            ?? Environment.GetEnvironmentVariable("ALLOWED_CORS_ORIGINS");
+            ?? Environment.GetEnvironmentVariable("ALLOWED_CORS_ORIGINS")
+            ?? builder.Configuration["ALLOW_CORS_ORIGINS"]
+            ?? Environment.GetEnvironmentVariable("ALLOW_CORS_ORIGINS");
         var origins = (configuredOrigins ?? "")
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (origins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
