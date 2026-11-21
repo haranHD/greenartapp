@@ -220,7 +220,8 @@ export const ListingModerationView: React.FC<ListingModerationViewProps> = ({
 
                     {/* Price Sanity Heuristic Ratio */}
                     <td style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11,
+                      <div style={{
+                        display: 'inline-block', padding: '3px 8px', borderRadius: 4, fontWeight: 700, fontSize: 11,
                         background: ratio > 2.5 ? '#FEF2F2' : ratio < 0.6 ? '#FFFBEB' : '#F0FDF4',
                         color: ratio > 2.5 ? '#DC2626' : ratio < 0.6 ? '#B45309' : '#15803D',
                         border: `1px solid ${ratio > 2.5 ? '#FECACA' : ratio < 0.6 ? '#FDE68A' : '#BBF7D0'}`
