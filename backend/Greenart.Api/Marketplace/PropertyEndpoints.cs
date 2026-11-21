@@ -188,7 +188,7 @@ internal static partial class PropertyEndpoints
                 var now = DateTime.UtcNow;
                 var details = new SellerApplicationDetails(
                     ApplicantName: string.IsNullOrWhiteSpace(sellerUser.FullName) ? "Property Owner" : sellerUser.FullName,
-                    SellerType: sellerUser.SellerType ?? SellerType.IndividualOwner,
+                    SellerType: sellerUser.SellerType,
                     ContactInformation: string.IsNullOrWhiteSpace(sellerUser.PhoneNumber) ? (sellerUser.Email ?? "Mobile User") : sellerUser.PhoneNumber,
                     OperatingDistrict: request.District ?? "Tamil Nadu",
                     OperatingLocality: request.Locality ?? "Tamil Nadu",
