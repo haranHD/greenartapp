@@ -229,21 +229,36 @@ builder.Services.AddCors(options =>
             ?? Environment.GetEnvironmentVariable("ALLOWED_CORS_ORIGINS")
             ?? builder.Configuration["ALLOW_CORS_ORIGINS"]
             ?? Environment.GetEnvironmentVariable("ALLOW_CORS_ORIGINS");
-        var origins = (configuredOrigins ?? "")
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (origins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
-                                  (uri.Scheme != "https" && uri.Scheme != "http") ||
-                                  uri.GetLeftPart(UriPartial.Authority) != origin))
+        var rawOrigins = (configuredOrigins ?? "")
+            .Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(o => o.Trim().Trim('"', '\'').TrimEnd('/'))
+            .Where(o => !string.IsNullOrWhiteSpace(o))
+            .Distinct()
+            .ToArray();
+
+        var validOrigins = new List<string>();
+        foreach (var rawOrigin in rawOrigins)
         {
-            throw new InvalidOperationException("ALLOWED_CORS_ORIGINS must contain comma-separated HTTP(S) origins without paths or wildcards.");
+            var origin = rawOrigin.Trim().Trim('"', '\'').TrimEnd('/');
+            if (Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == "https" || uri.Scheme == "http") &&
+                !origin.Contains('*'))
+            {
+                validOrigins.Add(uri.GetLeftPart(UriPartial.Authority));
+            }
+            else
+            {
+                throw new InvalidOperationException("ALLOWED_CORS_ORIGINS must contain comma-separated HTTP(S) origins without paths or wildcards.");
+            }
         }
-        if (origins.Length == 0 && builder.Environment.IsDevelopment())
+
+        if (validOrigins.Count == 0 && builder.Environment.IsDevelopment())
         {
-            origins = new[] { "http://localhost:5173", "http://localhost:8081", "http://localhost:19006" };
+            validOrigins.AddRange(new[] { "http://localhost:5173", "http://localhost:8081", "http://localhost:19006" });
         }
-        if (origins.Length > 0)
+        if (validOrigins.Count > 0)
         {
-            policy.WithOrigins(origins).AllowAnyMethod().AllowAnyHeader();
+            policy.WithOrigins(validOrigins.ToArray()).AllowAnyMethod().AllowAnyHeader();
         }
     });
 });
