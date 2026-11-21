@@ -17,7 +17,7 @@ export interface NativeInteractiveMapProps {
   height?: number;
 }
 
-const DEFAULT_GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const DEFAULT_GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4';
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   targetLat,
