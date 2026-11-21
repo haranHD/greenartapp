@@ -13,9 +13,10 @@ export interface NativeInteractiveMapProps {
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
   height?: number;
+  circleRadius?: number;
 }
 
-const DEFAULT_GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const DEFAULT_GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4';
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   targetLat,
@@ -28,6 +29,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   apiKey,
   userLocation,
   height = 420,
+  circleRadius = 100,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -205,11 +207,11 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
           },
         });
 
-        // 1,000m Buffer Circle (Gold border & subtle wash)
+        // 100m Buffer Circle (Gold border & subtle wash)
         const circle = new google.maps.Circle({
           map,
           center,
-          radius: 1000,
+          radius: circleRadius,
           fillColor: '#D4AF37',
           fillOpacity: 0.12,
           strokeColor: '#D4AF37',
@@ -326,7 +328,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         });
 
         const circle = L.circle([targetLat, targetLng], {
-          radius: 1000,
+          radius: circleRadius,
           color: '#D4AF37',
           weight: 2,
           fillColor: '#D4AF37',

@@ -1,5 +1,5 @@
 import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Feather from '@expo/vector-icons/Feather';
 import {
   View,
@@ -19,6 +19,7 @@ import { PremiumPressable } from '../components/PremiumPressable';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { Colors } from '../theme/colors';
 import { FeatureIcon } from '../components/FeatureIcon';
+import { searchHistoryService, SearchHistoryItem } from '../services/searchHistory';
 import {
   MobileTab,
   LocalityReference,
@@ -38,6 +39,7 @@ export interface HomeScreenProps {
   onRetrySearch: () => void;
   handleSelectGeocodingSuggestion: (item: LocalitySuggestionDto, fromTab: 'home') => void;
   handleSelectLocalityRef: (loc: LocalityReference) => void;
+  handleSelectCoordinates?: (lat: number, lng: number, localityName: string) => void;
   activeLocality: string;
   targetLat: number;
   targetLng: number;
@@ -60,6 +62,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onRetrySearch,
   handleSelectGeocodingSuggestion,
   handleSelectLocalityRef,
+  handleSelectCoordinates,
   activeLocality,
   targetLat,
   targetLng,
@@ -69,7 +72,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   setEstimateStep,
   setPreviousTab,
 }) => {
-  const [searchFocused, setSearchFocused] = React.useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>(() =>
+    searchHistoryService.getHistory()
+  );
+
+  useEffect(() => {
+    const unsub = searchHistoryService.subscribe((items: SearchHistoryItem[]) => {
+      setSearchHistory(items);
+    });
+    return unsub;
+  }, []);
+
+  const handleSelectHistoryItem = (item: SearchHistoryItem) => {
+    if (item.latitude && item.longitude && handleSelectCoordinates) {
+      handleSelectCoordinates(item.latitude, item.longitude, item.name);
+    } else {
+      setHomeSearchQuery(item.name);
+    }
+    setSearchFocused(false);
+  };
+
+  const matchingHistory = homeSearchQuery.trim()
+    ? searchHistory.filter(
+        (h: SearchHistoryItem) =>
+          h.name.toLowerCase().includes(homeSearchQuery.toLowerCase().trim()) ||
+          (h.district && h.district.toLowerCase().includes(homeSearchQuery.toLowerCase().trim()))
+      )
+    : searchHistory;
   const { width, fontScale } = useWindowDimensions();
   const wide = width >= 768;
   const isCompact = width < 370;
@@ -129,6 +159,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               ) : null}
             </Animated.View>
 
+            {/* Search History Dropdown (when query is empty and input is focused) */}
+            {searchFocused && homeSearchQuery.trim() === '' && searchHistory.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <View style={styles.historyHeaderRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Feather name="clock" size={13} color="#6B21A8" />
+                    <Text style={styles.historyHeaderText}>Recent searches</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => searchHistoryService.clearHistory()}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.historyClearText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {searchHistory.map((item: SearchHistoryItem) => (
+                  <View key={item.id} style={styles.suggestionRow}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+                      onPress={() => handleSelectHistoryItem(item)}
+                    >
+                      <Feather name="clock" size={15} color="#94A3B8" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestionName}>{item.name}</Text>
+                        {item.district ? <Text style={styles.suggestionDistrict}>{item.district}</Text> : null}
+                      </View>
+                      <View style={styles.historyBadge}>
+                        <Text style={styles.historyBadgeText}>Recent</Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => searchHistoryService.removeSearch(item.id)}
+                      style={{ padding: 6 }}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Feather name="x" size={14} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Autocomplete Suggestions Dropdown */}
             {homeSearchQuery.trim() !== '' && (
               <View style={styles.suggestionsContainer}>
@@ -139,6 +213,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.searchingText}>Finding matching locations…</Text>
                   </View>
+                )}
+
+                {/* Matching recent search history items */}
+                {matchingHistory.length > 0 && (
+                  <>
+                    <View style={styles.historyHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Feather name="clock" size={12} color="#6B21A8" />
+                        <Text style={styles.historyHeaderText}>Recent search match</Text>
+                      </View>
+                    </View>
+                    {matchingHistory.slice(0, 3).map((item: SearchHistoryItem) => (
+                      <TouchableOpacity
+                        key={`hist-${item.id}`}
+                        style={styles.suggestionRow}
+                        onPress={() => handleSelectHistoryItem(item)}
+                      >
+                        <Feather name="clock" size={15} color="#6B21A8" style={{ marginRight: 4 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suggestionName}>{item.name}</Text>
+                          {item.district ? <Text style={styles.suggestionDistrict}>{item.district}</Text> : null}
+                        </View>
+                        <View style={styles.historyBadge}>
+                          <Text style={styles.historyBadgeText}>Recent</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </>
                 )}
 
                 {/* Google Places Geocoding Suggestions */}
@@ -192,7 +294,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                 {!searchError && homeSearchQuery.trim().length >= 2 && !isSearchingHomeGeocode &&
                   homeGeocodingSuggestions.length === 0 &&
-                  homeFilteredSuggestions.length === 0 && (
+                  homeFilteredSuggestions.length === 0 &&
+                  matchingHistory.length === 0 && (
                     <Text style={styles.noSuggestionsText}>No matching localities found.</Text>
                   )}
               </View>
@@ -312,6 +415,40 @@ const styles = StyleSheet.create({
   searchFocus: { backgroundColor: Premium.surface, shadowColor: Premium.highlight, shadowOffset: { width: 0, height: 0 }, shadowOpacity: .1, shadowRadius: 4, elevation: 1 },
   searchBarInput: { flex: 1, minWidth: 0, fontSize: 14, color: Premium.text, paddingVertical: 12 },
   suggestionsContainer: { backgroundColor: Premium.surface, borderRadius: 12, borderWidth: 1, borderColor: Premium.border, marginBottom: 12, overflow: 'hidden' },
+  historyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Premium.lavender,
+    backgroundColor: '#FAF5FF',
+  },
+  historyHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B21A8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  historyClearText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  historyBadge: {
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  historyBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#6D28D9',
+  },
   searchingRow: { padding: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
   searchingText: { padding: 12, fontSize: 12, lineHeight: 19, color: Premium.secondary },
   suggestionRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: Premium.lavender, gap: 8 },

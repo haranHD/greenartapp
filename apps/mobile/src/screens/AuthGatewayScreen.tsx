@@ -584,7 +584,11 @@ export const AuthGatewayScreen: React.FC<AuthGatewayScreenProps> = ({
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.stepBackWrap}>
-                  <TouchableOpacity onPress={() => setRegisterStep('details')}>
+                  <TouchableOpacity
+                    style={styles.stepBackBtn}
+                    onPress={() => setRegisterStep('details')}
+                    activeOpacity={0.75}
+                  >
                     <Text style={styles.stepBackText}>← Change email or full name</Text>
                   </TouchableOpacity>
                 </View>
@@ -1088,13 +1092,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
-    paddingHorizontal: 4,
+    marginTop: 14,
+    paddingHorizontal: 2,
+  },
+  stepBackBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
   },
   stepBackText: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: 12.5,
+    color: '#0F172A',
+    fontWeight: '700',
   },
   resendText: {
     fontSize: 11.5,

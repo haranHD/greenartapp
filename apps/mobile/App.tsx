@@ -34,6 +34,7 @@ import { PlotDetailModal } from './src/components/PlotDetailModal';
 import { SellLandFlowView } from './src/components/SellLandFlowView';
 import { ValuationPdfModal } from './src/components/ValuationPdfModal';
 import { AnimatedMapLandingScreen } from './src/components/AnimatedMapLandingScreen';
+import { searchHistoryService } from './src/services/searchHistory';
 
 import {
   HomeScreen,
@@ -547,6 +548,13 @@ function GreenartMobileApp() {
       if (!details) throw new Error('This place could not be located. Choose another result or place the pin on the map.');
       handleSelectCoordinates(details.latitude, details.longitude, details.name);
       setActiveDistrict(details.district || '');
+      searchHistoryService.addSearch({
+        name: details.name,
+        district: details.district || '',
+        latitude: details.latitude,
+        longitude: details.longitude,
+        placeId: suggestion.placeId,
+      });
       setHomeSearchQuery('');
       setSearchTabQuery('');
     } catch (error: any) {
@@ -593,6 +601,12 @@ function GreenartMobileApp() {
         handleSelectCoordinates(resolved.latitude, resolved.longitude, resolved.name);
         setActiveDistrict(resolved.district || '');
         setMapZoom(16); // Focus directly on the resolved address
+        searchHistoryService.addSearch({
+          name: resolved.name,
+          district: resolved.district || '',
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+        });
         setAddressLocateStatus(`📍 Pin placed at: ${resolved.name} (${resolved.latitude.toFixed(4)}, ${resolved.longitude.toFixed(4)})`);
         setSearchTabQuery('');
         setHomeSearchQuery('');
@@ -610,6 +624,12 @@ function GreenartMobileApp() {
   const handleSelectLocalityRef = (loc: LocalityReference) => {
     handleSelectCoordinates(loc.latitude, loc.longitude, loc.name);
     setActiveDistrict(loc.district);
+    searchHistoryService.addSearch({
+      name: loc.name,
+      district: loc.district,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+    });
     setHomeSearchQuery('');
     setSearchTabQuery('');
   };
@@ -799,6 +819,7 @@ function GreenartMobileApp() {
               targetLat={targetLat}
               targetLng={targetLng}
               currentUsageObj={currentUsageObj}
+              handleSelectCoordinates={handleSelectCoordinates}
               executeCalculation={executeCalculation}
               setActiveTab={setActiveTab}
               setEstimateStep={setEstimateStep}

@@ -325,7 +325,7 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             <View style={{ flex: 1, paddingRight: 8 }}>
               <Text style={styles.mapCardTitle} >{activeLocality}</Text>
               <Text style={styles.mapCardSubtitle}>
-                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 1,000m Buffer
+                {targetLat.toFixed(4)}° N, {targetLng.toFixed(4)}° E • 100m Buffer
               </Text>
             </View>
 
@@ -349,12 +349,13 @@ export const LocationExplorerScreen: React.FC<LocationExplorerScreenProps> = ({
             records={records}
             userLocation={userDeviceLocation}
             height={mapHeight}
+            circleRadius={100}
             onSelectLocation={(lat, lng) => handleSelectCoordinates(lat, lng, 'Map Pin')}
           />
 
           <View style={styles.mapFooterBar}>
             <Text style={styles.mapFooterHint}>Tap map to reposition pin</Text>
-            <Text style={styles.mapFooterRadius}>Radius: 1,000m</Text>
+            <Text style={styles.mapFooterRadius}>Radius: 100m</Text>
           </View>
         </View>
 

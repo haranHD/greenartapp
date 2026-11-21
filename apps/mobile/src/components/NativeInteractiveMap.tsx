@@ -12,6 +12,7 @@ export interface NativeInteractiveMapProps {
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
   height?: number;
+  circleRadius?: number;
 }
 
 export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = (props) => {

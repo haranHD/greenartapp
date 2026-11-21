@@ -15,6 +15,7 @@ export interface NativeInteractiveMapProps {
   apiKey?: string;
   userLocation?: { latitude: number; longitude: number } | null;
   height?: number;
+  circleRadius?: number;
 }
 
 const DEFAULT_GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyB8mXEv9un7VEaew89x8VFO5qDAdK1CrW4';
@@ -30,6 +31,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
   apiKey,
   userLocation,
   height = 420,
+  circleRadius = 100,
 }) => {
   const webViewRef = useRef<any>(null);
   const WebViewComponent: any = WebView;
@@ -290,7 +292,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
         gCircle = new google.maps.Circle({
           map: gMap,
           center: centerPos,
-          radius: 1000,
+          radius: ${circleRadius},
           fillColor: '#D4AF37',
           fillOpacity: 0.14,
           strokeColor: '#D4AF37',
@@ -396,7 +398,7 @@ export const NativeInteractiveMap: React.FC<NativeInteractiveMapProps> = ({
       });
 
       lCircle = L.circle([${targetLat}, ${targetLng}], {
-        radius: 1000,
+        radius: ${circleRadius},
         color: '#D4AF37',
         fillColor: '#D4AF37',
         fillOpacity: 0.14,
