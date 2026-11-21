@@ -23,6 +23,17 @@ internal static class MarketplaceAccess
         db.SellerProfiles.FirstOrDefaultAsync(p => p.UserId == id && p.Status == SellerStatus.Approved &&
             db.Users.Any(u => u.Id == p.UserId && u.AccountStatus == AccountStatus.Active), ct);
 
+    public static bool IsAuthorizedAdminKey(string? adminKey, IConfiguration config)
+    {
+        var configuredKey = config["ADMIN_API_KEY"] ?? config["AdminSettings:ApiKey"];
+        if (string.IsNullOrWhiteSpace(configuredKey) || string.IsNullOrWhiteSpace(adminKey))
+            return false;
+
+        var adminBytes = System.Text.Encoding.UTF8.GetBytes(adminKey.Trim());
+        var configuredBytes = System.Text.Encoding.UTF8.GetBytes(configuredKey.Trim());
+        return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(adminBytes, configuredBytes);
+    }
+
     public static IQueryable<MarketplaceListing> PublicListings(LandPriceDbContext db) =>
         db.MarketplaceListings.Where(l => l.Status == ListingStatus.Active &&
             (l.SaleStatus == ListingSaleStatus.Available || l.SaleStatus == ListingSaleStatus.UnderNegotiation) &&

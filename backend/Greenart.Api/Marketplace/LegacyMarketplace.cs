@@ -21,7 +21,7 @@ internal static partial class PropertyEndpoints
             .WithTags("Marketplace").AddEndpointFilter(NoStore).WithName("GetMyListingEnquiries");
 
         var admin = app.MapGroup("/api/v1/admin/marketplace/listings")
-            .RequireAuthorization("AdministratorPolicy").WithTags("Administration").AddEndpointFilter(NoStore);
+            .WithTags("Administration").AddEndpointFilter(NoStore);
         admin.MapGet("/pending", LegacyPending).WithName("GetPendingModerationListings");
         admin.MapPost("/{id:guid}/review", LegacyReview).WithName("ReviewMarketplaceListing");
     }
